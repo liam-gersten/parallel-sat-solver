@@ -37,8 +37,23 @@ Our understanding of the DPLL and conflict-driven SAT solvers is based largely o
 
 ## GOALS AND DELIVERABLES
 
+Our primary deliverable would be a message passing version of a parallel SAT solver, with an emphasis of optimization towards killer sudokus. This requires three sub-features: firstly, a program which can randomly generate an arbitrary-sized killer sudoku puzzle; second, a way to convert such a puzzle into CNF; and thirdly, the SAT solver itself. During the research to select our final project, we found one brief resource online discussing a killer sudoku SAT solver, recording an average solve time of 0.21s per 9x9 using PycoSAT. As PycoSAT is a professional, open-source SAT solver in C, and we are writing our own from scratch - although ours would be parallel, a priori it seems reasonable to aim within a small factor of that time - say, under a second for n=2 or 4. Secondly, we should aim for a reasonable speedup graph, to keep our emphasis on cooperation between threads. In this aspect, based upon previous homeworks and some summary results online of state-of-the-art cooperative SAT solvers, a reasonable goal could be 2-3x speedup on n=8.
+
+Accounting for unforseen spikes (or lack of) difficulty during our work, we may decide to pursue the sharing of conflict clauses with other threads, or simply keep that information local per thread.
+Additionally, adapting our solver to other sudoku variants is straightforward - and in the opposite direction, if killers are too difficult, we may drop back to normal sudokus as well.
+
+A demo is doable for our project. We can show how specific SAT optimizations translate into a more human-oriented strategy of approaching the puzzle. We will also (hopefully) show a non-trivial speedup graph. Another interesting graph could be how our solver, on killer sudokus, compares to other widely-available public SAT solvers.
+Something cute could be - knowing the fact that sudoku is NP-complete - we can encode a simple instance of another NP-hard problem as a sudoku puzzle, then solve it.
+
 ## PLATFORM CHOICE
 
 The DPLL algorithm is based on reducing the search space by taking shortcuts. It does this by erasing (making constant) entire literals or clauses so they don’t need to be looked at again. Threads will need to be able to independently update the formula with their choices without being subject to the choices other threads are making. Considering almost no memory is shared between threads at all, separate address spaces make the most sense here. The GHC machines paired with C++ and MPI will work perfectly fine for our purposes, although our project could benefit from limited access to the PSC machines due to the problem size constraints.
 
 ## SCHEDULE
+
+1. Complete a basic interface for SAT (literals, clauses, etc) as well as our SAT-specific message-passing interface.
+2. Implement a sequential SAT algorithm (involving DPLL and/or conflict clauses), as well as the sudoku generator and sudoku-to-CNF programs.
+3. Extend our implementation to correctly involve MPI.
+4. Debug MPI, plus theorize and implement several different strategies regarding work distribution and load balancing and work stealing.
+5. Optimize w.r.t sudoku strategies, message communications, CNF-encoding, etc.
+6. Final optimizations and assembly of final report.
