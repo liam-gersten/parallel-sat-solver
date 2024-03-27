@@ -7,7 +7,7 @@ We plan to solve Killer Sudoku using the famous Boolean Satisfiability problem i
 
 ## BACKGROUND
 
-<img align="right" width="200" height="200" src="https://i.guim.co.uk/img/media/66ffd3837165af9eb9c6a441566c79021685857d/0_0_860_860/master/860.jpg?width=465&dpr=1&s=none">
+<img align="right" width="300" height="300" src="https://i.guim.co.uk/img/media/66ffd3837165af9eb9c6a441566c79021685857d/0_0_860_860/master/860.jpg?width=465&dpr=1&s=none">
 
 To start, a Killer Sudoku instance must be reduced to a conjunctive normal form SAT instance, which can be sequential or parallel if it is computationally intensive. From there, all threads cooperate with their private address spaces and message passing to run the DPLL algorithm with conflict resolution on the CNF formula. This problem stands to benefit from parallelism due to the massive search space, and even larger clause number required. 
 
