@@ -110,7 +110,14 @@ Cnf convert_to_cnf_type(InputFormula formula) {
 
 // Recursively frees the input formula data structure
 void free_input_formula(InputFormula formula) {
-    // TODO: implement this
+    switch (formula.formula_type) {
+        case 'l': {
+            free(formula.formula_struct);
+            break;
+        } case 'n': {
+            InputNot current = formula;
+        }
+    }
     return;
 }
 
