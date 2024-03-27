@@ -1,104 +1,48 @@
 #ifndef SOLVER_H
 #define SOLVER_H
 
-// Used to convert input to CNF
-
-struct InputFormula {
-    char formula_type; // 'l', 'n', 'a', or 'o'
-    void *formula_struct;
-};
-
-struct InputLiteral {
-    int variable_id;
-};
-
-struct InputNot {
-    InputFormula sub_formula;
-};
-
-struct InputAnd {
-    int num_sub_formulas;
-    InputFormula *sub_formulas;
-};
-
-struct InputOr {
-    int num_sub_formulas;
-    InputFormula *sub_formulas;
-};
-
-// Makes an input literal from a variable id
-InputFormula make_input_literal(int variable_id);
-
-// Makes an input not from a sub formula
-InputFormula make_input_not(InputFormula sub_formula);
-
-// Makes an input and of given more than two sub formulas
-InputFormula make_input_and_many(int num_sub_formulas, InputFormula *sub_formulas);
-
-// Makes an input or of given more than two sub formulas
-InputFormula make_input_or_many(int num_sub_formulas, InputFormula *sub_formulas);
-
-// Makes an input and of two given sub formulas
-InputFormula make_input_and(
-    InputFormula left_formula, 
-    InputFormula right_formula);
-
-// Makes an input and of two given sub formulas
-InputFormula make_input_or(
-    InputFormula left_formula, 
-    InputFormula right_formula);
-
-// Used to solve CNF
-
-struct Literal {
-    bool sign; // if is true or false
-    char status;
-    // 's' if satisfied (constant)
-    // 'u' if unsatisfied (constant)
-    // 'o' otherwise
-};
+#include "helpers.h"
 
 // Will have fixed allocation size
 struct Clause {
     int *literal_variable_ids; // variable ids for each literal
-    Literal *literals; // each literal
+    bool *literal_signs; // each literal
     int num_literals; // size of the two pointers
-    char clause_value; // 's' for satisfied, 'u' for unsatisfied, 'o' for other
-};
-
-struct LinkedList {
-    void *value;
-    LinkedList *next;
 };
 
 struct VariableLocations {
     int variable_id; // id of variable
-    int num_clauses_containing; // number of clauses that contain the variable
-    int num_literals_containing; // number of literals that contain the variable
-    int padding;
+    int variable_row;
+    int variable_col;
+    int variable_k;
     // Will have dynamic allocation size
-    LinkedList *clauses_containing; // LL saving pointers to clause structures 
-    LinkedList *literals_containing; // LL saving pointers to literal structures 
+    Queue clauses_containing; // LL saving pointers to clause structures
 };
 
 struct Cnf {
-    int num_clauses;
-    int num_variables;
-    LinkedList *clauses; // dynamic number
+    Queue clauses; // dynamic number
     VariableLocations *variables; // static number
+    int num_variables;
 };
 
-// Returns whether an input formula is in CNF
-bool is_in_cnf(InputFormula formula);
+// Gets string representation of clause
+std::string clause_to_string(Clause clause);
 
-// Converts input formula to CNF
-void to_cnf(InputFormula formula);
+// Debug print a full cnf structure
+void print_cnf(
+    int caller_pid,
+    std::string prefix_string, 
+    std::string tab_string,
+    Cnf cnf);
 
-// Converts an input formula in CNF to the Cnf type used by the solver.
-Cnf convert_to_cnf_type(InputFormula formula);
+// Makes a clause of just two variables
+Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
 
-// Recursively frees the input formula data structure
-void free_input_formula(InputFormula formula);
+// Adds a clause to the cnf
+void add_clause_to_cnf(Cnf &cnf, Clause new_clause, bool front);
+
+// Makes CNF formula from inputs
+Cnf make_cnf(int **constraints, int n, int sqrt_n, int num_constraints);
 
 // Recursively frees the Cnf formula data structure
 void free_cnf_formula(Cnf formula);
