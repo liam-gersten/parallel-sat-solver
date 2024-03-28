@@ -56,7 +56,13 @@ int **read_puzzle_file(
 
 // Possibly flips value at random
 bool get_first_pick(bool heuristic) {
-    return heuristic;
+    if (!RANDOM_FIRST_PICK) {
+        return heuristic;
+    }
+    if ((rand() % 2) == 0) {
+        return heuristic;
+    }
+    return !heuristic;
 }
 
 // Makes a clause of just two variables

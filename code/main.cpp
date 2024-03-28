@@ -90,10 +90,11 @@ bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
         return true;
     }
     // Two recursive calls
-    bool left_result = solve(cnf, conflict_id, new_var_id, new_var_sign);
+    bool first_choice = get_first_pick(new_var_sign);
+    bool left_result = solve(cnf, conflict_id, new_var_id, first_choice);
     if (!left_result) {
         if (PRINT_LEVEL > 0) printf("%sPID %d left child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, conflict_id);
-        bool right_result = solve(cnf, conflict_id, new_var_id, !new_var_sign);
+        bool right_result = solve(cnf, conflict_id, new_var_id, !first_choice);
         if (!right_result) {
             if (PRINT_LEVEL > 0) printf("%sPID %d right child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)(!new_var_sign), conflict_id);
             undo_edits(cnf, edit_stack);
