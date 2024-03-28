@@ -51,9 +51,14 @@ The DPLL algorithm is based on reducing the search space by taking shortcuts. It
 
 ## SCHEDULE
 
-1. Complete a basic interface for SAT (literals, clauses, etc) as well as our SAT-specific message-passing interface.
-2. Implement a sequential SAT algorithm (involving DPLL and/or conflict clauses), as well as the sudoku generator and sudoku-to-CNF programs.
-3. Extend our implementation to correctly involve MPI.
-4. Debug MPI, plus theorize and implement several different strategies regarding work distribution and load balancing and work stealing.
-5. Optimize w.r.t sudoku strategies, message communications, CNF-encoding, etc.
-6. Final optimizations and assembly of final report.
+Week 1. Complete a basic interface for SAT (literals, clauses, etc) as well as our SAT-specific message-passing interface.
+
+Week 2. Implement a sequential SAT algorithm (involving DPLL and/or conflict clauses), as well as the sudoku generator and sudoku-to-CNF programs.
+
+Week 3. Extend our implementation to correctly involve MPI.
+
+Week 4. Debug MPI, plus theorize and implement several different strategies regarding work distribution and load balancing and work stealing.
+
+Week 5. Optimize w.r.t sudoku strategies, message communications, CNF-encoding, etc.
+
+Week 6. Final optimizations and assembly of final report.
