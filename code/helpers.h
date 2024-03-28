@@ -3,9 +3,9 @@
 
 #include <string>
 
-#define PRINT_LEVEL 4
+#define PRINT_LEVEL 5
 #define CONCISE_FORMULA 1
-#define RANDOM_FIRST_PICK 0
+#define RANDOM_FIRST_PICK 1
 
 // Will have fixed allocation size
 struct Clause {

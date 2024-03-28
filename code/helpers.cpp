@@ -59,9 +59,9 @@ bool get_first_pick(bool heuristic) {
     if (!RANDOM_FIRST_PICK) {
         return heuristic;
     }
-    if ((rand() % 2) == 0) {
-        return heuristic;
-    }
+    // if ((rand() % 2) == 0) {
+    //     return heuristic;
+    // }
     return !heuristic;
 }
 
@@ -92,10 +92,10 @@ Clause make_triple_clause(
     current.literal_signs = (bool *)malloc(sizeof(bool) * 3);
     (current.literal_variable_ids)[0] = var1;
     (current.literal_variable_ids)[1] = var2;
-    (current.literal_variable_ids)[3] = var3;
+    (current.literal_variable_ids)[2] = var3;
     (current.literal_signs)[0] = sign1;
     (current.literal_signs)[1] = sign2;
-    (current.literal_signs)[3] = sign3;
+    (current.literal_signs)[2] = sign3;
     current.num_literals = 3;
     return current;
 }

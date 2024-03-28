@@ -172,11 +172,15 @@ Cnf::Cnf() {
 // Gets string representation of clause
 std::string Cnf::clause_to_string_current(Clause clause, bool elimination) {
     std::string clause_string = "(";
+    int num_displayed = 0;
     for (int lit = 0; lit < clause.num_literals; lit++) {
         int var_id = clause.literal_variable_ids[lit];
         if ((Cnf::assigned_true[var_id] || Cnf::assigned_false[var_id]) 
             && elimination) {
             continue;
+        }
+        if (num_displayed != 0) {
+            clause_string.append(" \\/ ");
         }
         if (!(clause.literal_signs[lit])) {
             clause_string.append("!");
@@ -188,9 +192,7 @@ std::string Cnf::clause_to_string_current(Clause clause, bool elimination) {
         } else {
             clause_string.append(std::to_string(var_id));
         }
-        if (lit != clause.num_literals - 1) {
-            clause_string.append(" \\/ ");
-        }
+        num_displayed++;
     }
     clause_string.append(")");
     return clause_string;
@@ -269,7 +271,7 @@ void Cnf::print_cnf(
             }
         }
     }
-    if (PRINT_LEVEL >= 5) {
+    if (PRINT_LEVEL >= 6) {
         data_string.append("\n");
         data_string.append(tab_string);
         data_string.append(std::to_string(Cnf::clauses.num_indexed));
@@ -360,27 +362,27 @@ bool Cnf::propagate_assignment(
         int clause_id = *current;
         // Try to drop it
         if (!Cnf::clauses_dropped[clause_id]) {
-            if (PRINT_LEVEL >= 3) printf("%sPID %d checking clause %d\n", Cnf::depth_str.c_str(), 0, clause_id);
+            if (PRINT_LEVEL >= 6) printf("%sPID %d checking clause %d\n", Cnf::depth_str.c_str(), 0, clause_id);
             Clause clause = *((Clause *)((Cnf::clauses).get_value(clause_id)));
             int num_unsat;
             char new_clause_status = check_clause(clause, &num_unsat);
             switch (new_clause_status) {
                 case 's': {
                     // Satisfied, can now drop
-                    if (PRINT_LEVEL >= 3) printf("%sPID %d dropping clause %d\n", Cnf::depth_str.c_str(), 0, clause_id);
+                    if (PRINT_LEVEL >= 3) printf("%sPID %d dropping clause %d %s\n", Cnf::depth_str.c_str(), 0, clause_id, clause_to_string_current(clause, false).c_str());
                     Cnf::clauses_dropped[clause_id] = true;
                     Cnf::clauses.strip_value(clause_id);
                     edit_stack.add_to_front(clause_edit(clause_id));
                     break;
                 } case 'u': {
-                    if (PRINT_LEVEL >= 3) printf("%sPID %d clause %d contains conflict\n", Cnf::depth_str.c_str(), 0, clause_id);
+                    if (PRINT_LEVEL >= 3) printf("%sPID %d clause %d %s contains conflict\n", Cnf::depth_str.c_str(), 0, clause_id, clause_to_string_current(clause, false).c_str());
                     conflict_id = clause_id;
                     (*locations.clauses_containing).add_to_back(
                         (void *)current);
                     return false;
                 } default: {
                     // At least the size changed
-                    if (PRINT_LEVEL >= 3) printf("%sPID %d decreasing clause %d size (%d -> %d)\n", Cnf::depth_str.c_str(), 0, clause_id, num_unsat + 1, num_unsat);
+                    if (PRINT_LEVEL >= 3) printf("%sPID %d decreasing clause %d %s size (%d -> %d)\n", Cnf::depth_str.c_str(), 0, clause_id, clause_to_string_current(clause, false).c_str(), num_unsat + 1, num_unsat);
                     Cnf::clauses.change_size_of_value(
                         clause_id, num_unsat + 1, num_unsat);
                     edit_stack.add_to_front(size_change_edit(

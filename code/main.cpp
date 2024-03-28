@@ -25,6 +25,7 @@ void undo_edits(Cnf &cnf, Queue &edit_stack) {
             } case 'c': {
                 int clause_id = recent.edit_id;
                 cnf.clauses.re_add_value(clause_id);
+                cnf.clauses_dropped[clause_id] = false;
                 break;
             } default: {
                 int clause_id = recent.edit_id;
@@ -41,22 +42,24 @@ void undo_edits(Cnf &cnf, Queue &edit_stack) {
 
 bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
     cnf.depth++;
-    cnf.depth_str.append("\t");
+    cnf.depth_str.append(" ");
     Queue edit_stack;
     if (var_id != -1) {
         if (PRINT_LEVEL > 0) printf("%sPID %d trying var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
+        if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
         // Propagate choice
         if (!cnf.propagate_assignment(
             var_id, var_value, conflict_id, edit_stack)) {
             // Conflict clause found
             if (PRINT_LEVEL > 0) printf("%sPID %d assignment propagation of var %d = %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value, conflict_id);
             undo_edits(cnf, edit_stack);
+            if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
             cnf.depth_str = cnf.depth_str.substr(1);
             cnf.depth--;
             return false;
         }
     }
-    if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL == 2));
+    if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
     // Pick a new variable
     if (cnf.clauses.get_linked_list_size() == 0) {
         if (PRINT_LEVEL > 0) printf("%sPID %d base case success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
@@ -79,6 +82,7 @@ bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
             // Conflict clause found
             if (PRINT_LEVEL > 0) printf("%sPID %d only child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, conflict_id);
             undo_edits(cnf, edit_stack);
+            if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
             cnf.depth_str = cnf.depth_str.substr(1);
             cnf.depth--;
             return false;
@@ -98,6 +102,7 @@ bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
         if (!right_result) {
             if (PRINT_LEVEL > 0) printf("%sPID %d right child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)(!new_var_sign), conflict_id);
             undo_edits(cnf, edit_stack);
+            if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
             cnf.depth_str = cnf.depth_str.substr(1);
             cnf.depth--;
             return false;
@@ -213,5 +218,6 @@ void run_example_1() {
 
 
 int main(int argc, char *argv[]) {
-    run_example_1();
+    // run_example_1();
+    run_filename(argc, argv);
 }
