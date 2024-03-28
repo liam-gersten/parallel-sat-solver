@@ -9,7 +9,7 @@ struct VariableLocations {
     int variable_col;
     int variable_k;
     // Will have dynamic allocation size
-    Queue clauses_containing; // LL saving pointers to clause structures
+    Queue *clauses_containing; // LL saving pointers to clause structures
 };
 
 // Adds a clause to data structures
@@ -49,8 +49,7 @@ class Cnf {
             int caller_pid,
             std::string prefix_string, 
             std::string tab_string,
-            bool elimination,
-            bool concise);
+            bool elimination);
 
         // Picks unassigned variable from the clause, returns the number of unsats
         int pick_from_clause(Clause clause, int *var_id, bool *var_sign);
@@ -63,8 +62,11 @@ class Cnf {
         bool propagate_assignment(
             int var_id,
             bool value, 
-            int *conflict_id,
+            int &conflict_id,
             Queue &edit_stack);
+
+        // Returns the assignment of variables
+        bool *get_assignment();
 
         // Converts current formula to integer representation
         unsigned int *to_int_rep(bool *assigned_true, bool *assigned_false);

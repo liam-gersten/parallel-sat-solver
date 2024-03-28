@@ -3,7 +3,9 @@
 
 #include <string>
 
-#define PRINT_LEVEL 0
+#define PRINT_LEVEL 4
+#define CONCISE_FORMULA 1
+#define RANDOM_FIRST_PICK 1
 
 // Will have fixed allocation size
 struct Clause {
@@ -28,6 +30,9 @@ int **read_puzzle_file(
 
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
+
+// Possibly flips value at random
+bool get_first_pick(bool heuristic);
 
 // Makes a variable edit
 void *variable_edit(int var_id);
@@ -159,6 +164,8 @@ class Queue {
         LinkedList *head;
         LinkedList *tail;
         int count = 0;
+
+        // Queue(int count);
 
         // Adds value to back of queue
         void add_to_back(void *value);

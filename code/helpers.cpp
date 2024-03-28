@@ -54,6 +54,11 @@ int **read_puzzle_file(
     return constraints;
 }
 
+// Possibly flips value at random
+bool get_first_pick(bool heuristic) {
+    return heuristic;
+}
+
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2) {
     Clause current;
@@ -471,7 +476,8 @@ void IndexableDLL::advance_iterator() {
 
 // Returns whether the iterator is at the end
 bool IndexableDLL::iterator_is_finished() {
-    return (IndexableDLL::iterator == IndexableDLL::big_tail);
+    return ((IndexableDLL::iterator == IndexableDLL::big_tail) 
+        || (IndexableDLL::linked_list_count == 0));
 }
 
 // Moves all ll items to their original bins.
@@ -486,15 +492,22 @@ void IndexableDLL::free_data() {
     return;
 }
 
+// // Default constructor
+// Queue::Queue(int count) {
+//     Queue::count = count;
+// }
+
 // Adds value to back of queue
 void Queue::add_to_front(void *value) {
     LinkedList current;
     current.value = value;
     if (Queue::count == 0) {
+        // printf("Adding to front Empty\n");
         Queue::head = (LinkedList *)malloc(sizeof(LinkedList));
         Queue::tail = Queue::head;
         *Queue::head = current;
     } else {
+        // printf("Adding to front non empty\n");
         current.next = Queue::head;
         Queue::head = (LinkedList *)malloc(sizeof(LinkedList));
         *(Queue::head) = current;
@@ -507,10 +520,12 @@ void Queue::add_to_back(void *value) {
     LinkedList current;
     current.value = value;
     if (Queue::count == 0) {
+        // printf("Adding to back Empty\n");
         Queue::head = (LinkedList *)malloc(sizeof(LinkedList));
         Queue::tail = Queue::head;
         *Queue::head = current;
     } else {
+        // printf("Adding to back non empty\n");
         LinkedList tail = *(Queue::tail);
         tail.next = (LinkedList *)malloc(sizeof(LinkedList));
         *tail.next = current;
@@ -522,6 +537,7 @@ void Queue::add_to_back(void *value) {
 
 // Pops value from front of queue
 void *Queue::pop_from_front() {
+    // printf("Poping\n");
     LinkedList current = *(Queue::head);
     free(Queue::head);
     Queue::head = current.next;
