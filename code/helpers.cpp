@@ -142,7 +142,7 @@ std::string clause_to_string(Clause clause) {
         clause_string.append(
             std::to_string(clause.literal_variable_ids[lit]));
         if (lit != clause.num_literals - 1) {
-            clause_string.append(" U ");
+            clause_string.append(" \\/ ");
         }
     }
     clause_string.append(")");

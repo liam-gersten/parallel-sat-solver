@@ -189,7 +189,7 @@ std::string Cnf::clause_to_string_current(Clause clause, bool elimination) {
             clause_string.append(std::to_string(var_id));
         }
         if (lit != clause.num_literals - 1) {
-            clause_string.append(" U ");
+            clause_string.append(" \\/ ");
         }
     }
     clause_string.append(")");
@@ -211,6 +211,9 @@ void Cnf::print_cnf(
     if (!CONCISE_FORMULA) data_string.append("\n");
 
     int num_seen = 0;
+    if (Cnf::clauses.iterator_is_finished()) {
+        data_string.append("T");
+    }
     while (!(Cnf::clauses.iterator_is_finished())) {
         Clause *clause_ptr = (Clause *)(Cnf::clauses.get_current_value());
         Clause clause = *clause_ptr;
@@ -266,20 +269,22 @@ void Cnf::print_cnf(
             }
         }
     }
-    data_string.append("\n");
-    data_string.append(tab_string);
-    data_string.append(std::to_string(Cnf::clauses.num_indexed));
-    data_string.append(" indexed clauses: ");
-    if (!CONCISE_FORMULA) data_string.append("\n");
-    for (int clause_id = 0; clause_id < Cnf::clauses.num_indexed; clause_id++) {
-        DoublyLinkedList *element_ptr = Cnf::clauses.element_ptrs[clause_id];
-        DoublyLinkedList element = *element_ptr;
-        Clause *clause_ptr = (Clause *)(element.value);
-        Clause clause = *clause_ptr;
-        if (clause_id > 0) {
-            data_string.append(" /\\ ");
+    if (PRINT_LEVEL >= 5) {
+        data_string.append("\n");
+        data_string.append(tab_string);
+        data_string.append(std::to_string(Cnf::clauses.num_indexed));
+        data_string.append(" indexed clauses: ");
+        if (!CONCISE_FORMULA) data_string.append("\n");
+        for (int clause_id = 0; clause_id < Cnf::clauses.num_indexed; clause_id++) {
+            DoublyLinkedList *element_ptr = Cnf::clauses.element_ptrs[clause_id];
+            DoublyLinkedList element = *element_ptr;
+            Clause *clause_ptr = (Clause *)(element.value);
+            Clause clause = *clause_ptr;
+            if (clause_id > 0) {
+                data_string.append(" /\\ ");
+            }
+            data_string.append(clause_to_string_current(clause, elimination));
         }
-        data_string.append(clause_to_string_current(clause, elimination));
     }
     printf("%sPID %d %s %s\n", tab_string.c_str(), caller_pid, prefix_string.c_str(), data_string.c_str());
     Cnf::clauses.reset_iterator();
@@ -314,17 +319,12 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
     for (int i = 0; i < clause.num_literals; i++) {
         int var_id = clause.literal_variable_ids[i];
         if (Cnf::assigned_true[var_id]) {
-            // printf("Here1 var %d\n", var_id);
             if (clause.literal_signs[i]) {
-                //  printf("\tHere1.2 var %d\n", var_id);
                 *num_unsat = 0;
                 return 's';
             }
         } else if (Cnf::assigned_false[var_id]) {
-            // printf("Here2 var %d\n", var_id);
             if (!(clause.literal_signs[i])) {
-                // printf("\tHere2.2 var %d\n", var_id);
-                // printf("\tClause : %s\n", Cnf::clause_to_string_current(clause, false).c_str());
                 *num_unsat = 0;
                 return 's';
             }

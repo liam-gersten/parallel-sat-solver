@@ -59,7 +59,7 @@ bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
     if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL == 2));
     // Pick a new variable
     if (cnf.clauses.get_linked_list_size() == 0) {
-        if (PRINT_LEVEL > 0) printf("%sPID %d base can success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
+        if (PRINT_LEVEL > 0) printf("%sPID %d base case success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
         cnf.depth_str = cnf.depth_str.substr(1);
         cnf.depth--;
         return true;
