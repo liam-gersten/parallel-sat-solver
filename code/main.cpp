@@ -141,7 +141,19 @@ void run_filename(int argc, char *argv[]) {
     if (!result) {
         raise_error("Couldn't solve");
     }
-    bool *assignment = cnf.assigned_true;
+    bool *assignment = cnf.get_assignment();
+    printf("\nAssignment = [");
+    for (int i = 0; i < cnf.num_variables; i++) {
+        if (assignment[i]) {
+            printf("T");
+        } else {
+            printf("F");
+        }
+        if (i != cnf.num_variables - 1) {
+            printf(", ");
+        }
+    }
+    printf("]\n\n");
     // Convert to a sudoku board
 }
 
@@ -167,31 +179,10 @@ void run_example_1() {
     
     Clause C1 = make_small_clause(0, 1, false, true);
     Clause C2 = make_small_clause(2, 3, false, true);
-    Clause C3;
+    Clause C3 = make_triple_clause(5, 4, 1, false, false, false);
     Clause C4 = make_small_clause(4, 5, false, true);
     Clause C5 = make_small_clause(4, 6, true, true);
-    Clause C6;
-
-    int *C3_vars = (int *)malloc(sizeof(int) * 3);
-    bool *C3_signs = (bool *)calloc(sizeof(int), 3);
-    int *C6_vars = (int *)malloc(sizeof(int) * 3);
-    bool *C6_signs = (bool *)calloc(sizeof(int), 3);
-
-    C3.num_literals = 3;
-    C6.num_literals = 3;
-
-    C3_vars[0] = 5;
-    C3_vars[1] = 4;
-    C3_vars[2] = 1;
-    C6_vars[0] = 0;
-    C6_vars[1] = 4;
-    C6_vars[2] = 6;
-    C6_signs[1] = true;
-
-    C3.literal_variable_ids = C3_vars;
-    C3.literal_signs = C3_signs;
-    C6.literal_variable_ids = C6_vars;
-    C6.literal_signs = C6_signs;
+    Clause C6 = make_triple_clause(0, 4, 6, false, true, false);
 
     add_clause(C1, input_clauses, input_variables);
     add_clause(C2, input_clauses, input_variables);
@@ -200,10 +191,10 @@ void run_example_1() {
     add_clause(C5, input_clauses, input_variables);
     add_clause(C6, input_clauses, input_variables);
 
-    
     Cnf cnf(input_clauses, input_variables, num_variables);
 
     bool result = solve(cnf, conflict_id, -1, true);
+    assert(result);
 
     bool *assignment = cnf.get_assignment();
     printf("\nAssignment = [");

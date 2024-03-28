@@ -31,6 +31,15 @@ int **read_puzzle_file(
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
 
+// Makes a clause of just two variables
+Clause make_triple_clause(
+    int var1, 
+    int var2, 
+    int var3, 
+    bool sign1, 
+    bool sign2, 
+    bool sign3);
+
 // Possibly flips value at random
 bool get_first_pick(bool heuristic);
 

@@ -78,6 +78,28 @@ Clause make_small_clause(int var1, int var2, bool sign1, bool sign2) {
     return current;
 }
 
+// Makes a clause of just two variables
+Clause make_triple_clause(
+        int var1, 
+        int var2, 
+        int var3, 
+        bool sign1, 
+        bool sign2, 
+        bool sign3) 
+    {
+    Clause current;
+    current.literal_variable_ids = (int *)malloc(sizeof(int) * 3);
+    current.literal_signs = (bool *)malloc(sizeof(bool) * 3);
+    (current.literal_variable_ids)[0] = var1;
+    (current.literal_variable_ids)[1] = var2;
+    (current.literal_variable_ids)[3] = var3;
+    (current.literal_signs)[0] = sign1;
+    (current.literal_signs)[1] = sign2;
+    (current.literal_signs)[3] = sign3;
+    current.num_literals = 3;
+    return current;
+}
+
 // Makes a variable edit
 void *variable_edit(int var_id) {
     FormulaEdit edit;
