@@ -1,4 +1,4 @@
-#include "helpers.h"
+#include "cnf.h"
 #include "solver.h"
 #include <string>
 #include <iostream>
@@ -9,30 +9,82 @@
 #include <algorithm>
 #include <unistd.h>
 
-
-void test_solve_other(Cnf cnf) {
-    printf("Depth 1 size = %d\n", cnf.clauses.count);
-    return;
-
+// Resets the cnf to its state before edit stack
+void undo_edits(Cnf &cnf, Queue &edit_stack) {
+    while (edit_stack.count > 0) {
+        FormulaEdit *recent_ptr = (FormulaEdit *)(edit_stack.pop_from_front());
+        FormulaEdit recent = *recent_ptr;
+        switch (recent.edit_type) {
+            case 'v': {
+                int var_id = recent.edit_id;
+                if (cnf.assigned_true[var_id]) {
+                    cnf.assigned_true[var_id] = false;
+                } else {
+                    cnf.assigned_false[var_id] = false;
+                }
+                break;
+            } default: {
+                int clause_id = recent.edit_id;
+                cnf.clauses.re_add_value(clause_id);
+                break;
+            }
+        }
+        free(recent_ptr);
+    }
 }
 
-
-void test_solve_rec(Cnf &cnf, int depth) {
-    if (depth == 2) {
-        printf("\tDepth 2 size before = %d\n", cnf.clauses.count);
-        while (cnf.clauses.count > 9000) {
-            cnf.clauses.pop_from_front();
+bool solve(Cnf &cnf, int &conflict_id) {
+    Queue edit_stack;
+    while (cnf.clauses.count > 0) {
+        cnf.clauses.set_to_head();
+        Clause arbitrary_clause = *((Clause *)(cnf.clauses.get_current_value()));
+        int var0 = arbitrary_clause.literal_variable_ids[0];
+        int var1 = arbitrary_clause.literal_variable_ids[1];
+        if (cnf.assigned_true[var0] || cnf.assigned_false[var0]) {
+            // Know var1's value
+            if (!cnf.propagate_assignment(
+                var1, arbitrary_clause.literal_signs[1], 
+                &conflict_id, edit_stack)) {
+                // Conflict clause found
+                undo_edits(cnf, edit_stack);
+                return false;
+            }
+        } else if (cnf.assigned_true[var1] || cnf.assigned_false[var1]) {
+            // Know var0's value
+            if (!cnf.propagate_assignment(
+                var0, arbitrary_clause.literal_signs[0], 
+                &conflict_id, edit_stack)) {
+                // Conflict clause found
+                undo_edits(cnf, edit_stack);
+                return false;
+            }
+        } else {
+            Queue tmp_stack;
+            // Recurse on var0 = T
+            if (cnf.propagate_assignment(
+                var0, true, &conflict_id, tmp_stack)) {
+                if (solve(cnf, conflict_id)) {
+                    edit_stack.free_data();
+                    return true;
+                }
+            }
+            undo_edits(cnf, tmp_stack);
+            // Recurse on var0 = F
+            if (cnf.propagate_assignment(
+                var0, false, &conflict_id, tmp_stack)) {
+                if (solve(cnf, conflict_id)) {
+                    edit_stack.free_data();
+                    return true;
+                }
+            }
+            // Unsat
+            undo_edits(cnf, tmp_stack);
+            undo_edits(cnf, edit_stack);
+            return false;
         }
-        printf("\tDepth 2 size after = %d\n", cnf.clauses.count);
-        return;
-    } else {
-        printf("Depth 0 size before = %d\n", cnf.clauses.count);
-        test_solve_other(cnf);
-        test_solve_rec(cnf, 2);
-        test_solve_other(cnf);
-        printf("Depth 0 size after = %d\n", cnf.clauses.count);
-        return;
     }
+    edit_stack.free_data();
+    return true;
 }
 
 
@@ -61,11 +113,13 @@ int main(int argc, char *argv[]) {
 
     printf("n = %d, sqrt_n = %d, num_constraints = %d\n", n, sqrt_n, num_constraints);
     
-    Cnf cnf = make_cnf(constraints, n, sqrt_n, num_constraints);
+    Cnf cnf(constraints, n, sqrt_n, num_constraints);
 
-    print_cnf(0, "CNF", "", cnf);
+    cnf.print_cnf(0, "CNF", "");
+    
 
-    test_solve_rec(cnf, 0);
+
+    // test_solve_rec(cnf, 0);
     // Solver solver(solver_formula);
     // bool *assignment = (bool *)calloc(sizeof(bool), solver_formula.num_variables);
     // bool is_satisfiable = solver.solve(assignment);
