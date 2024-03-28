@@ -139,8 +139,6 @@ void run_filename(int argc, char *argv[]) {
 
     Cnf cnf(constraints, n, sqrt_n, num_constraints);
 
-    cnf.print_cnf(0, "CNF", "", true);
-
     int conflict_id;
     bool result = solve(cnf, conflict_id, -1, true);
     if (!result) {
@@ -159,7 +157,8 @@ void run_filename(int argc, char *argv[]) {
         }
     }
     printf("]\n\n");
-    // Convert to a sudoku board
+    short **board = cnf.get_sudoku_board();
+    print_board(board, cnf.n);
 }
 
 void run_example_1() {

@@ -171,6 +171,50 @@ void print_assignment(
         prefix_string.c_str(), data_string.c_str());
 }
 
+// Displays sudoku board
+void print_board(short **board, int n) {
+    std::string padding = "";
+    if (n > 9) {
+        padding.append(" ");
+    }
+    printf("\n\t ");
+    for (int i = 0; i < n; i++) {
+        printf("-");
+        if (n > 9) {
+            printf("-");
+        }
+        if (i != n - 1) {
+            printf("-");
+        }
+    }
+    printf("\n");
+    for (int row = 0; row < n; row++) {
+        printf("\t|");
+        for (int col = 0; col < n; col++) {
+            int val = board[row][col];
+            if (val <= 9) {
+                printf("%s", padding.c_str());
+            }
+            printf("%d", val);
+            if (col != n - 1) {
+                printf(" ");
+            }
+        }
+        printf("|\n");
+    }
+    printf("\t ");
+    for (int i = 0; i < n; i++) {
+        printf("-");
+        if (n > 9) {
+            printf("-");
+        }
+        if (i != n - 1) {
+            printf("-");
+        }
+    }
+    printf("\n\n\n");
+}
+
 // Raises an error with a print statement
 void raise_error(std::string error_message) {
     printf("\n\nERROR: %s\n\n\n", error_message.c_str());

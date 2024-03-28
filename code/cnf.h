@@ -28,6 +28,7 @@ class Cnf {
         bool *clauses_dropped;
         bool *assigned_true;
         bool *assigned_false;
+        int n;
         int depth;
         std::string depth_str;
 
@@ -67,6 +68,9 @@ class Cnf {
 
         // Returns the assignment of variables
         bool *get_assignment();
+
+        // Creates and writes to sudoku board from formula
+        short **get_sudoku_board();
 
         // Converts current formula to integer representation
         unsigned int *to_int_rep(bool *assigned_true, bool *assigned_false);

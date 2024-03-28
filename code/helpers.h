@@ -3,8 +3,9 @@
 
 #include <string>
 
-#define PRINT_LEVEL 5
-#define CONCISE_FORMULA 1
+#define PRINT_LEVEL 0
+
+#define CONCISE_FORMULA 0
 #define RANDOM_FIRST_PICK 1
 
 // Will have fixed allocation size
@@ -62,6 +63,9 @@ void print_assignment(
     std::string tab_string,
     bool *assignment,
     int num_variables);
+
+// Displays sudoku board
+void print_board(short **board, int n);
 
 // Raises an error with a print statement
 void raise_error(std::string error_message);
