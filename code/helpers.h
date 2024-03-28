@@ -3,6 +3,8 @@
 
 #include <string>
 
+#define PRINT_LEVEL 0
+
 // Will have fixed allocation size
 struct Clause {
     int *literal_variable_ids; // variable ids for each literal
@@ -11,8 +13,10 @@ struct Clause {
 };
 
 struct FormulaEdit {
-    char edit_type; // v c
     int edit_id; // var or clause id
+    char edit_type; // v c d
+    short size_before;
+    short size_after;
 };
 
 // Reads input puzzle file to arrays
@@ -22,11 +26,17 @@ int **read_puzzle_file(
     int *sqrt_n_ptr,
     int *num_constraints_ptr);
 
+// Makes a clause of just two variables
+Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
+
 // Makes a variable edit
 void *variable_edit(int var_id);
 
 // Makes a clause edit
 void *clause_edit(int clause_id);
+
+// Makes a size change edit
+void *size_change_edit(int clause_id, int size_before, int size_after);
 
 // Gets string representation of clause
 std::string clause_to_string(Clause clause);
@@ -60,50 +70,85 @@ struct DoublyLinkedList {
     void *value;
     DoublyLinkedList *prev;
     DoublyLinkedList *next;
+    int value_index;
 };
 
 // Doubly linked list that can be indexed.
 // Idea is to always save everything, but not always iterate over everything.
 class IndexableDLL {
     public:
-        int max_indexable;
-        int num_indexed;
-        int count;
-        bool iterator_finished;
-        DoublyLinkedList **element_ptrs;
-        DoublyLinkedList *head;
-        DoublyLinkedList *tail;
-        DoublyLinkedList *iterator;
-        DoublyLinkedList *dummy_head;
+        int max_indexable; // Max amount of clauses that can be held
+        int num_indexed; // Number of clauses we're storing
+        DoublyLinkedList **element_ptrs; // Nothing is removed from here.
+        int *element_counts; // Nothing is removed from here.
+        // "Bins" defined in order of higherst to lowest priority.
+        // Easy to reset these in O(1).
+        DoublyLinkedList *one_big_head; // Size = 1, originally size > 2
+        DoublyLinkedList *one_big_tail; // Size = 1, originally size > 2
+        DoublyLinkedList *one_small_head; // Size = 1, originally size = 2
+        DoublyLinkedList *one_small_tail; // Size = 1, originally size = 2
+        DoublyLinkedList *two_big_head; // Size = 2, originally size > 2
+        DoublyLinkedList *two_big_tail; // Size = 2, originally size > 2
+        DoublyLinkedList *two_head; // Size = 2, originally size = 2
+        DoublyLinkedList *two_tail; // Size = 2, originally size = 2
+        DoublyLinkedList *big_head; // Size > 2
+        DoublyLinkedList *big_tail; // Size > 2
+        int linked_list_count;
+        // Could be within any one of the above
+        DoublyLinkedList *iterator; // Used to traverse the LL
         
     IndexableDLL(int num_to_index);
     // default constructor
     IndexableDLL();
 
     // Adds value with index to the list, O(1)
-    void add_value(void *value, int value_index);
+    void add_value(void *value, int value_index, int num_elements);
 
     // Removes value from the list, pointer saved in index still, easy to re-add
-    // Should not be used when iterating over elements
     void strip_value(int value_index);
 
     // Removes value from the list, pointer saved in index still, easy to re-add
     void strip_current();
-    
+
     // Re adds a value to the list, will now be traversable again
     void re_add_value(int value_index);
+
+    // Returns the tail an element should be added to given the size change
+    DoublyLinkedList *get_tail_of_interest(int old_size, int new_size);
+
+    // Moves element to a new bin based on a new size
+    void change_size_of_value(int value_index, int old_size, int new_size);
+    
+    // Moves element at iterator to a new bin based on a new size
+    // This will move the element to an earlier position before the iterator
+    void change_size_of_current(int old_size, int new_size);
 
     // Returns saved value at index
     void *get_value(int value_index);
 
-    // Sets iterator to the start
-    void set_to_head();
-
     // Gets value at iterator
     void *get_current_value();
 
+    // Gets the index of the element the iterator is on
+    int get_current_index();
+
+    // Returns the size of the linked list
+    int get_linked_list_size();
+    
+    // Returns whether the iterator's position is valid
+    bool iterator_position_valid();
+    
+    // Sets iterator to the start
+    void reset_iterator();
+
     // Moves iterator forward
     void advance_iterator();
+
+    // Returns whether the iterator is at the end
+    bool iterator_is_finished();
+
+    // Moves all ll items to their original bins.
+    void reset_ll_bins();
 
     // Frees data structures used
     void free_data();

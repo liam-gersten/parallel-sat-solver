@@ -12,8 +12,11 @@ struct VariableLocations {
     Queue clauses_containing; // LL saving pointers to clause structures
 };
 
-// Makes a clause of just two variables
-Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
+// Adds a clause to data structures
+void add_clause(
+    Clause new_clause, 
+    IndexableDLL &clauses, 
+    VariableLocations *variables);
 
 class Cnf {
     public:
@@ -25,20 +28,35 @@ class Cnf {
         bool *clauses_dropped;
         bool *assigned_true;
         bool *assigned_false;
+        int depth;
+        std::string depth_str;
 
         // Makes CNF formula from inputs
         Cnf(int **constraints, int n, int sqrt_n, int num_constraints);
+        // Makes CNF formula from premade data structures
+        Cnf(
+            IndexableDLL input_clauses, 
+            VariableLocations *input_variables, 
+            int num_variables);
         // Default constructor
         Cnf();
+
+        // Gets string representation of edited clause
+        std::string clause_to_string_current(Clause clause, bool elimination);
 
         // Debug print a full cnf structure
         void print_cnf(
             int caller_pid,
             std::string prefix_string, 
-            std::string tab_string);
+            std::string tab_string,
+            bool elimination,
+            bool concise);
 
-        // Adds a clause to the cnf
-        void add_clause(Clause new_clause);
+        // Picks unassigned variable from the clause, returns the number of unsats
+        int pick_from_clause(Clause clause, int *var_id, bool *var_sign);
+
+        // Gets the status of a clause, 's', 'u', or 'n'.
+        char check_clause(Clause clause, int *num_unsat);
 
         // Updates formula with given assignment.
         // Returns false on failure and populates conflict id.

@@ -1,5 +1,4 @@
 #include "cnf.h"
-#include "solver.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -23,9 +22,16 @@ void undo_edits(Cnf &cnf, Queue &edit_stack) {
                     cnf.assigned_false[var_id] = false;
                 }
                 break;
-            } default: {
+            } case 'c': {
                 int clause_id = recent.edit_id;
                 cnf.clauses.re_add_value(clause_id);
+                break;
+            } default: {
+                int clause_id = recent.edit_id;
+                int size_before = (int)recent.size_before;
+                int size_after = (int)recent.size_after;
+                cnf.clauses.change_size_of_value(
+                    clause_id, size_after, size_before);
                 break;
             }
         }
@@ -33,64 +39,59 @@ void undo_edits(Cnf &cnf, Queue &edit_stack) {
     }
 }
 
-bool solve(Cnf &cnf, int &conflict_id) {
+bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
+    cnf.depth++;
+    cnf.depth_str.append("  ");
     Queue edit_stack;
-    while (cnf.clauses.count > 0) {
-        cnf.clauses.set_to_head();
-        Clause arbitrary_clause = *((Clause *)(cnf.clauses.get_current_value()));
-        int var0 = arbitrary_clause.literal_variable_ids[0];
-        int var1 = arbitrary_clause.literal_variable_ids[1];
-        if (cnf.assigned_true[var0] || cnf.assigned_false[var0]) {
-            // Know var1's value
-            if (!cnf.propagate_assignment(
-                var1, arbitrary_clause.literal_signs[1], 
-                &conflict_id, edit_stack)) {
-                // Conflict clause found
-                undo_edits(cnf, edit_stack);
-                return false;
-            }
-        } else if (cnf.assigned_true[var1] || cnf.assigned_false[var1]) {
-            // Know var0's value
-            if (!cnf.propagate_assignment(
-                var0, arbitrary_clause.literal_signs[0], 
-                &conflict_id, edit_stack)) {
-                // Conflict clause found
-                undo_edits(cnf, edit_stack);
-                return false;
-            }
-        } else {
-            Queue tmp_stack;
-            // Recurse on var0 = T
-            if (cnf.propagate_assignment(
-                var0, true, &conflict_id, tmp_stack)) {
-                if (solve(cnf, conflict_id)) {
-                    edit_stack.free_data();
-                    return true;
-                }
-            }
-            undo_edits(cnf, tmp_stack);
-            // Recurse on var0 = F
-            if (cnf.propagate_assignment(
-                var0, false, &conflict_id, tmp_stack)) {
-                if (solve(cnf, conflict_id)) {
-                    edit_stack.free_data();
-                    return true;
-                }
-            }
-            // Unsat
-            undo_edits(cnf, tmp_stack);
+    if (var_id != -1) {
+        if (PRINT_LEVEL > 0) printf("%sPID %d trying var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
+        // Propagate choice
+        if (!cnf.propagate_assignment(
+            var_id, var_value, &conflict_id, edit_stack)) {
+            // Conflict clause found
             undo_edits(cnf, edit_stack);
             return false;
         }
     }
+    if (PRINT_LEVEL > 0) cnf.print_cnf(0, "CNF", "", true, false);
+    // Pick a new variable
+    if (cnf.clauses.get_linked_list_size() == 0) {
+        return true;
+    }
+    cnf.clauses.reset_iterator();
+    Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
+    int current_clause_id = cnf.clauses.get_current_index();
+    int new_var_id;
+    bool new_var_sign;
+    int num_unsat = cnf.pick_from_clause(
+        current_clause, &new_var_id, &new_var_sign);
+    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id);
+    if (num_unsat == 1) {
+        // Already know its correct value, one recursive call
+        bool result = solve(cnf, conflict_id, new_var_id, new_var_sign);
+        if (!result) {
+            // Conflict clause found
+            undo_edits(cnf, edit_stack);
+            return false;
+        }
+        edit_stack.free_data();
+        return true;
+    }
+    // Two recursive calls
+    bool left_result = solve(cnf, conflict_id, new_var_id, new_var_sign);
+    if (!left_result) {
+        bool right_result = solve(cnf, conflict_id, new_var_id, !new_var_sign);
+        if (!right_result) {
+            undo_edits(cnf, edit_stack);
+            return false;
+        }
+    }    
     edit_stack.free_data();
     return true;
 }
 
-
-int main(int argc, char *argv[]) {
+void run_filename(int argc, char *argv[]) {
     std::string input_filename;
-
     // Read command line arguments
     int opt;
     while ((opt = getopt(argc, argv, "f:")) != -1) {
@@ -104,29 +105,90 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("filename = %s\n", input_filename.c_str());
-    
+
     int n;
     int sqrt_n;
     int num_constraints;
     int **constraints = read_puzzle_file(
         input_filename, &n, &sqrt_n, &num_constraints);
 
-    printf("n = %d, sqrt_n = %d, num_constraints = %d\n", n, sqrt_n, num_constraints);
-    
     Cnf cnf(constraints, n, sqrt_n, num_constraints);
 
-    cnf.print_cnf(0, "CNF", "");
+    cnf.print_cnf(0, "CNF", "", true, false);
+
+    int conflict_id;
+    bool result = solve(cnf, conflict_id, -1, true);
+    if (!result) {
+        raise_error("Couldn't solve");
+    }
+    bool *assignment = cnf.assigned_true;
+    // Convert to a sudoku board
+}
+
+void run_example_1() {
+    int num_variables = 5;
+    VariableLocations *input_variables = (VariableLocations *)malloc(
+        sizeof(VariableLocations) * num_variables);
+    IndexableDLL input_clauses(30);
+
+    for (int i = 0; i < num_variables; i++) {
+        VariableLocations current;
+        current.variable_id = i;
+        current.variable_row = i;
+        current.variable_col = i;
+        current.variable_k = i;
+        Queue variable_clauses;
+        current.clauses_containing = variable_clauses;
+        input_variables[i] = current;
+    }
     
+    Clause C1 = make_small_clause(0, 1, false, true);
+    Clause C2 = make_small_clause(2, 3, false, true);
+    Clause C3;
+    Clause C4 = make_small_clause(4, 5, false, true);
+    Clause C5 = make_small_clause(4, 6, true, true);
+    Clause C6;
+
+    int *C3_vars = (int *)malloc(sizeof(int) * 3);
+    bool *C3_signs = (bool *)calloc(sizeof(int), 3);
+    int *C6_vars = (int *)malloc(sizeof(int) * 3);
+    bool *C6_signs = (bool *)calloc(sizeof(int), 3);
+
+    C3.num_literals = 3;
+    C6.num_literals = 3;
+
+    C3_vars[0] = 5;
+    C3_vars[1] = 4;
+    C3_vars[2] = 1;
+    C6_vars[0] = 0;
+    C6_vars[1] = 4;
+    C6_vars[2] = 6;
+    C6_signs[1] = true;
+
+    C3.literal_variable_ids = C3_vars;
+    C3.literal_signs = C3_signs;
+    C6.literal_variable_ids = C6_vars;
+    C6.literal_signs = C6_signs;
+    
+    add_clause(C1, input_clauses, input_variables);
+    add_clause(C2, input_clauses, input_variables);
+    add_clause(C3, input_clauses, input_variables);
+    add_clause(C4, input_clauses, input_variables);
+    add_clause(C5, input_clauses, input_variables);
+    add_clause(C6, input_clauses, input_variables);
+    
+    Cnf cnf(input_clauses, input_variables, num_variables);
+
+    cnf.print_cnf(0, "CNF", "", true, true);
+
+    Queue edit_stack;
+    int conflict_id;
+    cnf.propagate_assignment(0, true, &conflict_id, edit_stack);
+
+    cnf.print_cnf(0, "CNF", "", true, true);
+}
 
 
-    // test_solve_rec(cnf, 0);
-    // Solver solver(solver_formula);
-    // bool *assignment = (bool *)calloc(sizeof(bool), solver_formula.num_variables);
-    // bool is_satisfiable = solver.solve(assignment);
-    // if (is_satisfiable) {
-    //     print_assignment(0, "satisfying assignment:", "", assignment, 
-    //     solver_formula.num_variables);
-    // } else {
-    //     printf("Not satisfyable\n");
-    // }
+int main(int argc, char *argv[]) {
+    run_example_1();
 }

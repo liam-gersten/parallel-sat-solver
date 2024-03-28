@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <string>
 #include <limits.h>
+#include <cassert>
 
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
@@ -53,6 +54,19 @@ int **read_puzzle_file(
     return constraints;
 }
 
+// Makes a clause of just two variables
+Clause make_small_clause(int var1, int var2, bool sign1, bool sign2) {
+    Clause current;
+    current.literal_variable_ids = (int *)malloc(sizeof(int) * 2);
+    current.literal_signs = (bool *)malloc(sizeof(bool) * 2);
+    (current.literal_variable_ids)[0] = var1;
+    (current.literal_variable_ids)[1] = var2;
+    (current.literal_signs)[0] = sign1;
+    (current.literal_signs)[1] = sign2;
+    current.num_literals = 2;
+    return current;
+}
+
 // Makes a variable edit
 void *variable_edit(int var_id) {
     FormulaEdit edit;
@@ -68,6 +82,18 @@ void *clause_edit(int clause_id) {
     FormulaEdit edit;
     edit.edit_type = 'c';
     edit.edit_id = clause_id;
+    FormulaEdit *edit_ptr = (FormulaEdit *)malloc(sizeof(FormulaEdit));
+    *edit_ptr = edit;
+    return (void *)edit_ptr;
+}
+
+// Makes a size change edit
+void *size_change_edit(int clause_id, int size_before, int size_after) {
+    FormulaEdit edit;
+    edit.edit_type = 'i';
+    edit.edit_id = clause_id;
+    edit.size_before = (short)size_before;
+    edit.size_after = (short)size_after;
     FormulaEdit *edit_ptr = (FormulaEdit *)malloc(sizeof(FormulaEdit));
     *edit_ptr = edit;
     return (void *)edit_ptr;
@@ -160,136 +186,304 @@ bool *int_to_bits(unsigned int value) {
 IndexableDLL::IndexableDLL(int num_to_index) {
     IndexableDLL::max_indexable = num_to_index;
     IndexableDLL::num_indexed = 0;
-    IndexableDLL::count = 0;
-    IndexableDLL::iterator_finished = true;
-    IndexableDLL::element_ptrs = (DoublyLinkedList **)calloc(
-        sizeof(DoublyLinkedList *), num_to_index);
-    DoublyLinkedList dummy_head;
-    IndexableDLL::dummy_head = (DoublyLinkedList *)malloc(
+    IndexableDLL::element_ptrs = (DoublyLinkedList **)malloc(
+        sizeof(DoublyLinkedList *) * num_to_index);
+    IndexableDLL::element_counts = (int *)calloc(sizeof(int), num_to_index);
+    
+    DoublyLinkedList bookend_value;
+    bookend_value.value_index = -1;
+
+    IndexableDLL::one_big_head = (DoublyLinkedList *)malloc(
         sizeof(DoublyLinkedList));
-    *IndexableDLL::dummy_head = dummy_head;
+    *IndexableDLL::one_big_head = bookend_value;
+    IndexableDLL::one_big_tail = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::one_big_tail = bookend_value;
+
+    IndexableDLL::one_small_head = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::one_small_head = bookend_value;
+    IndexableDLL::one_small_tail = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::one_small_tail = bookend_value;
+
+    IndexableDLL::two_big_head = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::two_big_head = bookend_value;
+    IndexableDLL::two_big_tail = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::two_big_tail = bookend_value;
+
+    IndexableDLL::two_head = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::two_head = bookend_value;
+    IndexableDLL::two_tail = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::two_tail = bookend_value;
+
+    IndexableDLL::big_head = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::big_head = bookend_value;
+    IndexableDLL::big_tail = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList));
+    *IndexableDLL::big_tail = bookend_value;
+
+    // Tie them together
+    (*(IndexableDLL::one_big_head)).next = one_big_tail;
+    (*(IndexableDLL::one_big_tail)).next = one_small_head;
+    (*(IndexableDLL::one_small_head)).next = one_small_tail;
+    (*(IndexableDLL::one_small_tail)).next = two_big_head;
+    (*(IndexableDLL::two_big_head)).next = two_big_tail;
+    (*(IndexableDLL::two_big_tail)).next = two_head;
+    (*(IndexableDLL::two_head)).next = two_tail;
+    (*(IndexableDLL::two_tail)).next = big_head;
+    (*(IndexableDLL::big_head)).next = big_tail;
+
+    (*(IndexableDLL::one_big_tail)).prev = one_big_head;
+    (*(IndexableDLL::one_small_head)).prev = one_big_tail;
+    (*(IndexableDLL::one_small_tail)).prev = one_small_head;
+    (*(IndexableDLL::two_big_head)).prev = one_small_tail;
+    (*(IndexableDLL::two_big_tail)).prev = two_big_head;
+    (*(IndexableDLL::two_head)).prev = two_big_tail;
+    (*(IndexableDLL::two_tail)).prev = two_head;
+    (*(IndexableDLL::big_head)).prev = two_tail;
+    (*(IndexableDLL::big_tail)).prev = big_head;
+
+    // All are empty
+    IndexableDLL::linked_list_count = 0;
 }
 
 // default constructor
 IndexableDLL::IndexableDLL() {
     IndexableDLL::max_indexable = 0;
     IndexableDLL::num_indexed = 0;
-    IndexableDLL::count = 0;
-    IndexableDLL::iterator_finished = true;
+    IndexableDLL::linked_list_count = 0;
 }
 
 // Adds value with index to the list, O(1)
-void IndexableDLL::add_value(void *value, int value_index) {
-    if (IndexableDLL::count == IndexableDLL::max_indexable) {
-        raise_error("Maximum clause storage size exceeded\n");
+void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
+    if (value_index < IndexableDLL::num_indexed) {
+        // Already added
+        return;
+    } else if (IndexableDLL::num_indexed == IndexableDLL::max_indexable) {
+        raise_error("\nOut of space for more clauses\n");
     }
     DoublyLinkedList current;
     current.value = value;
-    DoublyLinkedList *item_ptr = (DoublyLinkedList *)malloc(
+    current.value_index = value_index;
+    DoublyLinkedList *current_ptr = (DoublyLinkedList *)malloc(
         sizeof(DoublyLinkedList));
-    *item_ptr = current;
-    // Index stuff
-    IndexableDLL::element_ptrs[value_index] = item_ptr;
-    IndexableDLL::num_indexed++;
-    IndexableDLL::count++;
-    // LL stuff
-    if (IndexableDLL::count == 1) {
-        IndexableDLL::head = item_ptr;
-        IndexableDLL::tail = item_ptr;
-        IndexableDLL::iterator = item_ptr;
+    *current_ptr = current;
+    IndexableDLL::element_ptrs[value_index] = current_ptr;
+    IndexableDLL::element_counts[value_index] = num_elements;
+    IndexableDLL::num_indexed += 1;
+    DoublyLinkedList *tail_of_interest;
+    if (num_elements == 2) {
+        tail_of_interest = IndexableDLL::two_tail;
     } else {
-        (*(IndexableDLL::tail)).next = item_ptr;
-        (*item_ptr).prev = IndexableDLL::tail;
-        IndexableDLL::tail = item_ptr;
+        assert(num_elements > 2);
+        tail_of_interest = IndexableDLL::big_tail;
     }
-    // printf("head = %s\n", clause_to_string(*((Clause *)((*(IndexableDLL::head)).value))).c_str());
-    // printf("tail = %s\n", clause_to_string(*((Clause *)((*(IndexableDLL::tail)).value))).c_str());
+    DoublyLinkedList *final_element = (*tail_of_interest).prev;
+    (*final_element).next = current_ptr;
+    (*(current_ptr)).prev = final_element;
+    (*(current_ptr)).next = tail_of_interest;
+    (*tail_of_interest).prev = current_ptr;
+    IndexableDLL::linked_list_count++;
 }
 
 // Removes value from the list, pointer saved in index still, easy to re-add
-// Should NOT be used when iterating over elements
 void IndexableDLL::strip_value(int value_index) {
-    DoublyLinkedList *current_element = IndexableDLL::element_ptrs[value_index];
-    if (IndexableDLL::count == 1) {
-        IndexableDLL::count = 0;
-        IndexableDLL::iterator_finished = true;
-    } else if (IndexableDLL::head == current_element) {
-        IndexableDLL::head = (*current_element).next;
-        IndexableDLL::count--;
-    } else if (IndexableDLL::tail == current_element) {
-        IndexableDLL::head = (*current_element).prev;
-        IndexableDLL::count--;
-    } else {
-        DoublyLinkedList *prev = (*current_element).prev;
-        DoublyLinkedList *next = (*current_element).next;
-        (*prev).next = next;
-        (*next).prev = prev;
-        IndexableDLL::count--;
+    assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
+    DoublyLinkedList *prev = (*current_ptr).prev;
+    DoublyLinkedList *next = (*current_ptr).next;
+    if (IndexableDLL::iterator == current_ptr) {
+        // Move to previous element
+        IndexableDLL::iterator = prev;
     }
+    (*prev).next = next;
+    (*next).prev = prev;
+    IndexableDLL::linked_list_count--;
 }
 
 // Removes value from the list, pointer saved in index still, easy to re-add
 void IndexableDLL::strip_current() {
-    if (IndexableDLL::iterator == IndexableDLL::tail) {
-        IndexableDLL::iterator_finished = true;
-    }
-    DoublyLinkedList *current_element = IndexableDLL::iterator;
-    (*(IndexableDLL::dummy_head)).next = (*current_element).next;
-    IndexableDLL::iterator = IndexableDLL::dummy_head;
-    IndexableDLL::count--;
+    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
+    DoublyLinkedList *prev = (*current_ptr).prev;
+    DoublyLinkedList *next = (*current_ptr).next;
+    IndexableDLL::iterator = prev;
+    (*prev).next = next;
+    (*next).prev = prev;
+    IndexableDLL::linked_list_count--;
 }
 
 // Re adds a value to the list, will now be traversable again
 void IndexableDLL::re_add_value(int value_index) {
-    DoublyLinkedList *current_element = IndexableDLL::element_ptrs[value_index];
-    IndexableDLL::count++;
-    if (IndexableDLL::count == 1) {
-        IndexableDLL::head = current_element;
-        IndexableDLL::tail = current_element;
-        IndexableDLL::iterator = current_element;
+    assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
+    int num_elements = IndexableDLL::element_counts[value_index];
+    DoublyLinkedList *tail_of_interest;
+    if (num_elements == 2) {
+        tail_of_interest = IndexableDLL::two_tail;
     } else {
-        (*(IndexableDLL::tail)).next = current_element;
-        (*current_element).prev = IndexableDLL::tail;
-        IndexableDLL::tail = current_element;
+        assert(num_elements > 2);
+        tail_of_interest = IndexableDLL::big_tail;
     }
+    DoublyLinkedList *final_element = (*tail_of_interest).prev;
+    (*final_element).next = current_ptr;
+    (*(current_ptr)).prev = final_element;
+    (*(current_ptr)).next = tail_of_interest;
+    (*tail_of_interest).prev = current_ptr;
+    IndexableDLL::linked_list_count++;
+}
+
+// Returns the tail an element should be added to given the size change
+DoublyLinkedList *IndexableDLL::get_tail_of_interest(
+        int old_size, 
+        int new_size) 
+    {
+    if (new_size == 1) {
+        // Decreases to 1
+        if (old_size == 2) {
+            return IndexableDLL::one_small_tail;
+        }
+        assert(old_size > 2);
+        return IndexableDLL::one_big_tail;
+    } else if (new_size == 2) {
+        if (old_size == 1) {
+            return IndexableDLL::two_tail;
+        }
+        assert(old_size > 2);
+        return IndexableDLL::two_big_tail;
+    }
+    return IndexableDLL::big_tail;
+}
+
+// Moves element to a new bin based on a new size
+void IndexableDLL::change_size_of_value(
+        int value_index, 
+        int old_size, 
+        int new_size) {
+    assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    assert(0 < old_size && 0 < new_size && new_size != old_size);
+    if ((new_size > 2) && (old_size > 2)) {
+        // No re-ordering to do
+        return;
+    }
+    strip_value(value_index);
+    DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
+    DoublyLinkedList *tail_of_interest = get_tail_of_interest(
+        old_size, new_size);
+    DoublyLinkedList *final_element = (*tail_of_interest).prev;
+    (*final_element).next = current_ptr;
+    (*(current_ptr)).prev = final_element;
+    (*(current_ptr)).next = tail_of_interest;
+    (*tail_of_interest).prev = current_ptr;
+    IndexableDLL::linked_list_count++;
+}
+
+// Moves element at iterator to a new bin based on a new size
+// This will move the element to an earlier position before the iterator
+void IndexableDLL::change_size_of_current(int old_size, int new_size) {
+    assert(iterator_position_valid() && (!iterator_is_finished()));
+    assert(0 < old_size && 0 < new_size && new_size != old_size);
+    if ((new_size > 2) && (old_size > 2)) {
+        // No re-ordering to do
+        return;
+    }
+    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
+    DoublyLinkedList *prev = (*current_ptr).prev;
+    DoublyLinkedList *next = (*current_ptr).next;
+    IndexableDLL::iterator = prev;
+    (*prev).next = next;
+    (*next).prev = prev;
+    DoublyLinkedList *tail_of_interest = get_tail_of_interest(
+        old_size, new_size);
+    DoublyLinkedList *final_element = (*tail_of_interest).prev;
+    (*final_element).next = current_ptr;
+    (*(current_ptr)).prev = final_element;
+    (*(current_ptr)).next = tail_of_interest;
+    (*tail_of_interest).prev = current_ptr;
 }
 
 // Returns saved value at index
 void *IndexableDLL::get_value(int value_index) {
-    DoublyLinkedList *current_element = IndexableDLL::element_ptrs[value_index];
-    return (*current_element).value;
-}
-
-// Sets iterator to the start
-void IndexableDLL::set_to_head() {
-    IndexableDLL::iterator_finished = (IndexableDLL::count == 0);
-    IndexableDLL::iterator = IndexableDLL::head;
+    assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
+    return (*current_ptr).value;
 }
 
 // Gets value at iterator
 void *IndexableDLL::get_current_value() {
-    return (*(IndexableDLL::iterator)).value;
+    assert(iterator_position_valid() && (!iterator_is_finished()));
+    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
+    return (*current_ptr).value;
+}
+
+// Gets the index of the element the iterator is on
+int IndexableDLL::get_current_index() {
+    assert(iterator_position_valid() && (!iterator_is_finished()));
+    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
+    return (*current_ptr).value_index;
+}
+
+// Returns the size of the linked list
+int IndexableDLL::get_linked_list_size() {
+    return IndexableDLL::linked_list_count;
+}
+
+// Returns whether the iterator's position is valid (internal)
+bool IndexableDLL::iterator_position_valid() {
+    // Being at the final tail (big_tail) is valid
+    return (
+        (IndexableDLL::iterator != IndexableDLL::one_big_head) &&
+        (IndexableDLL::iterator != IndexableDLL::one_small_head) &&
+        (IndexableDLL::iterator != IndexableDLL::two_big_head) &&
+        (IndexableDLL::iterator != IndexableDLL::two_head) &&
+        (IndexableDLL::iterator != IndexableDLL::big_head) &&
+        (IndexableDLL::iterator != IndexableDLL::one_big_tail) &&
+        (IndexableDLL::iterator != IndexableDLL::one_small_tail) &&
+        (IndexableDLL::iterator != IndexableDLL::two_big_tail) &&
+        (IndexableDLL::iterator != IndexableDLL::two_tail)
+        );    
+}
+
+// Sets iterator to the start
+void IndexableDLL::reset_iterator() {
+    IndexableDLL::iterator = IndexableDLL::one_big_head;
+    if (IndexableDLL::linked_list_count == 0) {
+        return;
+    }
+    while (!iterator_position_valid()) {
+        IndexableDLL::iterator = (*(IndexableDLL::iterator)).next;
+    }
 }
 
 // Moves iterator forward
 void IndexableDLL::advance_iterator() {
-    if (IndexableDLL::iterator_finished) {
-        return;
-    }
-    if (IndexableDLL::tail == IndexableDLL::iterator) {
-        IndexableDLL::iterator_finished = true;
-        return;
-    }
     IndexableDLL::iterator = (*(IndexableDLL::iterator)).next;
+    // Keep moving until we find a valid element or the end
+    while (!iterator_position_valid()) {
+        IndexableDLL::iterator = (*(IndexableDLL::iterator)).next;
+    }
+}
+
+// Returns whether the iterator is at the end
+bool IndexableDLL::iterator_is_finished() {
+    return (IndexableDLL::iterator == IndexableDLL::big_tail);
+}
+
+// Moves all ll items to their original bins.
+void IndexableDLL::reset_ll_bins() {
+    // TODO: implement this
+    return;
 }
 
 // Frees data structures used
 void IndexableDLL::free_data() {
-    for (int i = 0; i < IndexableDLL::num_indexed; i++) {
-        free(IndexableDLL::element_ptrs[i]);
-    }
-    free(IndexableDLL::element_ptrs);
-    free(IndexableDLL::dummy_head);
+    // TODO: implement this
+    return;
 }
 
 // Adds value to back of queue
