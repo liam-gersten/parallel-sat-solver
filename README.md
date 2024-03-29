@@ -65,18 +65,12 @@ Week 6. Final optimizations and assembly of final report.
 
 ## TODO List
 
-<style>
-r { color: Red }
-o { color: Orange }
-g { color: Green }
-</style>
-
 | Task    | Difficulty | Priority |
 | -------- | ------- | ------ |
-| Conflict Clauses + Resolution | <o>Very Hard</o> | <r>High</r> |
-| Better SAT reduction | <g>Easy</g> | <g>Low</g> |
-| Killer Variant of Sudoku | <g>Easy</g> | <o>Moderate</o> |
-| Basic Parallel Version | <r>Very Hard</r> | <r>Highest</r> |
-| Work Stealing | <r>Very Hard</r> | <r>Very High</r> |
-| Eliminate Recursion | <g>Easy</g> | <g>Low</g> |
-| Better Unit Propagation | <g>Easy</g> | <o>Moderate</o> |
+| Conflict Clauses + Resolution | Very Hard | High |
+| Better SAT reduction | Easy | Low |
+| Killer Variant of Sudoku | Easy | Moderate |
+| Basic Parallel Version | Very Hard | Highest |
+| Work Stealing | Very Hard | Very High |
+| Eliminate Recursion | Easy | Low |
+| Better Unit Propagation | Easy | Moderate |
