@@ -5,66 +5,24 @@
 #include <iomanip>
 #include <chrono>
 #include <cassert>
+#include <chrono>
 #include <algorithm>
 #include <unistd.h>
 
-// Resets the cnf to its state before edit stack
-void undo_edits(Cnf &cnf, Queue &edit_stack) {
-    while (edit_stack.count > 0) {
-        FormulaEdit *recent_ptr = (FormulaEdit *)(edit_stack.pop_from_front());
-        FormulaEdit recent = *recent_ptr;
-        switch (recent.edit_type) {
-            case 'v': {
-                int var_id = recent.edit_id;
-                if (cnf.assigned_true[var_id]) {
-                    cnf.assigned_true[var_id] = false;
-                } else {
-                    cnf.assigned_false[var_id] = false;
-                }
-                break;
-            } case 'c': {
-                int clause_id = recent.edit_id;
-                cnf.clauses.re_add_value(clause_id);
-                cnf.clauses_dropped[clause_id] = false;
-                break;
-            } default: {
-                int clause_id = recent.edit_id;
-                int size_before = (int)recent.size_before;
-                int size_after = (int)recent.size_after;
-                cnf.clauses.change_size_of_value(
-                    clause_id, size_after, size_before);
-                break;
-            }
-        }
-        free(recent_ptr);
-    }
-}
-
-bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
-    cnf.depth++;
-    cnf.depth_str.append(" ");
-    Queue edit_stack;
-    if (var_id != -1) {
-        if (PRINT_LEVEL > 0) printf("%sPID %d trying var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-        if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-        // Propagate choice
-        if (!cnf.propagate_assignment(
-            var_id, var_value, conflict_id, edit_stack)) {
-            // Conflict clause found
-            if (PRINT_LEVEL > 0) printf("%sPID %d assignment propagation of var %d = %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value, conflict_id);
-            undo_edits(cnf, edit_stack);
-            if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-            cnf.depth_str = cnf.depth_str.substr(1);
-            cnf.depth--;
+bool solve_recursive(Cnf &cnf, int var_id, bool var_value) {
+    cnf.recurse();
+    if (var_id != -1) { // Propagate choice
+        if (!cnf.propagate_assignment(var_id, var_value)) { // Conflict clause found
+            cnf.undo_local_edits();
+            cnf.backtrack();
             return false;
         }
     }
-    if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
     // Pick a new variable
     if (cnf.clauses.get_linked_list_size() == 0) {
         if (PRINT_LEVEL > 0) printf("%sPID %d base case success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-        cnf.depth_str = cnf.depth_str.substr(1);
-        cnf.depth--;
+        cnf.backtrack();
+        printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
         return true;
     }
     cnf.clauses.reset_iterator();
@@ -77,41 +35,99 @@ bool solve(Cnf &cnf, int &conflict_id, int var_id, bool var_value) {
     if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
     if (num_unsat == 1) {
         // Already know its correct value, one recursive call
-        bool result = solve(cnf, conflict_id, new_var_id, new_var_sign);
+        bool result = solve_recursive(cnf, new_var_id, new_var_sign);
         if (!result) {
             // Conflict clause found
-            if (PRINT_LEVEL > 0) printf("%sPID %d only child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, conflict_id);
-            undo_edits(cnf, edit_stack);
-            if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-            cnf.depth_str = cnf.depth_str.substr(1);
-            cnf.depth--;
+            if (PRINT_LEVEL > 0) printf("%sPID %d only child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, cnf.conflict_id);
+            cnf.undo_local_edits();
+            cnf.backtrack();
             return false;
         }
-        edit_stack.free_data();
         if (PRINT_LEVEL > 0) printf("%sPID %d recursive success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-        cnf.depth_str = cnf.depth_str.substr(1);
-        cnf.depth--;
+        cnf.backtrack();
         return true;
     }
     // Two recursive calls
     bool first_choice = get_first_pick(new_var_sign);
-    bool left_result = solve(cnf, conflict_id, new_var_id, first_choice);
+    bool left_result = solve_recursive(cnf, new_var_id, first_choice);
     if (!left_result) {
-        if (PRINT_LEVEL > 0) printf("%sPID %d left child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, conflict_id);
-        bool right_result = solve(cnf, conflict_id, new_var_id, !first_choice);
+        if (PRINT_LEVEL > 0) printf("%sPID %d left child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, cnf.conflict_id);
+        bool right_result = solve_recursive(cnf, new_var_id, !first_choice);
         if (!right_result) {
-            if (PRINT_LEVEL > 0) printf("%sPID %d right child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)(!new_var_sign), conflict_id);
-            undo_edits(cnf, edit_stack);
-            if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Current CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-            cnf.depth_str = cnf.depth_str.substr(1);
-            cnf.depth--;
+            if (PRINT_LEVEL > 0) printf("%sPID %d right child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)(!new_var_sign), cnf.conflict_id);
+            cnf.undo_local_edits();
+            cnf.backtrack();
             return false;
         }
     }
     if (PRINT_LEVEL > 0) printf("%sPID %d recursive success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-    edit_stack.free_data();
-    cnf.depth_str = cnf.depth_str.substr(1);
-    cnf.depth--;
+    cnf.backtrack();
+    return true;
+}
+
+// Adds one or two variable assignment tasks to task stack
+void add_tasks_from_formula(Cnf &cnf, Queue &task_stack) {
+    cnf.clauses.reset_iterator();
+    Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
+    int current_clause_id = cnf.clauses.get_current_index();
+    int new_var_id;
+    bool new_var_sign;
+    int num_unsat = cnf.pick_from_clause(
+        current_clause, &new_var_id, &new_var_sign);
+    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
+    // Add an undo task to do last
+    void *undo_task = make_task(-1, true);
+    task_stack.add_to_front(undo_task);
+    if (num_unsat == 1) {
+        void *only_task = make_task(new_var_id, new_var_sign);
+        task_stack.add_to_front(only_task);
+    } else {
+        bool first_choice = get_first_pick(new_var_sign);
+        void *important_task = make_task(new_var_id, first_choice);
+        void *other_task = make_task(new_var_id, !first_choice);
+        task_stack.add_to_front(other_task);
+        task_stack.add_to_front(important_task);
+    }   
+}
+
+bool solve(Cnf &cnf) {
+    if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Init CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
+    Queue task_stack;
+    add_tasks_from_formula(cnf, task_stack);
+    while (task_stack.count > 0) {
+        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop start", task_stack);
+        if (PRINT_LEVEL > 1) cnf.print_cnf(0, "Loop start CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
+        if (cnf.clauses.get_linked_list_size() == 0) {
+            if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
+            if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
+            return true;
+        }
+        Task task = get_task(task_stack);
+        int var_id = task.var_id;
+        int assignment = task.assignment;
+        if (var_id == -1) {
+            // Children backtracked, need to backtrack ourselves
+            if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Children backtrack", task_stack);
+            cnf.backtrack();
+            continue;
+        }
+        cnf.recurse();
+        // Propagate choice
+        bool propagate_result = cnf.propagate_assignment(var_id, assignment);
+        if (!propagate_result) { // Conflict clause found
+            if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Prop fail", task_stack);
+            cnf.backtrack();
+            continue;
+        }
+        if (cnf.clauses.get_linked_list_size() == 0) {
+            if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
+            if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
+            return true;
+        }
+        add_tasks_from_formula(cnf, task_stack);
+        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop end", task_stack);
+    }
+    if (PRINT_LEVEL > 0) printf("%sPID %d recursive success\n", cnf.depth_str.c_str(), 0);
     return true;
 }
 
@@ -137,32 +153,26 @@ void run_filename(int argc, char *argv[]) {
     int **constraints = read_puzzle_file(
         input_filename, &n, &sqrt_n, &num_constraints);
 
+    const auto compute_start = std::chrono::steady_clock::now();
+
     Cnf cnf(constraints, n, sqrt_n, num_constraints);
 
-    int conflict_id;
-    bool result = solve(cnf, conflict_id, -1, true);
+    bool result = solve(cnf);
+    const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
+    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+
     if (!result) {
         raise_error("Couldn't solve");
     }
     bool *assignment = cnf.get_assignment();
-    printf("\nAssignment = [");
-    for (int i = 0; i < cnf.num_variables; i++) {
-        if (assignment[i]) {
-            printf("T");
-        } else {
-            printf("F");
-        }
-        if (i != cnf.num_variables - 1) {
-            printf(", ");
-        }
+    if (PRINT_LEVEL > 0) {
+        print_assignment(0, "", "", assignment, cnf.num_variables);
     }
-    printf("]\n\n");
     short **board = cnf.get_sudoku_board();
     print_board(board, cnf.n);
 }
 
 void run_example_1() {
-    int conflict_id;
     int num_variables = 7;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
@@ -197,22 +207,13 @@ void run_example_1() {
 
     Cnf cnf(input_clauses, input_variables, num_variables);
 
-    bool result = solve(cnf, conflict_id, -1, true);
+    bool result = solve(cnf);
     assert(result);
 
     bool *assignment = cnf.get_assignment();
-    printf("\nAssignment = [");
-    for (int i = 0; i < num_variables; i++) {
-        if (assignment[i]) {
-            printf("T");
-        } else {
-            printf("F");
-        }
-        if (i != num_variables - 1) {
-            printf(", ");
-        }
+    if (PRINT_LEVEL > 0) {
+        print_assignment(0, "", "", assignment, cnf.num_variables);
     }
-    printf("]\n\n");
 }
 
 

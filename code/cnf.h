@@ -22,6 +22,10 @@ class Cnf {
     public:
         IndexableDLL clauses; // dynamic number
         VariableLocations *variables; // static number
+        Queue *edit_stack;
+        Queue *edit_counts_stack;
+        int local_edit_count;
+        int conflict_id;
         int num_variables;
         int ints_needed_for_clauses;
         int ints_needed_for_vars;
@@ -52,6 +56,12 @@ class Cnf {
             std::string tab_string,
             bool elimination);
 
+        // Prints out the task stack
+        void print_task_stack(
+            int caller_pid,
+            std::string prefix_string, 
+            Queue &task_stack);
+
         // Picks unassigned variable from the clause, returns the number of unsats
         int pick_from_clause(Clause clause, int *var_id, bool *var_sign);
 
@@ -60,11 +70,7 @@ class Cnf {
 
         // Updates formula with given assignment.
         // Returns false on failure and populates conflict id.
-        bool propagate_assignment(
-            int var_id,
-            bool value, 
-            int &conflict_id,
-            Queue &edit_stack);
+        bool propagate_assignment(int var_id, bool value);
 
         // Returns the assignment of variables
         bool *get_assignment();
@@ -72,8 +78,20 @@ class Cnf {
         // Creates and writes to sudoku board from formula
         short **get_sudoku_board();
 
+        // Resets the cnf to its state before edit stack
+        void undo_local_edits();
+        
+        // Updates internal variables based on a recursive backtrack
+        void backtrack();
+        
+        // Updates internal variables based on a recursive call
+        void recurse();
+
+        // Reconstructs one's own formula (state) from an integer representation
+        void reconstruct_state_from_int_rep(unsigned int *int_rep);
+
         // Converts current formula to integer representation
-        unsigned int *to_int_rep(bool *assigned_true, bool *assigned_false);
+        unsigned int *to_int_rep();
 
         // Recursively frees the Cnf formula data structure
         void free_cnf();

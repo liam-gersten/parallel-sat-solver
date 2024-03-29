@@ -54,15 +54,14 @@ int **read_puzzle_file(
     return constraints;
 }
 
-// Possibly flips value at random
-bool get_first_pick(bool heuristic) {
-    if (!RANDOM_FIRST_PICK) {
-        return heuristic;
-    }
-    // if ((rand() % 2) == 0) {
-    //     return heuristic;
-    // }
-    return !heuristic;
+// Makes a task from inputs
+void *make_task(int var_id, bool assignment) {
+    Task task;
+    task.var_id = var_id;
+    task.assignment = assignment;
+    Task *task_ptr = (Task *)malloc(sizeof(Task));
+    *task_ptr = task;
+    return (void *)task_ptr;
 }
 
 // Makes a clause of just two variables
@@ -98,6 +97,17 @@ Clause make_triple_clause(
     (current.literal_signs)[2] = sign3;
     current.num_literals = 3;
     return current;
+}
+
+// Possibly flips value at random
+bool get_first_pick(bool heuristic) {
+    if (!RANDOM_FIRST_PICK) {
+        return heuristic;
+    }
+    // if ((rand() % 2) == 0) {
+    //     return heuristic;
+    // }
+    return !heuristic;
 }
 
 // Makes a variable edit
@@ -157,7 +167,7 @@ void print_assignment(
         bool *assignment,
         int num_variables) 
     {
-    std::string data_string = "vars = [";
+    std::string data_string = "true vars = [";
     for (int i = 0; i < num_variables; i++) {
         if (assignment[i]) {
             data_string.append(std::to_string(i));
@@ -177,7 +187,7 @@ void print_board(short **board, int n) {
     if (n > 9) {
         padding.append(" ");
     }
-    printf("\n\t ");
+    printf("\n\n\t -");
     for (int i = 0; i < n; i++) {
         printf("-");
         if (n > 9) {
@@ -187,9 +197,9 @@ void print_board(short **board, int n) {
             printf("-");
         }
     }
-    printf("\n");
+    printf("-\n");
     for (int row = 0; row < n; row++) {
-        printf("\t|");
+        printf("\t| ");
         for (int col = 0; col < n; col++) {
             int val = board[row][col];
             if (val <= 9) {
@@ -200,9 +210,9 @@ void print_board(short **board, int n) {
                 printf(" ");
             }
         }
-        printf("|\n");
+        printf(" |\n");
     }
-    printf("\t ");
+    printf("\t -");
     for (int i = 0; i < n; i++) {
         printf("-");
         if (n > 9) {
@@ -212,7 +222,7 @@ void print_board(short **board, int n) {
             printf("-");
         }
     }
-    printf("\n\n\n");
+    printf("-\n\n\n");
 }
 
 // Raises an error with a print statement
@@ -629,6 +639,14 @@ void Queue::free_data() {
         void *current = pop_from_front();
         free(current);
     }
+}
+
+// Gets first task from stack, frees pointer
+Task get_task(Queue &task_stack) {
+    void *task_ptr = task_stack.pop_from_front();
+    Task task = (*((Task *)task_ptr));
+    free(task_ptr);
+    return task;
 }
 
 //----------------------------------------------------------------

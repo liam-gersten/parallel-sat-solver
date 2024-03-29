@@ -72,5 +72,4 @@ Week 6. Final optimizations and assembly of final report.
 | Killer Variant of Sudoku | Easy | Moderate |
 | Basic Parallel Version | Very Hard | Highest |
 | Work Stealing | Very Hard | Very High |
-| Eliminate Recursion | Easy | Low |
 | Better Unit Propagation | Easy | Moderate |

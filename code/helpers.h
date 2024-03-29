@@ -5,7 +5,7 @@
 
 #define PRINT_LEVEL 0
 
-#define CONCISE_FORMULA 0
+#define CONCISE_FORMULA 1
 
 #define RANDOM_FIRST_PICK 1
 
@@ -23,12 +23,20 @@ struct FormulaEdit {
     short size_after;
 };
 
+struct Task {
+    int var_id;
+    bool assignment;
+};
+
 // Reads input puzzle file to arrays
 int **read_puzzle_file(
     std::string input_filename,
     int *n_ptr,
     int *sqrt_n_ptr,
     int *num_constraints_ptr);
+
+// Makes a task from inputs
+void *make_task(int var_id, bool assignment);
 
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
@@ -196,5 +204,8 @@ class Queue {
         // Frees all data in the queue
         void free_data();
 };
+
+// Gets first task from stack, frees pointer
+Task get_task(Queue &task_stack);
 
 #endif

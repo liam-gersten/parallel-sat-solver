@@ -37,10 +37,20 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
     int n_squ = n * n;
     Cnf::n = n;
     Cnf::num_variables = (n * n_squ);
-    IndexableDLL clauses((2 * (n_squ * n_squ)) + n_squ);
+    // Exact figure
+    int num_clauses = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
+    IndexableDLL clauses(num_clauses);
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * Cnf::num_variables);
+    Queue edit_stack;
+    Queue edit_counts_stack;
+    Cnf::edit_stack = (Queue *)malloc(sizeof(Queue));
+    Cnf::edit_counts_stack = (Queue *)malloc(sizeof(Queue));
+    *Cnf::edit_stack = edit_stack;
+    *Cnf::edit_counts_stack = edit_counts_stack;
+    Cnf::local_edit_count = 0;
+    Cnf::conflict_id = -1;
     Cnf::assigned_true = (bool *)calloc(sizeof(bool), Cnf::num_variables);
     Cnf::assigned_false = (bool *)calloc(sizeof(bool), Cnf::num_variables);
     int variable_id = 0;
@@ -156,6 +166,8 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
         }
     }
     printf("%d clauses added\n", Cnf::clauses.num_indexed);
+    printf("%d variables added\n", Cnf::num_variables);
+    printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
     // TODO: Add sum restrictions for killer Sudoku
 
     Cnf::clauses_dropped = (bool *)calloc(
@@ -164,6 +176,8 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
         Cnf::clauses.max_indexable, (sizeof(int) * 8));
     Cnf::ints_needed_for_vars = ceil_div(
         Cnf::num_variables, (sizeof(int) * 8));
+    int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
+    printf("\t%d bytes per state = ((2 * %d) + %d) * 4\n", ints_per_state * 4, Cnf::ints_needed_for_vars, Cnf::ints_needed_for_clauses);
 
     Cnf::depth = 0;
     Cnf::depth_str = "";
@@ -186,6 +200,14 @@ Cnf::Cnf(
         Cnf::num_variables, (sizeof(int) * 8));
     Cnf::clauses_dropped = (bool *)calloc(
         sizeof(bool), Cnf::clauses.num_indexed);
+    Queue edit_stack;
+    Queue edit_counts_stack;
+    Cnf::edit_stack = (Queue *)malloc(sizeof(Queue));
+    Cnf::edit_counts_stack = (Queue *)malloc(sizeof(Queue));
+    *Cnf::edit_stack = edit_stack;
+    *Cnf::edit_counts_stack = edit_counts_stack;
+    Cnf::local_edit_count = 0;
+    Cnf::conflict_id = -1;
     Cnf::assigned_true = (bool *)calloc(sizeof(bool), Cnf::num_variables);
     Cnf::assigned_false = (bool *)calloc(sizeof(bool), Cnf::num_variables);
     Cnf::depth = 0;
@@ -198,6 +220,8 @@ Cnf::Cnf() {
     Cnf::num_variables = 0;
     Cnf::ints_needed_for_clauses = 0;
     Cnf::ints_needed_for_vars = 0;
+    Cnf::local_edit_count = 0;
+    Cnf::conflict_id = -1;
     Cnf::depth = 0;
     Cnf::depth_str = "";
 }
@@ -325,6 +349,44 @@ void Cnf::print_cnf(
     Cnf::clauses.reset_iterator();
 }
 
+// Prints out the task stack
+void Cnf::print_task_stack(
+    int caller_pid,
+    std::string prefix_string, 
+    Queue &task_stack)
+    {
+    std::string data_string = std::to_string(task_stack.count);
+    data_string.append(" tasks: [");
+    Queue tmp_stack;
+    while (task_stack.count > 0) {
+        void *task_ptr = task_stack.pop_from_front();
+        tmp_stack.add_to_front(task_ptr);
+        Task task = *((Task *)task_ptr);
+        data_string.append("(");
+        if (task.var_id == -1) {
+            data_string.append("R");
+        } else {
+            data_string.append(std::to_string(task.var_id));
+            data_string.append("=");
+            if (task.assignment) {
+                data_string.append("T");
+            } else {
+                data_string.append("F");
+            }
+        }
+        data_string.append(")");
+        if (task_stack.count != 0) {
+            data_string.append(", ");
+        }
+    }
+    data_string.append("]");
+    while (tmp_stack.count > 0) {
+        task_stack.add_to_front(tmp_stack.pop_from_front());
+    }
+    printf("%sPID %d %s %s\n", Cnf::depth_str.c_str(), caller_pid, prefix_string.c_str(), data_string.c_str());
+
+}
+
 // Picks unassigned variable from the clause, returns the number of unsats
 int Cnf::pick_from_clause(Clause clause, int *var_id, bool *var_sign) {
     int num_unsat = 0;
@@ -376,12 +438,10 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
 
 // Updates formula with given assignment.
 // Returns false on failure and populates conflict id.
-bool Cnf::propagate_assignment(
-        int var_id, 
-        bool value, 
-        int &conflict_id,
-        Queue &edit_stack) {
-    edit_stack.add_to_front(variable_edit(var_id));
+bool Cnf::propagate_assignment(int var_id, bool value) {
+    if (PRINT_LEVEL > 0) printf("%sPID %d trying var %d |= %d\n", Cnf::depth_str.c_str(), 0, var_id, (int)value);
+    (*Cnf::edit_stack).add_to_front(variable_edit(var_id));
+    Cnf::local_edit_count++;
     VariableLocations locations = (Cnf::variables)[var_id];
     if (value) {
         Cnf::assigned_true[var_id] = true;
@@ -405,21 +465,24 @@ bool Cnf::propagate_assignment(
                     if (PRINT_LEVEL >= 3) printf("%sPID %d dropping clause %d %s\n", Cnf::depth_str.c_str(), 0, clause_id, clause_to_string_current(clause, false).c_str());
                     Cnf::clauses_dropped[clause_id] = true;
                     Cnf::clauses.strip_value(clause_id);
-                    edit_stack.add_to_front(clause_edit(clause_id));
+                    (*Cnf::edit_stack).add_to_front(clause_edit(clause_id));
+                    Cnf::local_edit_count++;
                     break;
                 } case 'u': {
                     if (PRINT_LEVEL >= 3) printf("%sPID %d clause %d %s contains conflict\n", Cnf::depth_str.c_str(), 0, clause_id, clause_to_string_current(clause, false).c_str());
-                    conflict_id = clause_id;
+                    Cnf::conflict_id = clause_id;
                     (*locations.clauses_containing).add_to_back(
                         (void *)current);
+                    if (PRINT_LEVEL > 0) printf("%sPID %d assignment propagation of var %d = %d failed (conflict = %d)\n", Cnf::depth_str.c_str(), 0, var_id, (int)value, Cnf::conflict_id);
                     return false;
                 } default: {
                     // At least the size changed
                     if (PRINT_LEVEL >= 3) printf("%sPID %d decreasing clause %d %s size (%d -> %d)\n", Cnf::depth_str.c_str(), 0, clause_id, clause_to_string_current(clause, false).c_str(), num_unsat + 1, num_unsat);
                     Cnf::clauses.change_size_of_value(
                         clause_id, num_unsat + 1, num_unsat);
-                    edit_stack.add_to_front(size_change_edit(
+                    (*Cnf::edit_stack).add_to_front(size_change_edit(
                         clause_id, num_unsat + 1, num_unsat));
+                    Cnf::local_edit_count++;
                     break;
                 }
             }
@@ -428,6 +491,7 @@ bool Cnf::propagate_assignment(
         clauses_to_check--;
     }
     if (PRINT_LEVEL >= 4) printf("%sPID %d propagated var %d |= %d\n", Cnf::depth_str.c_str(), 0, var_id, (int)value);
+    if (PRINT_LEVEL > 0) print_cnf(0, "Post prop CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
     return true;
 }
 
@@ -454,9 +518,69 @@ short **Cnf::get_sudoku_board() {
     return board;
 }
 
+// Resets the cnf to its state before edit stack
+void Cnf::undo_local_edits() {
+    for (int i = 0; i < Cnf::local_edit_count; i++) {
+        FormulaEdit *recent_ptr = (FormulaEdit *)((*Cnf::edit_stack).pop_from_front());
+        FormulaEdit recent = *recent_ptr;
+        switch (recent.edit_type) {
+            case 'v': {
+                int var_id = recent.edit_id;
+                if (Cnf::assigned_true[var_id]) {
+                    Cnf::assigned_true[var_id] = false;
+                } else {
+                    Cnf::assigned_false[var_id] = false;
+                }
+                break;
+            } case 'c': {
+                int clause_id = recent.edit_id;
+                Cnf::clauses.re_add_value(clause_id);
+                Cnf::clauses_dropped[clause_id] = false;
+                break;
+            } default: {
+                int clause_id = recent.edit_id;
+                int size_before = (int)recent.size_before;
+                int size_after = (int)recent.size_after;
+                Cnf::clauses.change_size_of_value(
+                    clause_id, size_after, size_before);
+                break;
+            }
+        }
+        free(recent_ptr);
+    }
+}
+
+// Updates internal variables based on a recursive backtrack
+void Cnf::backtrack() {
+    if (PRINT_LEVEL > 0) printf("%sPID %d backtracking\n", Cnf::depth_str.c_str(), 0);
+    undo_local_edits();
+    if (PRINT_LEVEL > 1) print_cnf(0, "Restored CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
+    Cnf::depth_str = Cnf::depth_str.substr(1);
+    Cnf::depth--;
+    void *local_edit_count_ptr = (*Cnf::edit_counts_stack).pop_from_front();
+    Cnf::local_edit_count = *((int *)local_edit_count_ptr);
+    free(local_edit_count_ptr);
+}
+
+// Updates internal variables based on a recursive call
+void Cnf::recurse() {
+    Cnf::depth++;
+    Cnf::depth_str.append("\t");
+    int *local_edit_count_ptr = (int *)malloc(sizeof(int));
+    *local_edit_count_ptr = Cnf::local_edit_count;
+    (*Cnf::edit_counts_stack).add_to_front((void *)local_edit_count_ptr);
+    Cnf::local_edit_count = 0;
+    if (PRINT_LEVEL > 0) print_cnf(0, "Current CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
+}
+
+// Reconstructs one's own formula (state) from an integer representation
+void Cnf::reconstruct_state_from_int_rep(unsigned int *int_rep) {
+    // TODO: implement this
+    return;
+}
+
 // Converts current formula to integer representation
-// Requires variable assignment arrays as well
-unsigned int *Cnf::to_int_rep(bool *assigned_true, bool *assigned_false) {
+unsigned int *Cnf::to_int_rep() {
     unsigned int *compressed = (unsigned *)calloc(
         sizeof(unsigned int), 
         (Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars)));
