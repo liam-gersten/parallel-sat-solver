@@ -1,6 +1,6 @@
 APP_NAME=main
 
-OBJS=helpers.o cnf.o main.o
+OBJS=helpers.o cnf.o interconnect.o main.o
 
 CXX = g++
 CXXFLAGS = -Wall -Os -std=c++17 -m64 -I. -fopenmp -Wno-unknown-pragmas -pg

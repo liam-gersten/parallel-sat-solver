@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <cstring>
 
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
@@ -177,6 +178,7 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
     Cnf::ints_needed_for_vars = ceil_div(
         Cnf::num_variables, (sizeof(int) * 8));
     int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
+    Cnf::work_ints = 2 + ints_per_state;
     printf("\t%d bytes per state = ((2 * %d) + %d) * 4\n", ints_per_state * 4, Cnf::ints_needed_for_vars, Cnf::ints_needed_for_clauses);
 
     Cnf::depth = 0;
@@ -198,6 +200,8 @@ Cnf::Cnf(
         Cnf::clauses.num_indexed, (sizeof(int) * 8));
     Cnf::ints_needed_for_vars = ceil_div(
         Cnf::num_variables, (sizeof(int) * 8));
+    int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
+    Cnf::work_ints = 2 + ints_per_state;
     Cnf::clauses_dropped = (bool *)calloc(
         sizeof(bool), Cnf::clauses.num_indexed);
     Queue edit_stack;
@@ -220,6 +224,7 @@ Cnf::Cnf() {
     Cnf::num_variables = 0;
     Cnf::ints_needed_for_clauses = 0;
     Cnf::ints_needed_for_vars = 0;
+    Cnf::work_ints = 0;
     Cnf::local_edit_count = 0;
     Cnf::conflict_id = -1;
     Cnf::depth = 0;
@@ -573,17 +578,76 @@ void Cnf::recurse() {
     if (PRINT_LEVEL > 0) print_cnf(0, "Current CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
 }
 
+// Returns the task embedded in the work received
+Task Cnf::extract_task_from_work(void *work) {
+    Task task;
+    int offset = Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars);
+    task.var_id = (int)(((unsigned int *)work)[offset]);
+    task.assignment = (bool)(((unsigned int *)work)[offset + 1]);
+    return task;
+}
+
 // Reconstructs one's own formula (state) from an integer representation
-void Cnf::reconstruct_state_from_int_rep(unsigned int *int_rep) {
+void Cnf::reconstruct_state(void *work, Queue &task_stack) {
     // TODO: implement this
-    return;
+    unsigned int *compressed = (unsigned int *)work;
+    int clause_group_offset = 0;
+    for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
+        unsigned int compressed_group = compressed[clause_group];
+        bool *clause_bits = int_to_bits(compressed_group);
+        for (int bit = 0; bit < 32; bit++) {
+            int clause_id = bit + clause_group_offset;
+            bool is_dropped = Cnf::clauses_dropped[clause_id];
+            bool should_be_dropped = clause_bits[bit];
+            if (is_dropped == should_be_dropped) {
+                continue;
+            } else if (is_dropped) {
+                Cnf::clauses.re_add_value(clause_id);
+            } else {
+                Cnf::clauses.strip_value(clause_id);
+            }
+            Cnf::clauses_dropped[clause_id] = should_be_dropped;
+        }
+        free(clause_bits);
+        clause_group_offset += 32;
+    }
+    int value_group_offset = 0;
+    for (int value_group = 0; value_group < Cnf::ints_needed_for_vars; value_group++) {
+        unsigned int compressed_group_true = compressed[
+            Cnf::ints_needed_for_clauses + value_group];
+        unsigned int compressed_group_false = compressed[
+            Cnf::ints_needed_for_clauses + Cnf::ints_needed_for_vars + value_group];
+        bool *value_bits_true = int_to_bits(compressed_group_true);
+        bool *value_bits_false = int_to_bits(compressed_group_false);
+        memcpy(Cnf::assigned_true + value_group_offset, value_bits_true, 32);
+        memcpy(Cnf::assigned_false + value_group_offset, value_bits_false, 32);
+        free(value_bits_true);
+        free(value_bits_false);
+    }
+    Task first_task = extract_task_from_work(work);
+    void *undo_task = make_task(-1, true);
+    task_stack.add_to_front(undo_task);
+    task_stack.add_to_front(
+        make_task(first_task.var_id, first_task.assignment));
+    Cnf::depth = 0;
+    Cnf::depth_str = "";
+    Cnf::local_edit_count = 0;
+    // Cnf and task stack are now ready for a new call to solve
+}
+
+// Converts task + state into work message
+void *Cnf::convert_to_work_message(unsigned int *compressed, Task task) {
+    assert(task.var_id > 0);
+    int offset = Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars);
+    compressed[offset] = (unsigned int)task.var_id;
+    compressed[offset + 1] = (unsigned int)task.assignment;
+    return (void *)compressed;
 }
 
 // Converts current formula to integer representation
 unsigned int *Cnf::to_int_rep() {
     unsigned int *compressed = (unsigned *)calloc(
-        sizeof(unsigned int), 
-        (Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars)));
+        sizeof(unsigned int), work_ints);
     bool *bit_addr = Cnf::clauses_dropped;
     for (int i = 0; i < Cnf::ints_needed_for_clauses; i++) {
         unsigned int current = bits_to_int(bit_addr);
@@ -607,7 +671,7 @@ unsigned int *Cnf::to_int_rep() {
     return compressed;
 }
 
-// Recursively frees the Cnf formula data structure
+// Frees the Cnf formula data structure
 void Cnf::free_cnf() {
     // TODO: implement this
     return;

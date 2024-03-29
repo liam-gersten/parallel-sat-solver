@@ -2,6 +2,7 @@
 #define HELPERS_H
 
 #include <string>
+#include <mpi.h>
 
 #define PRINT_LEVEL 0
 
@@ -207,5 +208,27 @@ class Queue {
 
 // Gets first task from stack, frees pointer
 Task get_task(Queue &task_stack);
+
+struct DeadMessageLinkedList {
+  void *message;
+  MPI_Request request;
+  DeadMessageLinkedList *next;
+};
+
+class DeadMessageQueue {
+  public:
+    DeadMessageLinkedList *head;
+    DeadMessageLinkedList *tail;
+    int count = 0;
+
+    // Adds value to back of queue
+    void add_to_queue(void *message, MPI_Request request);
+
+    // Pops message value from front of queue
+    void *pop_from_front();
+
+    // Returns the front request without removing it
+    MPI_Request peak_front();
+};
 
 #endif

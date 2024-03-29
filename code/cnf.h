@@ -29,6 +29,7 @@ class Cnf {
         int num_variables;
         int ints_needed_for_clauses;
         int ints_needed_for_vars;
+        int work_ints;
         bool *clauses_dropped;
         bool *assigned_true;
         bool *assigned_false;
@@ -87,13 +88,19 @@ class Cnf {
         // Updates internal variables based on a recursive call
         void recurse();
 
+        // Returns the task embedded in the work received
+        Task extract_task_from_work(void *work);
+        
         // Reconstructs one's own formula (state) from an integer representation
-        void reconstruct_state_from_int_rep(unsigned int *int_rep);
+        void reconstruct_state(void *work, Queue &task_stack);
 
+        // Converts task + state into work message
+        void *convert_to_work_message(unsigned int *compressed, Task task);
+        
         // Converts current formula to integer representation
         unsigned int *to_int_rep();
 
-        // Recursively frees the Cnf formula data structure
+        // Frees the Cnf formula data structure
         void free_cnf();
 };
 

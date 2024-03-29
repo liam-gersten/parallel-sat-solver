@@ -5,6 +5,7 @@
 #include <string>
 #include <limits.h>
 #include <cassert>
+#include <mpi.h>
 
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
@@ -647,6 +648,40 @@ Task get_task(Queue &task_stack) {
     Task task = (*((Task *)task_ptr));
     free(task_ptr);
     return task;
+}
+
+// Adds value to back of queue
+void DeadMessageQueue::add_to_queue(void *message, MPI_Request request) {
+  DeadMessageLinkedList current;
+  current.message = message;
+  current.request = request;
+  if (DeadMessageQueue::count == 0) {
+    DeadMessageQueue::head = (DeadMessageLinkedList *)malloc(sizeof(DeadMessageLinkedList));
+    DeadMessageQueue::tail = DeadMessageQueue::head;
+    *DeadMessageQueue::head = current;
+  } else {
+    DeadMessageLinkedList tail = *(DeadMessageQueue::tail);
+    tail.next = (DeadMessageLinkedList *)malloc(sizeof(DeadMessageLinkedList));
+    *tail.next = current;
+    *(DeadMessageQueue::tail) = tail;
+    DeadMessageQueue::tail = tail.next;
+  }
+  DeadMessageQueue::count++;
+}
+
+// Pops value from front of queue
+void *DeadMessageQueue::pop_from_front() {
+  DeadMessageLinkedList current = *(DeadMessageQueue::head);
+  free(DeadMessageQueue::head);
+  DeadMessageQueue::head = current.next;
+  DeadMessageQueue::count--;
+  return current.message;
+}
+
+// Returns the front value without removing it
+MPI_Request DeadMessageQueue::peak_front() {
+  DeadMessageLinkedList current = *(DeadMessageQueue::head);
+  return current.request;
 }
 
 //----------------------------------------------------------------

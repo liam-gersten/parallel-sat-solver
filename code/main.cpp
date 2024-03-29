@@ -1,4 +1,5 @@
 #include "cnf.h"
+#include "interconnect.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -87,12 +88,11 @@ void add_tasks_from_formula(Cnf &cnf, Queue &task_stack) {
         void *other_task = make_task(new_var_id, !first_choice);
         task_stack.add_to_front(other_task);
         task_stack.add_to_front(important_task);
-    }   
+    }
 }
 
-bool solve(Cnf &cnf) {
+bool solve(Cnf &cnf, Queue &task_stack) {
     if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Init CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-    Queue task_stack;
     add_tasks_from_formula(cnf, task_stack);
     while (task_stack.count > 0) {
         if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop start", task_stack);
@@ -108,6 +108,7 @@ bool solve(Cnf &cnf) {
         if (var_id == -1) {
             // Children backtracked, need to backtrack ourselves
             if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Children backtrack", task_stack);
+            if (task_stack.count == 0) return false;
             cnf.backtrack();
             continue;
         }
@@ -116,6 +117,7 @@ bool solve(Cnf &cnf) {
         bool propagate_result = cnf.propagate_assignment(var_id, assignment);
         if (!propagate_result) { // Conflict clause found
             if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Prop fail", task_stack);
+            if (task_stack.count == 0) return false;
             cnf.backtrack();
             continue;
         }
@@ -131,7 +133,12 @@ bool solve(Cnf &cnf) {
     return true;
 }
 
-void run_filename(int argc, char *argv[]) {
+// Like a mainloop
+bool cooperative_solve(Cnf &cnf, Queue &task_stack) {
+    return true;
+}
+
+void run_filename_serial(int argc, char *argv[]) {
     std::string input_filename;
     // Read command line arguments
     int opt;
@@ -156,10 +163,72 @@ void run_filename(int argc, char *argv[]) {
     const auto compute_start = std::chrono::steady_clock::now();
 
     Cnf cnf(constraints, n, sqrt_n, num_constraints);
+    Queue task_stack;
 
-    bool result = solve(cnf);
+    bool result = solve(cnf, task_stack);
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+
+    if (!result) {
+        raise_error("Couldn't solve");
+    }
+    bool *assignment = cnf.get_assignment();
+    if (PRINT_LEVEL > 0) {
+        print_assignment(0, "", "", assignment, cnf.num_variables);
+    }
+    short **board = cnf.get_sudoku_board();
+    print_board(board, cnf.n);
+}
+
+void run_filename_parallel(int argc, char *argv[]) {
+    const auto init_start = std::chrono::steady_clock::now();
+    int pid;
+    int nproc;
+
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
+    // Get process rank
+    MPI_Comm_rank(MPI_COMM_WORLD, &pid);
+    // Get total number of processes specificed at start of run
+    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+
+
+    std::string input_filename;
+    // Read command line arguments
+    int opt;
+    while ((opt = getopt(argc, argv, "f:")) != -1) {
+        switch (opt) {
+        case 'f':
+            input_filename = optarg;
+            break;
+        default:
+            std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
+            MPI_Finalize();    
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    int n;
+    int sqrt_n;
+    int num_constraints;
+    int **constraints = read_puzzle_file(
+        input_filename, &n, &sqrt_n, &num_constraints);
+
+    Cnf cnf(constraints, n, sqrt_n, num_constraints);
+    Queue task_stack;
+
+    if (pid == 0) {
+        const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
+        std::cout << "Initialization time (sec): " << std::fixed << std::setprecision(10) << init_time << '\n';
+    }
+    const auto compute_start = std::chrono::steady_clock::now();
+
+    bool result = solve(cnf, task_stack);
+    
+    const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
+    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+
+    MPI_Finalize();
 
     if (!result) {
         raise_error("Couldn't solve");
@@ -206,8 +275,9 @@ void run_example_1() {
     add_clause(C6, input_clauses, input_variables);
 
     Cnf cnf(input_clauses, input_variables, num_variables);
+    Queue task_stack;
 
-    bool result = solve(cnf);
+    bool result = solve(cnf, task_stack);
     assert(result);
 
     bool *assignment = cnf.get_assignment();
@@ -219,5 +289,5 @@ void run_example_1() {
 
 int main(int argc, char *argv[]) {
     // run_example_1();
-    run_filename(argc, argv);
+    run_filename_parallel(argc, argv);
 }
