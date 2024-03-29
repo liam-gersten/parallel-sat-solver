@@ -6,6 +6,7 @@
 #define PRINT_LEVEL 0
 
 #define CONCISE_FORMULA 0
+
 #define RANDOM_FIRST_PICK 1
 
 // Will have fixed allocation size
