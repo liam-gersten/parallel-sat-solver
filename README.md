@@ -62,3 +62,21 @@ Week 4. Debug MPI, plus theorize and implement several different strategies rega
 Week 5. Optimize w.r.t sudoku strategies, message communications, CNF-encoding, etc.
 
 Week 6. Final optimizations and assembly of final report.
+
+## TODO List
+
+<style>
+r { color: Red }
+o { color: Orange }
+g { color: Green }
+</style>
+
+| Task    | Difficulty | Priority |
+| -------- | ------- | ------ |
+| Conflict Clauses + Resolution | <o>Very Hard</o> | <r>High</r> |
+| Better SAT reduction | <g>Easy</g> | <g>Low</g> |
+| Killer Variant of Sudoku | <g>Easy</g> | <o>Moderate</o> |
+| Basic Parallel Version | <r>Very Hard</r> | <r>Highest</r> |
+| Work Stealing | <r>Very Hard</r> | <r>Very High</r> |
+| Eliminate Recursion | <g>Easy</g> | <g>Low</g> |
+| Better Unit Propagation | <g>Easy</g> | <o>Moderate</o> |
