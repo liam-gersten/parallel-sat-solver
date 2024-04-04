@@ -99,7 +99,7 @@ void State::serve_requests(Interconnect &interconnect) {
 }
 
 // Adds one or two variable assignment tasks to task stack
-void State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
+int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
     cnf.clauses.reset_iterator();
     Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
     int current_clause_id = current_clause.id;
@@ -108,25 +108,26 @@ void State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
     int num_unsat = cnf.pick_from_clause(
         current_clause, &new_var_id, &new_var_sign);
     if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
-    // Add an undo task to do last
-    void *undo_task = make_task(-1, true);
-    task_stack.add_to_front(undo_task);
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, new_var_sign);
         task_stack.add_to_front(only_task);
+        return 1;
     } else {
+        // Add an undo task to do last
+        void *undo_task = make_task(-1, true); 
         bool first_choice = get_first_pick(new_var_sign);
         void *important_task = make_task(new_var_id, first_choice);
         void *other_task = make_task(new_var_id, !first_choice);
+        task_stack.add_to_front(undo_task);
         task_stack.add_to_front(other_task);
         task_stack.add_to_front(important_task);
+        return 2;
     }
 }
 
 // Runs one iteration of the solver
 bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
-    if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop start", task_stack);
-    if (PRINT_LEVEL > 1) cnf.print_cnf(0, "Loop start CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
+    if (PRINT_LEVEL >= 5) printf("\n");
     if (cnf.clauses.get_linked_list_size() == 0) {
         if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
         if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
@@ -138,34 +139,49 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     if (var_id == -1) {
         // Children backtracked, need to backtrack ourselves
         if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Children backtrack", task_stack);
+        if (PRINT_LEVEL > 3) cnf.print_edit_stack(0, "Children backtrack", *(cnf.edit_stack));
         if (task_stack.count == 0) return false;
         cnf.backtrack();
         return false;
     }
     cnf.recurse();
-    // Propagate choice
-    bool propagate_result = cnf.propagate_assignment(var_id, assignment);
-    if (!propagate_result) { // Conflict clause found
-        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Prop fail", task_stack);
-        if (task_stack.count == 0) return false;
-        cnf.backtrack();
-        return false;
+    while (true) {
+        if (PRINT_LEVEL > 0) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), 0, var_id, assignment);
+        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop start", task_stack);
+        if (PRINT_LEVEL > 3) cnf.print_edit_stack(0, "Loop start", *(cnf.edit_stack));
+        if (PRINT_LEVEL > 1) cnf.print_cnf(0, "Loop start CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
+        // Propagate choice
+        bool propagate_result = cnf.propagate_assignment(var_id, assignment);
+        if (!propagate_result) { // Conflict clause found
+            if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Prop fail", task_stack);
+            if (PRINT_LEVEL > 3) cnf.print_edit_stack(0, "Prop fail", *(cnf.edit_stack));
+            if (task_stack.count == 0) return false;
+            cnf.backtrack();
+            if (PRINT_LEVEL > 3) cnf.print_edit_stack(0, "Prop fail after", *(cnf.edit_stack));
+            return false;
+        }
+        if (cnf.clauses.get_linked_list_size() == 0) {
+            if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
+            if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
+            return true;
+        }
+        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop end", task_stack);
+        if (PRINT_LEVEL > 3) cnf.print_edit_stack(0, "Loop end", *(cnf.edit_stack));
+        int num_added = add_tasks_from_formula(cnf, task_stack);
+        if (num_added == 1) {
+            Task task = get_task(task_stack);
+            var_id = task.var_id;
+            assignment = task.assignment;
+            continue;
+        } else {
+            return false;
+        }
     }
-    if (cnf.clauses.get_linked_list_size() == 0) {
-        if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
-        if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
-        return true;
-    }
-    add_tasks_from_formula(cnf, task_stack);
-    if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop end", task_stack);
-    return false;
 }
 
 // Continues solve operation
 bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
-    if (pid == 0) {
-        add_tasks_from_formula(cnf, task_stack);
-    }
+    add_tasks_from_formula(cnf, task_stack);
     Message message;
     while (true) {
         bool result = solve_iteration(cnf, task_stack);

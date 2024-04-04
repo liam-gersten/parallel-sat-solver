@@ -22,8 +22,8 @@ class Cnf {
     public:
         IndexableDLL clauses; // dynamic number
         VariableLocations *variables; // static number
-        Queue *edit_stack;
-        Queue *edit_counts_stack;
+        Deque *edit_stack;
+        Deque *edit_counts_stack;
         int local_edit_count;
         int conflict_id;
         int num_variables;
@@ -62,6 +62,12 @@ class Cnf {
             int caller_pid,
             std::string prefix_string, 
             Deque &task_stack);
+
+        // Prints out the task stack
+        void print_edit_stack(
+            int caller_pid,
+            std::string prefix_string, 
+            Deque &edit_stack);
 
         // Picks unassigned variable from the clause, returns the number of unsats
         int pick_from_clause(Clause clause, int *var_id, bool *var_sign);

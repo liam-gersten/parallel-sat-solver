@@ -178,7 +178,7 @@ void print_assignment(
         }
     }
     data_string.append("]");
-    printf("%s PID %d %s %s\n", tab_string.c_str(), caller_pid, 
+    printf("%sPID %d %s %s\n", tab_string.c_str(), caller_pid, 
         prefix_string.c_str(), data_string.c_str());
 }
 

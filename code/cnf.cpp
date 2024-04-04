@@ -45,10 +45,10 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * Cnf::num_variables);
-    Queue edit_stack;
-    Queue edit_counts_stack;
-    Cnf::edit_stack = (Queue *)malloc(sizeof(Queue));
-    Cnf::edit_counts_stack = (Queue *)malloc(sizeof(Queue));
+    Deque edit_stack;
+    Deque edit_counts_stack;
+    Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
+    Cnf::edit_counts_stack = (Deque *)malloc(sizeof(Deque));
     *Cnf::edit_stack = edit_stack;
     *Cnf::edit_counts_stack = edit_counts_stack;
     Cnf::local_edit_count = 0;
@@ -205,10 +205,10 @@ Cnf::Cnf(
     Cnf::work_ints = 2 + ints_per_state;
     Cnf::clauses_dropped = (bool *)calloc(
         sizeof(bool), Cnf::clauses.num_indexed);
-    Queue edit_stack;
-    Queue edit_counts_stack;
-    Cnf::edit_stack = (Queue *)malloc(sizeof(Queue));
-    Cnf::edit_counts_stack = (Queue *)malloc(sizeof(Queue));
+    Deque edit_stack;
+    Deque edit_counts_stack;
+    Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
+    Cnf::edit_counts_stack = (Deque *)malloc(sizeof(Deque));
     *Cnf::edit_stack = edit_stack;
     *Cnf::edit_counts_stack = edit_counts_stack;
     Cnf::local_edit_count = 0;
@@ -280,6 +280,10 @@ void Cnf::print_cnf(
         data_string.append("T");
     }
     while (!(Cnf::clauses.iterator_is_finished())) {
+        if (num_seen > 25) {
+            data_string.append(" ... ");
+            break;
+        }
         Clause *clause_ptr = (Clause *)(Cnf::clauses.get_current_value());
         Clause clause = *clause_ptr;
         int clause_id = clause.id;
@@ -390,7 +394,42 @@ void Cnf::print_task_stack(
         task_stack.add_to_front(tmp_stack.pop_from_front());
     }
     printf("%sPID %d %s %s\n", Cnf::depth_str.c_str(), caller_pid, prefix_string.c_str(), data_string.c_str());
+}
 
+// Prints out the task stack
+void Cnf::print_edit_stack(
+    int caller_pid,
+    std::string prefix_string, 
+    Deque &edit_stack)
+    {
+    std::string data_string = std::to_string(edit_stack.count);
+    data_string.append(" edits: [");
+    Queue tmp_stack;
+    while (edit_stack.count > 0) {
+        FormulaEdit *edit_ptr = (FormulaEdit *)edit_stack.pop_from_front();
+        tmp_stack.add_to_front(edit_ptr);
+        FormulaEdit edit = *edit_ptr;
+        data_string.append("(");
+        if (edit.edit_type == 'v') {
+            data_string.append("Set ");
+            data_string.append(std::to_string(edit.edit_id));
+        } else if (edit.edit_type == 'c') {
+            data_string.append("Drop ");
+            data_string.append(std::to_string(edit.edit_id));
+        } else {
+            data_string.append("Decrease ");
+            data_string.append(std::to_string(edit.edit_id));
+        }
+        data_string.append(")");
+        if (edit_stack.count != 0) {
+            data_string.append(", ");
+        }
+    }
+    data_string.append("]");
+    while (tmp_stack.count > 0) {
+        edit_stack.add_to_front(tmp_stack.pop_from_front());
+    }
+    printf("%sPID %d %s %s\n", Cnf::depth_str.c_str(), caller_pid, prefix_string.c_str(), data_string.c_str());
 }
 
 // Picks unassigned variable from the clause, returns the number of unsats
@@ -554,6 +593,9 @@ void Cnf::undo_local_edits() {
         }
         free(recent_ptr);
     }
+    void *local_edit_count_ptr = (*Cnf::edit_counts_stack).pop_from_front();
+    Cnf::local_edit_count = *((int *)local_edit_count_ptr);
+    free(local_edit_count_ptr);
 }
 
 // Updates internal variables based on a recursive backtrack
@@ -563,20 +605,18 @@ void Cnf::backtrack() {
     if (PRINT_LEVEL > 1) print_cnf(0, "Restored CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
     Cnf::depth_str = Cnf::depth_str.substr(1);
     Cnf::depth--;
-    void *local_edit_count_ptr = (*Cnf::edit_counts_stack).pop_from_front();
-    Cnf::local_edit_count = *((int *)local_edit_count_ptr);
-    free(local_edit_count_ptr);
+    if (PRINT_LEVEL > 5) printf("%sPID %d backtracking success\n", Cnf::depth_str.c_str(), 0);
 }
 
 // Updates internal variables based on a recursive call
 void Cnf::recurse() {
+    if (PRINT_LEVEL > 0) printf("%s  PID %d recurse\n", Cnf::depth_str.c_str(), 0);
     Cnf::depth++;
     Cnf::depth_str.append("\t");
     int *local_edit_count_ptr = (int *)malloc(sizeof(int));
     *local_edit_count_ptr = Cnf::local_edit_count;
     (*Cnf::edit_counts_stack).add_to_front((void *)local_edit_count_ptr);
     Cnf::local_edit_count = 0;
-    if (PRINT_LEVEL > 0) print_cnf(0, "Current CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
 }
 
 // Returns the task embedded in the work received

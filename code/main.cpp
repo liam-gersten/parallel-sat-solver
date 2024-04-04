@@ -108,10 +108,12 @@ void run_example_1() {
     add_clause(C6, input_clauses, input_variables);
 
     Cnf cnf(input_clauses, input_variables, num_variables);
-    Queue task_stack;
+    Deque task_stack;
+    Interconnect interconnect(0, 1, cnf.work_ints * 8);
+    State state(0, 1, cnf, task_stack);
 
-    // bool result = solve(cnf, task_stack);
-    // assert(result);
+    bool result = state.solve(cnf, task_stack, interconnect);
+    assert(result);
 
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
@@ -120,12 +122,12 @@ void run_example_1() {
 }
 
 void truncate_size(unsigned long long int &input_size, std::string &suffix) {
-    if (input_size > (unsigned long long int)(1000000 * 1000 * 1000)) {
+    if (input_size > (unsigned long long int)(1000000000000)) {
         suffix.append("TB(s)");
-        input_size /= (unsigned long long int)(1000000 * 1000 * 1000);
-    } else if (input_size > 1000000 * 1000) {
+        input_size /= (unsigned long long int)(1000000000000);
+    } else if (input_size > 1000000000) {
         suffix.append("GB(s)");
-        input_size /= (1000000 * 1000);
+        input_size /= (1000000000);
     } else if (input_size > 1000000) {
         suffix.append("MB(s)");
         input_size /= 1000000;
@@ -173,7 +175,6 @@ void print_memory_stats() {
     }
     printf("\n");
 }
-
 
 int main(int argc, char *argv[]) {
     // run_example_1();

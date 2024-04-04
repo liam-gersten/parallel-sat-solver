@@ -51,7 +51,7 @@ class State {
         void serve_requests(Interconnect &interconnect);
 
         // Adds one or two variable assignment tasks to task stack
-        void add_tasks_from_formula(Cnf &cnf, Deque &task_stack);
+        int add_tasks_from_formula(Cnf &cnf, Deque &task_stack);
         
         // Runs one iteration of the solver
         bool solve_iteration(Cnf &cnf, Deque &task_stack);
