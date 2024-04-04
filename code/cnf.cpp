@@ -19,8 +19,9 @@ void add_clause(
     VariableLocations *variables) 
     {
     Clause *clause_ptr = (Clause *)malloc(sizeof(Clause));
-    *clause_ptr = new_clause;
     int new_clause_id = clauses.num_indexed;
+    new_clause.id = new_clause_id;
+    *clause_ptr = new_clause;
     int *clause_id_ptr = (int *)malloc(sizeof(int));
     *clause_id_ptr = new_clause_id;
     for (int lit = 0; lit < new_clause.num_literals; lit++) {
@@ -281,7 +282,7 @@ void Cnf::print_cnf(
     while (!(Cnf::clauses.iterator_is_finished())) {
         Clause *clause_ptr = (Clause *)(Cnf::clauses.get_current_value());
         Clause clause = *clause_ptr;
-        int clause_id = Cnf::clauses.get_current_index();
+        int clause_id = clause.id;
         Cnf::clauses.advance_iterator();
         if (CONCISE_FORMULA) {
             if (num_seen > 0) {
@@ -358,7 +359,7 @@ void Cnf::print_cnf(
 void Cnf::print_task_stack(
     int caller_pid,
     std::string prefix_string, 
-    Queue &task_stack)
+    Deque &task_stack)
     {
     std::string data_string = std::to_string(task_stack.count);
     data_string.append(" tasks: [");
@@ -588,7 +589,7 @@ Task Cnf::extract_task_from_work(void *work) {
 }
 
 // Reconstructs one's own formula (state) from an integer representation
-void Cnf::reconstruct_state(void *work, Queue &task_stack) {
+void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     // TODO: implement this
     unsigned int *compressed = (unsigned int *)work;
     int clause_group_offset = 0;

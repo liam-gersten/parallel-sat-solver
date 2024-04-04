@@ -279,7 +279,6 @@ IndexableDLL::IndexableDLL(int num_to_index) {
     IndexableDLL::element_counts = (int *)calloc(sizeof(int), num_to_index);
     
     DoublyLinkedList bookend_value;
-    bookend_value.value_index = -1;
 
     IndexableDLL::one_big_head = (DoublyLinkedList *)malloc(
         sizeof(DoublyLinkedList));
@@ -358,7 +357,6 @@ void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
     }
     DoublyLinkedList current;
     current.value = value;
-    current.value_index = value_index;
     DoublyLinkedList *current_ptr = (DoublyLinkedList *)malloc(
         sizeof(DoublyLinkedList));
     *current_ptr = current;
@@ -509,13 +507,6 @@ void *IndexableDLL::get_current_value() {
     return (*current_ptr).value;
 }
 
-// Gets the index of the element the iterator is on
-int IndexableDLL::get_current_index() {
-    assert(iterator_position_valid() && (!iterator_is_finished()));
-    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
-    return (*current_ptr).value_index;
-}
-
 // Returns the size of the linked list
 int IndexableDLL::get_linked_list_size() {
     return IndexableDLL::linked_list_count;
@@ -575,10 +566,63 @@ void IndexableDLL::free_data() {
     return;
 }
 
-// // Default constructor
-// Queue::Queue(int count) {
-//     Queue::count = count;
-// }
+// Adds element to front of queue
+void Deque::add_to_front(void *value) {
+    DoublyLinkedList current;
+    current.value = value;
+    DoublyLinkedList *current_ptr = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList)); 
+    if (Deque::count == 0) {
+        *current_ptr = current;
+        Deque::head = current_ptr;
+        Deque::tail = current_ptr;
+    } else {
+        current.next = Deque::head;
+        *current_ptr = current;
+        Deque::head = current_ptr;
+    }
+    Deque::count++;
+}
+
+// Adds element to back of queue
+void Deque::add_to_back(void *value) {
+    DoublyLinkedList current;
+    current.value = value;
+    DoublyLinkedList *current_ptr = (DoublyLinkedList *)malloc(
+        sizeof(DoublyLinkedList)); 
+    if (Deque::count == 0) {
+        *current_ptr = current;
+        Deque::head = current_ptr;
+        Deque::tail = current_ptr;
+    } else {
+        current.prev = Deque::tail;
+        *current_ptr = current;
+        Deque::tail = current_ptr;
+    }
+    Deque::count++;
+}
+
+// Removes and retuns element at front of queue
+void *Deque::pop_from_front() {
+    assert(Deque::count > 0);
+    void *value = (*(Deque::head)).value;
+    DoublyLinkedList *next = (*(Deque::head)).next;
+    free(Deque::head);
+    Deque::head = next;
+    Deque::count--;
+    return value;
+}
+
+// Removes and retuns element at back of queue
+void *Deque::pop_from_back() {
+    assert(Deque::count > 0);
+    void *value = (*(Deque::tail)).value;
+    DoublyLinkedList *prev = (*(Deque::tail)).prev;
+    free(Deque::tail);
+    Deque::tail = prev;
+    Deque::count--;
+    return value;
+}
 
 // Adds value to back of queue
 void Queue::add_to_front(void *value) {
@@ -643,11 +687,69 @@ void Queue::free_data() {
 }
 
 // Gets first task from stack, frees pointer
-Task get_task(Queue &task_stack) {
+Task get_task(Deque &task_stack) {
     void *task_ptr = task_stack.pop_from_front();
     Task task = (*((Task *)task_ptr));
     free(task_ptr);
     return task;
+}
+
+// Adds element to front of queue
+void IntDeque::add_to_front(int value) {
+    IntDoublyLinkedList current;
+    current.value = value;
+    IntDoublyLinkedList *current_ptr = (IntDoublyLinkedList *)malloc(
+        sizeof(IntDoublyLinkedList)); 
+    if (IntDeque::count == 0) {
+        *current_ptr = current;
+        IntDeque::head = current_ptr;
+        IntDeque::tail = current_ptr;
+    } else {
+        current.next = IntDeque::head;
+        *current_ptr = current;
+        IntDeque::head = current_ptr;
+    }
+    IntDeque::count++;
+}
+
+// Adds element to back of queue
+void IntDeque::add_to_back(int value) {
+    IntDoublyLinkedList current;
+    current.value = value;
+    IntDoublyLinkedList *current_ptr = (IntDoublyLinkedList *)malloc(
+        sizeof(IntDoublyLinkedList)); 
+    if (IntDeque::count == 0) {
+        *current_ptr = current;
+        IntDeque::head = current_ptr;
+        IntDeque::tail = current_ptr;
+    } else {
+        current.prev = IntDeque::tail;
+        *current_ptr = current;
+        IntDeque::tail = current_ptr;
+    }
+    IntDeque::count++;
+}
+
+// Removes and retuns element at front of queue
+int IntDeque::pop_from_front() {
+    assert(IntDeque::count > 0);
+    int value = (*(IntDeque::head)).value;
+    IntDoublyLinkedList *next = (*(IntDeque::head)).next;
+    free(IntDeque::head);
+    IntDeque::head = next;
+    IntDeque::count--;
+    return value;
+}
+
+// Removes and retuns element at back of queue
+int IntDeque::pop_from_back() {
+    assert(IntDeque::count > 0);
+    int value = (*(IntDeque::tail)).value;
+    IntDoublyLinkedList *prev = (*(IntDeque::tail)).prev;
+    free(IntDeque::tail);
+    IntDeque::tail = prev;
+    IntDeque::count--;
+    return value;
 }
 
 // Adds value to back of queue

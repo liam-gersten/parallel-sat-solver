@@ -2,7 +2,7 @@
 #define HELPERS_H
 
 #include <string>
-#include <mpi.h>
+#include "mpi.h"
 
 #define PRINT_LEVEL 0
 
@@ -12,6 +12,7 @@
 
 // Will have fixed allocation size
 struct Clause {
+    int id;
     int *literal_variable_ids; // variable ids for each literal
     bool *literal_signs; // each literal
     int num_literals; // size of the two pointers
@@ -22,6 +23,12 @@ struct FormulaEdit {
     char edit_type; // v c d
     short size_before;
     short size_after;
+};
+
+struct Message {
+    short sender;
+    char type;
+    int *data;
 };
 
 struct Task {
@@ -98,7 +105,6 @@ struct DoublyLinkedList {
     void *value;
     DoublyLinkedList *prev;
     DoublyLinkedList *next;
-    int value_index;
 };
 
 // Doubly linked list that can be indexed.
@@ -157,9 +163,6 @@ class IndexableDLL {
     // Gets value at iterator
     void *get_current_value();
 
-    // Gets the index of the element the iterator is on
-    int get_current_index();
-
     // Returns the size of the linked list
     int get_linked_list_size();
     
@@ -180,6 +183,25 @@ class IndexableDLL {
 
     // Frees data structures used
     void free_data();
+};
+
+class Deque {
+    public:
+        DoublyLinkedList *head;
+        DoublyLinkedList *tail;
+        int count = 0;
+
+        // Adds element to front of queue
+        void add_to_front(void *value);
+
+        // Adds element to back of queue
+        void add_to_back(void *value);
+
+        // Removes and retuns element at front of queue
+        void *pop_from_front();
+
+        // Removes and retuns element at back of queue
+        void *pop_from_back();
 };
 
 class Queue {
@@ -207,7 +229,32 @@ class Queue {
 };
 
 // Gets first task from stack, frees pointer
-Task get_task(Queue &task_stack);
+Task get_task(Deque &task_stack);
+
+struct IntDoublyLinkedList {
+    IntDoublyLinkedList *prev;
+    IntDoublyLinkedList *next;
+    int value;
+};
+
+class IntDeque {
+    public:
+        IntDoublyLinkedList *head;
+        IntDoublyLinkedList *tail;
+        int count = 0;
+
+        // Adds element to front of queue
+        void add_to_front(int value);
+
+        // Adds element to back of queue
+        void add_to_back(int value);
+
+        // Removes and retuns element at front of queue
+        int pop_from_front();
+
+        // Removes and retuns element at back of queue
+        int pop_from_back();
+};
 
 struct DeadMessageLinkedList {
   void *message;

@@ -1,5 +1,6 @@
 #include "cnf.h"
 #include "interconnect.h"
+#include "state.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -10,177 +11,7 @@
 #include <algorithm>
 #include <unistd.h>
 
-bool solve_recursive(Cnf &cnf, int var_id, bool var_value) {
-    cnf.recurse();
-    if (var_id != -1) { // Propagate choice
-        if (!cnf.propagate_assignment(var_id, var_value)) { // Conflict clause found
-            cnf.undo_local_edits();
-            cnf.backtrack();
-            return false;
-        }
-    }
-    // Pick a new variable
-    if (cnf.clauses.get_linked_list_size() == 0) {
-        if (PRINT_LEVEL > 0) printf("%sPID %d base case success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-        cnf.backtrack();
-        printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
-        return true;
-    }
-    cnf.clauses.reset_iterator();
-    Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
-    int current_clause_id = cnf.clauses.get_current_index();
-    int new_var_id;
-    bool new_var_sign;
-    int num_unsat = cnf.pick_from_clause(
-        current_clause, &new_var_id, &new_var_sign);
-    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
-    if (num_unsat == 1) {
-        // Already know its correct value, one recursive call
-        bool result = solve_recursive(cnf, new_var_id, new_var_sign);
-        if (!result) {
-            // Conflict clause found
-            if (PRINT_LEVEL > 0) printf("%sPID %d only child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, cnf.conflict_id);
-            cnf.undo_local_edits();
-            cnf.backtrack();
-            return false;
-        }
-        if (PRINT_LEVEL > 0) printf("%sPID %d recursive success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-        cnf.backtrack();
-        return true;
-    }
-    // Two recursive calls
-    bool first_choice = get_first_pick(new_var_sign);
-    bool left_result = solve_recursive(cnf, new_var_id, first_choice);
-    if (!left_result) {
-        if (PRINT_LEVEL > 0) printf("%sPID %d left child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)new_var_sign, cnf.conflict_id);
-        bool right_result = solve_recursive(cnf, new_var_id, !first_choice);
-        if (!right_result) {
-            if (PRINT_LEVEL > 0) printf("%sPID %d right child trying var %d |= %d failed (conflict = %d)\n", cnf.depth_str.c_str(), 0, new_var_id, (int)(!new_var_sign), cnf.conflict_id);
-            cnf.undo_local_edits();
-            cnf.backtrack();
-            return false;
-        }
-    }
-    if (PRINT_LEVEL > 0) printf("%sPID %d recursive success with var %d |= %d\n", cnf.depth_str.c_str(), 0, var_id, (int)var_value);
-    cnf.backtrack();
-    return true;
-}
-
-// Adds one or two variable assignment tasks to task stack
-void add_tasks_from_formula(Cnf &cnf, Queue &task_stack) {
-    cnf.clauses.reset_iterator();
-    Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
-    int current_clause_id = cnf.clauses.get_current_index();
-    int new_var_id;
-    bool new_var_sign;
-    int num_unsat = cnf.pick_from_clause(
-        current_clause, &new_var_id, &new_var_sign);
-    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
-    // Add an undo task to do last
-    void *undo_task = make_task(-1, true);
-    task_stack.add_to_front(undo_task);
-    if (num_unsat == 1) {
-        void *only_task = make_task(new_var_id, new_var_sign);
-        task_stack.add_to_front(only_task);
-    } else {
-        bool first_choice = get_first_pick(new_var_sign);
-        void *important_task = make_task(new_var_id, first_choice);
-        void *other_task = make_task(new_var_id, !first_choice);
-        task_stack.add_to_front(other_task);
-        task_stack.add_to_front(important_task);
-    }
-}
-
-bool solve(Cnf &cnf, Queue &task_stack) {
-    if (PRINT_LEVEL > 0) cnf.print_cnf(0, "Init CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-    add_tasks_from_formula(cnf, task_stack);
-    while (task_stack.count > 0) {
-        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop start", task_stack);
-        if (PRINT_LEVEL > 1) cnf.print_cnf(0, "Loop start CNF", cnf.depth_str, (PRINT_LEVEL >= 2));
-        if (cnf.clauses.get_linked_list_size() == 0) {
-            if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
-            if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
-            return true;
-        }
-        Task task = get_task(task_stack);
-        int var_id = task.var_id;
-        int assignment = task.assignment;
-        if (var_id == -1) {
-            // Children backtracked, need to backtrack ourselves
-            if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Children backtrack", task_stack);
-            if (task_stack.count == 0) return false;
-            cnf.backtrack();
-            continue;
-        }
-        cnf.recurse();
-        // Propagate choice
-        bool propagate_result = cnf.propagate_assignment(var_id, assignment);
-        if (!propagate_result) { // Conflict clause found
-            if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Prop fail", task_stack);
-            if (task_stack.count == 0) return false;
-            cnf.backtrack();
-            continue;
-        }
-        if (cnf.clauses.get_linked_list_size() == 0) {
-            if (PRINT_LEVEL > 0) printf("%sPID %d base case success\n", cnf.depth_str.c_str(), 0);
-            if (PRINT_LEVEL > 0) printf("Edit stack size = %d\n", (*cnf.edit_stack).count);
-            return true;
-        }
-        add_tasks_from_formula(cnf, task_stack);
-        if (PRINT_LEVEL > 1) cnf.print_task_stack(0, "Loop end", task_stack);
-    }
-    if (PRINT_LEVEL > 0) printf("%sPID %d recursive success\n", cnf.depth_str.c_str(), 0);
-    return true;
-}
-
-// Like a mainloop
-bool cooperative_solve(Cnf &cnf, Queue &task_stack) {
-    return true;
-}
-
-void run_filename_serial(int argc, char *argv[]) {
-    std::string input_filename;
-    // Read command line arguments
-    int opt;
-    while ((opt = getopt(argc, argv, "f:")) != -1) {
-        switch (opt) {
-        case 'f':
-            input_filename = optarg;
-            break;
-        default:
-            std::cerr << "Usage: " << argv[0] << " -f input_filename\n";      
-            exit(EXIT_FAILURE);
-        }
-    }
-    printf("filename = %s\n", input_filename.c_str());
-
-    int n;
-    int sqrt_n;
-    int num_constraints;
-    int **constraints = read_puzzle_file(
-        input_filename, &n, &sqrt_n, &num_constraints);
-
-    const auto compute_start = std::chrono::steady_clock::now();
-
-    Cnf cnf(constraints, n, sqrt_n, num_constraints);
-    Queue task_stack;
-
-    bool result = solve(cnf, task_stack);
-    const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
-    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
-
-    if (!result) {
-        raise_error("Couldn't solve");
-    }
-    bool *assignment = cnf.get_assignment();
-    if (PRINT_LEVEL > 0) {
-        print_assignment(0, "", "", assignment, cnf.num_variables);
-    }
-    short **board = cnf.get_sudoku_board();
-    print_board(board, cnf.n);
-}
-
-void run_filename_parallel(int argc, char *argv[]) {
+void run_filename(int argc, char *argv[]) {
     const auto init_start = std::chrono::steady_clock::now();
     int pid;
     int nproc;
@@ -215,7 +46,9 @@ void run_filename_parallel(int argc, char *argv[]) {
         input_filename, &n, &sqrt_n, &num_constraints);
 
     Cnf cnf(constraints, n, sqrt_n, num_constraints);
-    Queue task_stack;
+    Deque task_stack;
+    Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
+    State state(pid, nproc, cnf, task_stack);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -223,7 +56,7 @@ void run_filename_parallel(int argc, char *argv[]) {
     }
     const auto compute_start = std::chrono::steady_clock::now();
 
-    bool result = solve(cnf, task_stack);
+    bool result = state.solve(cnf, task_stack, interconnect);
     
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
@@ -277,8 +110,8 @@ void run_example_1() {
     Cnf cnf(input_clauses, input_variables, num_variables);
     Queue task_stack;
 
-    bool result = solve(cnf, task_stack);
-    assert(result);
+    // bool result = solve(cnf, task_stack);
+    // assert(result);
 
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
@@ -286,8 +119,65 @@ void run_example_1() {
     }
 }
 
+void truncate_size(unsigned long long int &input_size, std::string &suffix) {
+    if (input_size > (unsigned long long int)(1000000 * 1000 * 1000)) {
+        suffix.append("TB(s)");
+        input_size /= (unsigned long long int)(1000000 * 1000 * 1000);
+    } else if (input_size > 1000000 * 1000) {
+        suffix.append("GB(s)");
+        input_size /= (1000000 * 1000);
+    } else if (input_size > 1000000) {
+        suffix.append("MB(s)");
+        input_size /= 1000000;
+    } else if (input_size > 1000) {
+        suffix.append("KB(s)");
+        input_size /= 1000;
+    } else {
+        suffix.append("B(s)");
+    }
+}
+
+void print_memory_stats() {
+    for (int sqrt_n = 2; sqrt_n < 10; sqrt_n++) {
+        int n = sqrt_n * sqrt_n;
+        printf("\nn = %d\n", n);
+        int n_squ = n * n;
+        unsigned long long int v = (n * n_squ);
+        unsigned long long int c = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
+        printf("\tnum_variables =         %llu\n", v);
+        printf("\tnum_clauses =           %llu\n", c);
+        unsigned long long int max_num_edits = v + c;
+        unsigned long long int edit_stack_count_element_size = 20; // Doubly Linked list
+        unsigned long long int edit_stack_element_size = 20; // Doubly Linked list
+        unsigned long long int max_edit_stack_size = (edit_stack_element_size * (v + c)) + (edit_stack_count_element_size * v);
+        std::string suffix = "";
+        truncate_size(max_edit_stack_size, suffix);
+        printf("\tedit_stack_size =       %llu %s\n", max_edit_stack_size, suffix.c_str());
+        unsigned long long int work_queue_element_size = 20; // Doubly linked list
+        unsigned long long int max_work_queue_size = (2 * v) * work_queue_element_size;
+        suffix = "";
+        truncate_size(max_work_queue_size, suffix);
+        printf("\twork_queue_size =       %llu %s\n", max_work_queue_size, suffix.c_str());
+        unsigned long long compressed_clauses_size = ceil_div(
+            c, (sizeof(int) * 8)) * sizeof(int);
+        unsigned long long compressed_variables_size = ceil_div(
+            v, (sizeof(int) * 8)) * sizeof(int);
+        unsigned long long compressed_cnf_size = compressed_clauses_size + compressed_variables_size;
+        unsigned long long max_compressed_stack_size = (compressed_cnf_size + 16) * v;
+        suffix = "";
+        truncate_size(compressed_cnf_size, suffix);
+        printf("\tcompressed_size =       %llu %s\n", compressed_cnf_size, suffix.c_str());
+        suffix = "";
+        truncate_size(max_compressed_stack_size, suffix);
+        printf("\tcompressed_stack_size = %llu %s\n", max_compressed_stack_size, suffix.c_str());
+    }
+    printf("\n");
+}
+
 
 int main(int argc, char *argv[]) {
     // run_example_1();
-    run_filename_parallel(argc, argv);
+    run_filename(argc, argv);
+    // print_memory_stats();
+    
 }

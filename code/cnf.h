@@ -61,7 +61,7 @@ class Cnf {
         void print_task_stack(
             int caller_pid,
             std::string prefix_string, 
-            Queue &task_stack);
+            Deque &task_stack);
 
         // Picks unassigned variable from the clause, returns the number of unsats
         int pick_from_clause(Clause clause, int *var_id, bool *var_sign);
@@ -92,7 +92,7 @@ class Cnf {
         Task extract_task_from_work(void *work);
         
         // Reconstructs one's own formula (state) from an integer representation
-        void reconstruct_state(void *work, Queue &task_stack);
+        void reconstruct_state(void *work, Deque &task_stack);
 
         // Converts task + state into work message
         void *convert_to_work_message(unsigned int *compressed, Task task);
