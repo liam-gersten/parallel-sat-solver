@@ -49,7 +49,7 @@ class State {
             Interconnect &interconnect);
 
         // Returns whether we are out of work to do
-        bool out_of_work(Deque task_stack);
+        bool out_of_work();
 
         // Asks parent or children for work
         void ask_for_work(Cnf &cnf, Interconnect &interconnect);
@@ -64,8 +64,7 @@ class State {
         
         // Handles work received
         void handle_work_message(
-            short sender_pid,
-            void *work,
+            Message message,
             Cnf &cnf, 
             Deque &task_stack, 
             Interconnect &interconnect);

@@ -11,7 +11,6 @@ class Interconnect {
         int pid;
         int nproc;
         int work_bytes;
-        void *permanent_message;
         Message *stashed_work;
         bool *work_is_stashed;
         short num_stashed_work;
@@ -43,7 +42,11 @@ class Interconnect {
         Message get_stashed_work(short sender = -1);
 
         // Frees up saved dead messages
-        void clean_dead_messages(bool always_free);
+        void clean_dead_messages(bool always_free = false);
+
+        // Waits until all messages have been delivered, freeing dead message
+        // queue along the way.
+        void blocking_wait_for_message_delivery();
 
         // Frees the interconnect data structures
         void free_interconnect();

@@ -145,12 +145,12 @@ bool State::get_work_from_interconnect_stash(
     }
     Message work_message = interconnect.get_stashed_work();
     handle_work_message(
-        work_message.sender, work_message.data, cnf, task_stack, interconnect);
+        work_message, cnf, task_stack, interconnect);
     return true;
 }
 
 // Returns whether we are out of work to do
-bool State::out_of_work(Deque task_stack) {
+bool State::out_of_work() {
     return State::num_non_trivial_tasks == 0;
 }
 
@@ -202,7 +202,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
 void State::handle_work_request(
         short sender_pid,
         bool is_urgent,
-        Cnf &cnf, 
+        Cnf &cnf,
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
@@ -211,21 +211,34 @@ void State::handle_work_request(
 
 // Handles work received
 void State::handle_work_message(
-        short sender_pid,
-        void *work,
+        Message message,
         Cnf &cnf, 
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    // TODO: implement this
+    short sender_pid = message.sender;
+    short child_index = child_index_from_pid(sender_pid);
+    void *work = message.data;
+    assert(State::request_already_sent[child_index]);
+    assert(child_statuses[child_index] != 'u');
+    assert(!interconnect.have_stashed_work(sender_pid));
+    if (out_of_work()) {
+        // Reconstruct state from work
+        cnf.reconstruct_state(work, task_stack);
+        State::num_non_trivial_tasks = 1;
+    } else {
+        // Add to interconnect work stash
+        interconnect.stash_work(message);
+    }
+    State::request_already_sent[child_index] = false;
 }
 
 // Handles an abort message, possibly forwarding it
 void State::handle_abort_message(
         short sender_pid,
-        Cnf &cnf, 
-        Deque &task_stack, 
-        Interconnect &interconnect) 
+        Cnf &cnf,
+        Deque &task_stack,
+        Interconnect &interconnect)
     {
     // TODO: implement this
 }
@@ -248,7 +261,7 @@ void State::handle_message(
             return;
         } case 2: {
             handle_work_message(
-                message.sender, message.data, cnf, task_stack, interconnect);
+                message, cnf, task_stack, interconnect);
             return;
         } default: {
             handle_abort_message(message.sender, cnf, task_stack, interconnect);
@@ -355,7 +368,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         while (workers_requesting() && can_give_work(task_stack, interconnect)) {
             give_work(cnf, task_stack, interconnect);
         }
-        if (out_of_work(task_stack)) {
+        if (out_of_work()) {
             bool still_out_of_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
             if (still_out_of_work) {
@@ -363,7 +376,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             }
         }
         Message message;
-        while (out_of_work(task_stack)) {
+        while (out_of_work()) {
             bool message_received = interconnect.async_receive_message(message);
             if (message_received) {
                 handle_message(message, cnf, task_stack, interconnect);
@@ -371,6 +384,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         }
         while (interconnect.async_receive_message(message)) {
             handle_message(message, cnf, task_stack, interconnect);
+            // TODO: serve work here?
         }
     }
 }
