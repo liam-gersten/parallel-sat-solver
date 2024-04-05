@@ -4,22 +4,34 @@
 State::State(short pid, short nprocs, short branching_factor) {
     State::pid = pid;
     State::nprocs = nprocs;
-    State::parent_id = (((pid + 1) / 2) - 1);
-    State::num_children = 2;
-    State::child_statuses = (char *)malloc(sizeof(char) * 3);
-    State::child_statuses[0] = 'u'; // No work by default
-    State::child_statuses[1] = 'u'; // No work by default
+    State::parent_id = (pid - 1) / branching_factor;
+    State::num_children = branching_factor;
+    short actual_num_children = 0;
+    for (short child = 0; child < branching_factor; child++) {
+        short child_pid = pid_from_child_index(child);
+        if (child_pid >= State::nprocs) {
+            break;
+        }
+        actual_num_children++;
+    }
+    State::num_children = actual_num_children;
+    State::child_statuses = (char *)malloc(
+        sizeof(char) * (State::num_children + 1));
+    for (short child = 0; child < State::num_children; child++) {
+        State::child_statuses[child] = 'u';
+    }
     if (pid == 0) {
-        State::child_statuses[2] = 'u';
+        State::child_statuses[State::num_children] = 'u';
         State::num_urgent = 1;
     } else {
-        State::child_statuses[2] = 's'; // ?
+        State::child_statuses[State::num_children] = 's'; // ?
         State::num_urgent = 0;
     }
-    State::requests_sent = (char *)calloc(sizeof(char), 3);
-    State::requests_sent[0] = 'n';
-    State::requests_sent[1] = 'n';
-    State::requests_sent[2] = 'n';
+    State::requests_sent = (char *)calloc(
+        sizeof(char), State::num_children + 1);
+    for (short child = 0; child <= State::num_children; child++) {
+        State::requests_sent[child] = 'n';
+    }
     State::num_requesting = 0;
     State::num_urgent = 0;
     State::num_non_trivial_tasks = 0;
@@ -34,21 +46,16 @@ short State::pid_from_child_index(short child_index) {
         // Is parent
         return State::parent_id;
     }
-    assert(child_index == 0 || child_index == 1);
-    return ((State::pid + 1) * 2) - 1 + child_index;
+    return (State::pid * State::num_children) + child_index + 1;
 }
 
 // Gets child (or parent) index from child (or parent) pid
 short State::child_index_from_pid(short child_pid) {
     assert(0 <= child_pid && child_pid <= State::nprocs);
-    if (child_pid == (((State::pid + 1) * 2) - 1)) {
-        return 0;
-    } else if (child_pid == ((State::pid + 1) * 2)) {
-        return 1;
+    if (child_pid == State::parent_id) {
+        return State::num_children;
     }
-    // Is parent
-    assert(child_pid == (((State::pid + 1) / 2) - 1));
-    return State::num_children;
+    return child_pid - 1 - (State::pid * State::num_children);
 }
 
 // Returns whether there are any other processes requesting our work

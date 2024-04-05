@@ -54,6 +54,8 @@ void run_filename(int argc, char *argv[]) {
     Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
     State state(pid, nproc, branching_factor);
 
+    
+
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
         std::cout << "Initialization time (sec): " << std::fixed << std::setprecision(10) << init_time << '\n';
