@@ -17,7 +17,7 @@ Interconnect::Interconnect(int pid, int nproc, int work_bytes) {
 }
         
 // Receives one async messages, returns false if nothing received
-bool Interconnect::async_receive_message(Cnf &cnf, Message &message) {
+bool Interconnect::async_receive_message(Message &message) {
     int buffer_size_needed = 0;
     MPI_Status status;
     int flag;
@@ -32,7 +32,7 @@ bool Interconnect::async_receive_message(Cnf &cnf, Message &message) {
         MPI_ANY_TAG, MPI_COMM_WORLD, &status);
     message.sender = sender;
     message.type = status.MPI_TAG;
-    message.data = (int *)buffer;
+    message.data = buffer;
     return true;
 }
 

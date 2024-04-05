@@ -17,7 +17,7 @@ class Interconnect {
         Interconnect(int pid, int nproc, int work_bytes);
         
         // Receives one async messages, returns false if nothing received
-        bool async_receive_message(Cnf &cnf, Message &message);
+        bool async_receive_message(Message &message);
 
         // Sends message asking for work
         void send_work_request(short recipient, bool urgent);

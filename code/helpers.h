@@ -30,8 +30,8 @@ struct FormulaEdit {
 
 struct Message {
     short sender;
-    char type;
-    int *data;
+    short type;
+    void *data;
 };
 
 struct Task {

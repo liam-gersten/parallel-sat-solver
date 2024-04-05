@@ -19,84 +19,108 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
         State::child_statuses[2] = 's'; // ?
         State::num_urgent = 0;
     }
+    State::waiting_on_response = (bool *)calloc(sizeof(bool), 3);
 }
 
-// True if parent hasn't sent us an urgent request
-bool State::parent_may_have_work() {
-    return child_statuses[2] != 'u';
+// Returns whether there are any other processes requesting our work
+bool State::workers_requesting() {
+    // TODO: implement this
+    return false;
 }
 
-// Requests more work to do from parent in non-urgent fashion
-void State::request_work_from_parent(Interconnect &interconnect) {
-    interconnect.send_work_request(parent_id, false);
+// Returns whether the state is able to supply work to requesters
+bool State::can_give_work(Deque task_stack) {
+    // TODO: implement this
+    return false;
 }
 
-// Requests more work to do from one or more children
-void State::request_work_from_children(Interconnect &interconnect) {
-    for (int i = 0; i < num_children; i++) {
-        if (child_statuses[i] != 'u') {
-            int child_id = child_ids[i];
-            interconnect.send_work_request(child_id, false);
-        }
-    }
+// Gives one unit of work to lazy processors
+void State::give_work(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
+    // TODO: implement this
 }
 
-// Sends urgent message to the one remaining child/parent who hasn't
-// sent us one.
-void State::urgently_request_work(Interconnect &interconnect) {
-    // TODO: Implement this
-    for (int i = 0; i < num_children; i++) {
-        if (child_statuses[i] != 'u') {
-            int child_id = child_ids[i];
-            interconnect.send_work_request(child_id, true);
-            child_statuses[i] = 'u';
-            num_urgent++;
+// Gets stashed work, returns true if any was grabbed
+bool State::get_work_from_interconnect_stash(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
+    // TODO: implement this
+    return false;
+}
+
+// Returns whether we are out of work to do
+bool State::out_of_work(Deque task_stack) {
+    // TODO: implement this
+    return false;
+}
+
+// Asks parent or children for work
+void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
+    // TODO: implement this
+}
+
+// Handles work received
+void State::handle_work_request(
+        short sender_pid,
+        bool is_urgent,
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
+    // TODO: implement this
+}
+
+// Handles work received
+void State::handle_work_message(
+        short sender_pid,
+        void *work,
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
+    // TODO: implement this
+}
+
+// Handles an abort message, possibly forwarding it
+void State::handle_abort_message(
+        short sender_pid,
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
+    // TODO: implement this
+}
+
+// Handles an abort message, possibly forwarding it
+void State::handle_message(
+        Message message, 
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
+    switch (message.type) {
+        case 0: {
+            handle_work_request(
+                message.sender, false, cnf, task_stack, interconnect);
+            return;
+        } case 1: {
+            handle_work_request(
+                message.sender, true, cnf, task_stack, interconnect);
+            return;
+        } case 2: {
+            handle_work_message(
+                message.sender, message.data, cnf, task_stack, interconnect);
+            return;
+        } default: {
+            handle_abort_message(message.sender, cnf, task_stack, interconnect);
             return;
         }
     }
-    interconnect.send_work_request(parent_id, true);
-    child_statuses[num_children] = 'u';
-    num_urgent++;
-}
-
-// Terminates state and current thread
-void State::abort(Interconnect &interconnect) {
-    // TODO: Implement this
-    return;
-}
-
-// Updates a child or parent's status
-void State::set_status(short id, char status) {
-    for (int i = 0; i < num_children; i++) {
-        if (id == child_ids[i]) {
-            child_statuses[i] = status;
-            return;
-        }
-    }
-}
-
-// Adds work to stack
-void State::add_to_stack(Message work, Deque &task_stack) {
-    // TODO: Implement this
-    return;
-}
-
-// Saves a work request to be filled later
-void State::stash_request(Message request) {
-    // TODO: Implement this
-    return;
-}
-
-// Sends work to requester
-void State::serve_request(Message request) {
-    // TODO: Implement this
-    return;
-}
-
-// Serves as many stashed requests as possible
-void State::serve_requests(Interconnect &interconnect) {
-    // TODO: Implement this
-    return;
 }
 
 // Adds one or two variable assignment tasks to task stack
@@ -184,9 +208,28 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         bool result = solve_iteration(cnf, task_stack);
         if (result) {
             return true;
-        }
-        if (task_stack.count == 0) {
+        } else if (task_stack.count == 0) {
             return false;
+        }
+        while (workers_requesting() && can_give_work(task_stack)) {
+            give_work(cnf, task_stack, interconnect);
+        }
+        if (out_of_work(task_stack)) {
+            bool still_out_of_work = get_work_from_interconnect_stash(
+                cnf, task_stack, interconnect);
+            if (still_out_of_work) {
+                ask_for_work(cnf, interconnect);
+            }
+        }
+        Message message;
+        while (out_of_work(task_stack)) {
+            bool message_received = interconnect.async_receive_message(message);
+            if (message_received) {
+                handle_message(message, cnf, task_stack, interconnect);
+            }
+        }
+        while (interconnect.async_receive_message(message)) {
+            handle_message(message, cnf, task_stack, interconnect);
         }
     }
 }

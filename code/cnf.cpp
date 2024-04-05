@@ -676,8 +676,8 @@ Task Cnf::extract_task_from_work(void *work) {
 
 // Reconstructs one's own formula (state) from an integer representation
 void Cnf::reconstruct_state(void *work, Deque &task_stack) {
-    // TODO: implement this
     unsigned int *compressed = (unsigned int *)work;
+    Cnf::oldest_compressed = compressed;
     int clause_group_offset = 0;
     Cnf::clauses.reset_ll_bins();
     for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
@@ -712,16 +712,17 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         free(value_bits_true);
         free(value_bits_false);
     }
+    task_stack.free_data();
+    (*Cnf::edit_stack).free_data();
+    (*Cnf::edit_counts_stack).free_data();
     Task first_task = extract_task_from_work(work);
-    void *undo_task = make_task(-1, true);
-    task_stack.add_to_front(undo_task);
     task_stack.add_to_front(
         make_task(first_task.var_id, first_task.assignment));
     (*(Cnf::edit_stack)).free_data();
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::local_edit_count = 0;
-    // Cnf and task stack are now ready for a new call to solve
+    return; // Cnf and task stack are now ready for a new call to solve
 }
 
 // Converts task + state into work message

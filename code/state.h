@@ -15,40 +15,64 @@ class State {
         short num_children;
         short *child_ids;
         char *child_statuses; // 'r', 'u', or 's'
+        bool *waiting_on_response;
         short num_urgent;
 
         State(short pid, short nprocs, Cnf &cnf, Deque &task_stack);
 
-        // True if parent hasn't sent us an urgent request
-        bool parent_may_have_work();
+        // Returns whether there are any other processes requesting our work
+        bool workers_requesting();
 
-        // Requests more work to do from parent in non-urgent fashion
-        void request_work_from_parent(Interconnect &interconnect);
+        // Returns whether the state is able to supply work to requesters
+        bool can_give_work(Deque task_stack);
+        
+        // Gives one unit of work to lazy processors
+        void give_work(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
+        
+        // Gets stashed work, returns true if any was grabbed
+        bool get_work_from_interconnect_stash(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
 
-        // Requests more work to do from one or more children
-        void request_work_from_children(Interconnect &interconnect);
+        // Returns whether we are out of work to do
+        bool out_of_work(Deque task_stack);
 
-        // Sends urgent message to the one remaining child/parent who hasn't
-        // sent us one.
-        void urgently_request_work(Interconnect &interconnect);
-
-        // Terminates state and current thread
-        void abort(Interconnect &interconnect);
-
-        // Updates a child or parent's status
-        void set_status(short id, char status);
-
-        // Adds work to stack
-        void add_to_stack(Message work, Deque &task_stack);
-
-        // Saves a work request to be filled later
-        void stash_request(Message request);
-
-        // Sends work to requester
-        void serve_request(Message request);
-
-        // Serves as many stashed requests as possible
-        void serve_requests(Interconnect &interconnect);
+        // Asks parent or children for work
+        void ask_for_work(Cnf &cnf, Interconnect &interconnect);
+        
+        // Handles work request
+        void handle_work_request(
+            short sender_pid,
+            bool is_urgent,
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
+        
+        // Handles work received
+        void handle_work_message(
+            short sender_pid,
+            void *work,
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
+        
+        // Handles an abort message, possibly forwarding it
+        void handle_abort_message(
+            short sender_pid,
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
+        
+        // Updates self and possibly sends other messages depending on type
+        void handle_message(
+            Message message, 
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
 
         // Adds one or two variable assignment tasks to task stack
         int add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo);
