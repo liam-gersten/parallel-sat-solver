@@ -79,6 +79,7 @@ bool Interconnect::have_stashed_work(short sender) {
 void Interconnect::stash_work(Message work) {
   assert(0 <= work.sender && work.sender < Interconnect::nproc);
   assert(!have_stashed_work(work.sender));
+  assert(work.type == 2);
   Interconnect::stashed_work[work.sender] = work;
   Interconnect::work_is_stashed[work.sender] = true;
   Interconnect::num_stashed_work++;

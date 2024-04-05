@@ -30,7 +30,7 @@ struct FormulaEdit {
 
 struct Message {
     short sender;
-    short type;
+    short type; // 0 = req, 1 = urgent req, 2 = work, 3 = abort
     void *data;
 };
 

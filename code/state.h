@@ -14,7 +14,7 @@ class State {
         short parent_id;
         short num_children;
         char *child_statuses; // 'r', 'u', or 's'
-        bool *waiting_on_response;
+        bool *request_already_sent;
         short num_requesting;
         short num_urgent;
         int num_non_trivial_tasks;
@@ -32,6 +32,9 @@ class State {
 
         // Returns whether the state is able to supply work to requesters
         bool can_give_work(Deque task_stack, Interconnect interconnect);
+        
+        // Grabs work from the top of the task stack, updates Cnf structures
+        void *steal_work(Cnf &cnf, Deque &task_stack);
         
         // Gives one unit of work to lazy processors
         void give_work(

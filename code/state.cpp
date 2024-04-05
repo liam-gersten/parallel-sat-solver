@@ -16,7 +16,7 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
         State::child_statuses[2] = 's'; // ?
         State::num_urgent = 0;
     }
-    State::waiting_on_response = (bool *)calloc(sizeof(bool), 3);
+    State::request_already_sent = (bool *)calloc(sizeof(bool), 3);
     State::num_requesting = 0;
     State::num_urgent = 0;
     State::num_non_trivial_tasks = 0;
@@ -56,13 +56,79 @@ bool State::can_give_work(Deque task_stack, Interconnect interconnect) {
     return ((State::num_non_trivial_tasks + interconnect.num_stashed_work) > 1);
 }
 
+// Grabs work from the top of the task stack, updates Cnf structures
+void *State::steal_work(Cnf &cnf, Deque &task_stack) {
+    assert(State::num_non_trivial_tasks > 1);
+    // TODO: implement this
+    void *work = (void *)malloc(1 * sizeof(int));
+    assert(State::num_non_trivial_tasks >= 1);
+    return work;
+}
+
 // Gives one unit of work to lazy processors
 void State::give_work(
         Cnf &cnf, 
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    // TODO: implement this
+    short recipient_index;
+    short recipient_pid;
+    void *work;
+    // Prefer to give stashed work
+    if (interconnect.have_stashed_work()) {
+        for (short child = 0; child <= State::num_children; child++) {
+            if (State::num_urgent > 0) {
+                // Urgent requests take precedence
+                // Pick an urgently-requesting child that has stashed work,
+                // or an arbitrary one.
+                if (State::child_statuses[child] != 'u') {
+                    continue;
+                }
+            } else {
+                // Check every requesting child (or parent) and see if they 
+                // request their own work back, or pick arbitrary recipient
+                if (State::child_statuses[child] == 's') {
+                    continue;
+                }
+            }
+            recipient_index = child;
+            recipient_pid = pid_from_child_index(child);
+            if (interconnect.have_stashed_work(recipient_pid)) {
+                break;
+            }
+        }
+        // Now pick the work to send
+        if (interconnect.have_stashed_work(recipient_pid)) {
+            work = (interconnect.get_stashed_work(recipient_pid)).data;
+        } else {
+            work = (interconnect.get_stashed_work(recipient_pid)).data;
+        }
+    } else {
+        // Pick some recipient
+        for (short child = 0; child <= State::num_children; child++) {
+            if (State::num_urgent > 0) {
+                // must be an urgently-requesting child
+                if (State::child_statuses[child] != 'u') {
+                    continue;
+                }
+            } else {
+                // must be a requesting child
+                if (State::child_statuses[child] == 's') {
+                    continue;
+                }
+            }
+            recipient_index = child;
+            recipient_pid = pid_from_child_index(child);
+            break;
+        }
+        work = steal_work(cnf, task_stack);
+    }
+    interconnect.send_work(recipient_pid, work);
+    State::child_statuses[recipient_index] = 's';
+    if (State::num_urgent > 0) {
+        State::num_urgent--;
+    }
+    State::num_requesting--;
 }
 
 // Gets stashed work, returns true if any was grabbed
@@ -104,21 +170,21 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
         }
         short dest_pid = pid_from_child_index(dest_index);
         interconnect.send_work_request(dest_pid, true);
-        State::waiting_on_response[dest_index] = true;
+        State::request_already_sent[dest_index] = true;
     } else {
         // Send a single work request to my parent.
         // If the parent has already been requested and hasn't responded,
         // ask a child who has not been requested yet if applicable.
-        bool parent_requested = State::waiting_on_response[State::num_children];
+        bool parent_requested = State::request_already_sent[State::num_children];
         bool parent_empty = State::child_statuses[State::num_children] == 'u';
         if (!parent_requested && !parent_empty) {
             interconnect.send_work_request(State::parent_id, false);
-            State::waiting_on_response[State::num_children] = true;
+            State::request_already_sent[State::num_children] = true;
         } else {
             short dest_index;
             // Find index of valid child
             for (short i = 0; i < State::num_children; i++) {
-                bool child_requested = State::waiting_on_response[i];
+                bool child_requested = State::request_already_sent[i];
                 bool child_empty = State::child_statuses[i] == 'u';
                 if (!child_requested && !child_empty) {
                     dest_index = i;
@@ -127,7 +193,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
             }
             short dest_pid = pid_from_child_index(dest_index);
             interconnect.send_work_request(dest_pid, false);
-            State::waiting_on_response[dest_index] = true;
+            State::request_already_sent[dest_index] = true;
         }
     }
 }
