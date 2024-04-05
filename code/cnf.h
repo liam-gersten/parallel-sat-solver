@@ -59,6 +59,8 @@ class Cnf {
         // Default constructor
         Cnf();
 
+        std::tuple<int, bool> oneOfClause(int* vars, int length, int &var_id, bool beginning=true, int newComm=-1, bool newCommSign=false);
+
         // Initializes CNF compression
         void init_compression();
 
