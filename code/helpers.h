@@ -207,8 +207,11 @@ class Deque {
     public:
         DoublyLinkedList *head;
         DoublyLinkedList *tail;
-        int count = 0;
+        int count;
 
+        // Default constructor
+        Deque();
+        
         // Adds element to front of queue
         void add_to_front(void *value);
 
@@ -229,6 +232,9 @@ class Deque {
 
         // Frees all data in the deque
         void free_data();
+
+        // Frees all data structures
+        void free_deque();
 };
 
 class Queue {
@@ -264,6 +270,9 @@ bool backtrack_at_top(Deque task_stack);
 // Returns whether the front of the stack says to backtrack
 bool backtrack_at_front(Deque task_stack);
 
+// Ensures the task stack is a valid one
+void task_stack_invariant(Deque &task_stack, int supposed_num_tasks);
+
 struct IntDoublyLinkedList {
     IntDoublyLinkedList *prev;
     IntDoublyLinkedList *next;
@@ -274,7 +283,10 @@ class IntDeque {
     public:
         IntDoublyLinkedList *head;
         IntDoublyLinkedList *tail;
-        int count = 0;
+        int count;
+
+        // Default constructor
+        IntDeque();
 
         // Adds element to front of queue
         void add_to_front(int value);
@@ -296,6 +308,9 @@ class IntDeque {
 
         // Frees all data in the deque
         void free_data();
+
+        // Frees all data structures
+        void free_deque();
 };
 
 struct DeadMessageLinkedList {

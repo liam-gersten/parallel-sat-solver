@@ -384,8 +384,8 @@ void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
 
 // Runs one iteration of the solver
 bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
-    assert(!backtrack_at_top(task_stack));
     assert(State::num_non_trivial_tasks > 0);
+    task_stack_invariant(task_stack, State::num_non_trivial_tasks);
     if (PRINT_LEVEL >= 5) printf("\n");
     Task task = get_task(task_stack);
     int var_id = task.var_id;
@@ -399,7 +399,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     }
     cnf.recurse();
     while (true) {
-        assert(!backtrack_at_top(task_stack));
+        task_stack_invariant(task_stack, State::num_non_trivial_tasks);
         if (PRINT_LEVEL > 0) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
         print_data(cnf, task_stack, "Loop start");
         if (!cnf.propagate_assignment(var_id, assignment)) {

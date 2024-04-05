@@ -613,21 +613,31 @@ void IndexableDLL::free_data() {
     return;
 }
 
+// Default constructor
+Deque::Deque() {
+    Deque::count = 0;
+    Deque::head = (DoublyLinkedList *)malloc(sizeof(DoublyLinkedList));
+    Deque::tail = (DoublyLinkedList *)malloc(sizeof(DoublyLinkedList));
+    DoublyLinkedList head_value;
+    DoublyLinkedList tail_value;
+    head_value.next = Deque::tail;
+    tail_value.prev = Deque::head;
+    *Deque::head = head_value;
+    *Deque::tail = tail_value;
+}
+
 // Adds element to front of queue
 void Deque::add_to_front(void *value) {
     DoublyLinkedList current;
     current.value = value;
     DoublyLinkedList *current_ptr = (DoublyLinkedList *)malloc(
         sizeof(DoublyLinkedList)); 
-    if (Deque::count == 0) {
-        *current_ptr = current;
-        Deque::head = current_ptr;
-        Deque::tail = current_ptr;
-    } else {
-        current.next = Deque::head;
-        *current_ptr = current;
-        Deque::head = current_ptr;
-    }
+    DoublyLinkedList *current_first = (*Deque::head).next;
+    (*Deque::head).next = current_ptr;
+    current.prev = Deque::head;
+    current.next = current_first;
+    (*current_first).prev = current_ptr;
+    *current_ptr = current;
     Deque::count++;
 }
 
@@ -637,25 +647,24 @@ void Deque::add_to_back(void *value) {
     current.value = value;
     DoublyLinkedList *current_ptr = (DoublyLinkedList *)malloc(
         sizeof(DoublyLinkedList)); 
-    if (Deque::count == 0) {
-        *current_ptr = current;
-        Deque::head = current_ptr;
-        Deque::tail = current_ptr;
-    } else {
-        current.prev = Deque::tail;
-        *current_ptr = current;
-        Deque::tail = current_ptr;
-    }
+    DoublyLinkedList *current_last = (*Deque::tail).prev;
+    (*Deque::tail).prev = current_ptr;
+    current.next = Deque::tail;
+    current.prev = current_last;
+    (*current_last).next = current_ptr;
+    *current_ptr = current;
     Deque::count++;
 }
 
 // Removes and retuns element at front of queue
 void *Deque::pop_from_front() {
     assert(Deque::count > 0);
-    void *value = (*(Deque::head)).value;
-    DoublyLinkedList *next = (*(Deque::head)).next;
-    free(Deque::head);
-    Deque::head = next;
+    DoublyLinkedList *current_ptr = (*Deque::head).next;
+    DoublyLinkedList current = *current_ptr;
+    free(current_ptr);
+    void *value = current.value;
+    (*(current.next)).prev = Deque::head;
+    (*Deque::head).next = current.next;
     Deque::count--;
     return value;
 }
@@ -663,10 +672,12 @@ void *Deque::pop_from_front() {
 // Removes and retuns element at back of queue
 void *Deque::pop_from_back() {
     assert(Deque::count > 0);
-    void *value = (*(Deque::tail)).value;
-    DoublyLinkedList *prev = (*(Deque::tail)).prev;
-    free(Deque::tail);
-    Deque::tail = prev;
+    DoublyLinkedList *current_ptr = (*Deque::tail).prev;
+    DoublyLinkedList current = *current_ptr;
+    free(current_ptr);
+    void *value = current.value;
+    (*(current.prev)).next = Deque::tail;
+    (*Deque::tail).prev = current.prev;
     Deque::count--;
     return value;
 }
@@ -674,13 +685,13 @@ void *Deque::pop_from_back() {
 // Returns the front value without removing it
 void *Deque::peak_front() {
     assert(Deque::count > 0);
-    return (*(Deque::head)).value;
+    return (*((*(Deque::head)).next)).value;
 }
 
 // Returns the back value without removing it
 void *Deque::peak_back() {
     assert(Deque::count > 0);
-    return (*(Deque::tail)).value;
+    return (*((*(Deque::tail)).prev)).value;
 }
 
 // Frees all data in the deque
@@ -688,6 +699,13 @@ void Deque::free_data() {
     while (Deque::count > 0) {
         pop_from_front();
     }
+}
+
+// Frees all data structures
+void Deque::free_deque() {
+    free_data();
+    free(Deque::head);
+    free(Deque::tail);
 }
 
 // Adds value to back of queue
@@ -774,21 +792,50 @@ bool backtrack_at_front(Deque task_stack) {
     return (task.var_id == -1);
 }
 
+// Ensures the task stack is a valid one
+void task_stack_invariant(Deque &task_stack, int supposed_num_tasks) {
+    assert(!backtrack_at_top(task_stack));
+    int num_processed = 0;
+    int num_to_process = task_stack.count;
+    int true_num_tasks = 0;
+    while (num_processed < num_to_process) {
+        void *current_ptr = task_stack.pop_from_front();
+        Task current = *((Task *)current_ptr);
+        if (current.var_id != -1) {
+            // This is a non-trivial task, increment
+            true_num_tasks++;
+        }
+        task_stack.add_to_back(current_ptr);
+        num_processed++;
+    }
+    assert(task_stack.count == num_to_process);
+}
+
+// Default constructor
+IntDeque::IntDeque() {
+    IntDeque::count = 0;
+    IntDeque::head = (IntDoublyLinkedList *)malloc(sizeof(IntDoublyLinkedList));
+    IntDeque::tail = (IntDoublyLinkedList *)malloc(sizeof(IntDoublyLinkedList));
+    IntDoublyLinkedList head_value;
+    IntDoublyLinkedList tail_value;
+    head_value.next = IntDeque::tail;
+    tail_value.prev = IntDeque::head;
+    *IntDeque::head = head_value;
+    *IntDeque::tail = tail_value;
+}
+
 // Adds element to front of queue
 void IntDeque::add_to_front(int value) {
     IntDoublyLinkedList current;
     current.value = value;
     IntDoublyLinkedList *current_ptr = (IntDoublyLinkedList *)malloc(
         sizeof(IntDoublyLinkedList)); 
-    if (IntDeque::count == 0) {
-        *current_ptr = current;
-        IntDeque::head = current_ptr;
-        IntDeque::tail = current_ptr;
-    } else {
-        current.next = IntDeque::head;
-        *current_ptr = current;
-        IntDeque::head = current_ptr;
-    }
+    IntDoublyLinkedList *current_first = (*IntDeque::head).next;
+    (*IntDeque::head).next = current_ptr;
+    current.prev = IntDeque::head;
+    current.next = current_first;
+    (*current_first).prev = current_ptr;
+    *current_ptr = current;
     IntDeque::count++;
 }
 
@@ -798,25 +845,24 @@ void IntDeque::add_to_back(int value) {
     current.value = value;
     IntDoublyLinkedList *current_ptr = (IntDoublyLinkedList *)malloc(
         sizeof(IntDoublyLinkedList)); 
-    if (IntDeque::count == 0) {
-        *current_ptr = current;
-        IntDeque::head = current_ptr;
-        IntDeque::tail = current_ptr;
-    } else {
-        current.prev = IntDeque::tail;
-        *current_ptr = current;
-        IntDeque::tail = current_ptr;
-    }
+    IntDoublyLinkedList *current_last = (*IntDeque::tail).prev;
+    (*IntDeque::tail).prev = current_ptr;
+    current.next = IntDeque::tail;
+    current.prev = current_last;
+    (*current_last).next = current_ptr;
+    *current_ptr = current;
     IntDeque::count++;
 }
 
 // Removes and retuns element at front of queue
 int IntDeque::pop_from_front() {
     assert(IntDeque::count > 0);
-    int value = (*(IntDeque::head)).value;
-    IntDoublyLinkedList *next = (*(IntDeque::head)).next;
-    free(IntDeque::head);
-    IntDeque::head = next;
+    IntDoublyLinkedList *current_ptr = (*IntDeque::head).next;
+    IntDoublyLinkedList current = *current_ptr;
+    free(current_ptr);
+    int value = current.value;
+    (*(current.next)).prev = IntDeque::head;
+    (*IntDeque::head).next = current.next;
     IntDeque::count--;
     return value;
 }
@@ -824,10 +870,12 @@ int IntDeque::pop_from_front() {
 // Removes and retuns element at back of queue
 int IntDeque::pop_from_back() {
     assert(IntDeque::count > 0);
-    int value = (*(IntDeque::tail)).value;
-    IntDoublyLinkedList *prev = (*(IntDeque::tail)).prev;
-    free(IntDeque::tail);
-    IntDeque::tail = prev;
+    IntDoublyLinkedList *current_ptr = (*IntDeque::tail).prev;
+    IntDoublyLinkedList current = *current_ptr;
+    free(current_ptr);
+    int value = current.value;
+    (*(current.prev)).next = IntDeque::tail;
+    (*IntDeque::tail).prev = current.prev;
     IntDeque::count--;
     return value;
 }
@@ -835,13 +883,13 @@ int IntDeque::pop_from_back() {
 // Returns the front value without removing it
 int IntDeque::peak_front() {
     assert(IntDeque::count > 0);
-    return (*(IntDeque::head)).value;
+    return (*((*(IntDeque::head)).next)).value;
 }
 
 // Returns the back value without removing it
 int IntDeque::peak_back() {
     assert(IntDeque::count > 0);
-    return (*(IntDeque::tail)).value;
+    return (*((*(IntDeque::tail)).prev)).value;
 }
 
 // Frees all data in the deque
@@ -849,6 +897,13 @@ void IntDeque::free_data() {
     while (IntDeque::count > 0) {
         pop_from_front();
     }
+}
+
+// Frees all data structures
+void IntDeque::free_deque() {
+    free_data();
+    free(IntDeque::head);
+    free(IntDeque::tail);
 }
 
 // Adds value to back of queue
