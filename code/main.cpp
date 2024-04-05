@@ -140,7 +140,7 @@ void truncate_size(unsigned long long int &input_size, std::string &suffix) {
 }
 
 void print_memory_stats() {
-    for (int sqrt_n = 2; sqrt_n < 10; sqrt_n++) {
+    for (int sqrt_n = 2; sqrt_n <= 8; sqrt_n++) {
         int n = sqrt_n * sqrt_n;
         printf("\nn = %d\n", n);
         int n_squ = n * n;
@@ -160,6 +160,8 @@ void print_memory_stats() {
         suffix = "";
         truncate_size(max_work_queue_size, suffix);
         printf("\twork_queue_size =       %llu %s\n", max_work_queue_size, suffix.c_str());
+        unsigned long long int compressed_vars = ceil_div(c, (sizeof(int) * 8)) + ceil_div(v, (sizeof(int) * 8));
+        printf("\tcompressed_vars =       %llu\n", compressed_vars);
         unsigned long long compressed_clauses_size = ceil_div(
             c, (sizeof(int) * 8)) * sizeof(int);
         unsigned long long compressed_variables_size = ceil_div(
@@ -178,6 +180,7 @@ void print_memory_stats() {
 
 int main(int argc, char *argv[]) {
     // run_example_1();
+    // print_memory_stats();
     run_filename(argc, argv);
     // print_memory_stats();
     

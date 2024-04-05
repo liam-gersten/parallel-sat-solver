@@ -16,6 +16,9 @@ struct Clause {
     int *literal_variable_ids; // variable ids for each literal
     bool *literal_signs; // each literal
     int num_literals; // size of the two pointers
+    // Used to quickly updates the compressed version of the CNF
+    unsigned int clause_addition;
+    unsigned int clause_addition_index;
 };
 
 struct FormulaEdit {
@@ -83,6 +86,14 @@ void print_assignment(
 
 // Displays sudoku board
 void print_board(short **board, int n);
+
+// Prints current compressed Cnf
+void print_compressed(
+    int caller_pid,
+    std::string prefix_string, 
+    std::string tab_string,
+    unsigned int *compressed,
+    int n);
 
 // Raises an error with a print statement
 void raise_error(std::string error_message);
@@ -202,6 +213,15 @@ class Deque {
 
         // Removes and retuns element at back of queue
         void *pop_from_back();
+
+        // Returns the front value without removing it
+        void *peak_front();
+
+        // Returns the back value without removing it
+        void *peak_back();
+
+        // Frees all data in the deque
+        void free_data();
 };
 
 class Queue {
@@ -231,6 +251,9 @@ class Queue {
 // Gets first task from stack, frees pointer
 Task get_task(Deque &task_stack);
 
+// Returns whether the top of the stack says to backtrack
+bool backtrack_at_top(Deque task_stack);
+
 struct IntDoublyLinkedList {
     IntDoublyLinkedList *prev;
     IntDoublyLinkedList *next;
@@ -254,6 +277,15 @@ class IntDeque {
 
         // Removes and retuns element at back of queue
         int pop_from_back();
+
+        // Returns the front value without removing it
+        int peak_front();
+
+        // Returns the back value without removing it
+        int peak_back();
+
+        // Frees all data in the deque
+        void free_data();
 };
 
 struct DeadMessageLinkedList {

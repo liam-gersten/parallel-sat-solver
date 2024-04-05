@@ -46,15 +46,13 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
     Cnf::variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * Cnf::num_variables);
     Deque edit_stack;
-    Deque edit_counts_stack;
+    IntDeque edit_counts_stack;
     Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
-    Cnf::edit_counts_stack = (Deque *)malloc(sizeof(Deque));
+    Cnf::edit_counts_stack = (IntDeque *)malloc(sizeof(IntDeque));
     *Cnf::edit_stack = edit_stack;
     *Cnf::edit_counts_stack = edit_counts_stack;
     Cnf::local_edit_count = 0;
     Cnf::conflict_id = -1;
-    Cnf::assigned_true = (bool *)calloc(sizeof(bool), Cnf::num_variables);
-    Cnf::assigned_false = (bool *)calloc(sizeof(bool), Cnf::num_variables);
     int variable_id = 0;
     for (int k = 0; k < n; k++) {
         for (int row = 0; row < n; row++) {
@@ -172,19 +170,10 @@ Cnf::Cnf(int **constraints, int n, int sqrt_n, int num_constraints) {
     printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
     // TODO: Add sum restrictions for killer Sudoku
 
-    Cnf::clauses_dropped = (bool *)calloc(
-        sizeof(bool), Cnf::clauses.max_indexable);
-    Cnf::ints_needed_for_clauses = ceil_div(
-        Cnf::clauses.max_indexable, (sizeof(int) * 8));
-    Cnf::ints_needed_for_vars = ceil_div(
-        Cnf::num_variables, (sizeof(int) * 8));
-    int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
-    Cnf::work_ints = 2 + ints_per_state;
-    printf("\t%d bytes per state = ((2 * %d) + %d) * 4\n", ints_per_state * 4, Cnf::ints_needed_for_vars, Cnf::ints_needed_for_clauses);
-
     Cnf::depth = 0;
     Cnf::depth_str = "";
     if (PRINT_LEVEL > 0) print_cnf(0, "Current CNF", Cnf::depth_str, true);
+    init_compression();
 }
 
 // Makes CNF formula from premade data structures
@@ -197,26 +186,23 @@ Cnf::Cnf(
     Cnf::clauses = input_clauses;
     Cnf::variables = input_variables;
     Cnf::num_variables = num_variables;
-    Cnf::ints_needed_for_clauses = ceil_div(
-        Cnf::clauses.num_indexed, (sizeof(int) * 8));
-    Cnf::ints_needed_for_vars = ceil_div(
-        Cnf::num_variables, (sizeof(int) * 8));
-    int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
-    Cnf::work_ints = 2 + ints_per_state;
-    Cnf::clauses_dropped = (bool *)calloc(
-        sizeof(bool), Cnf::clauses.num_indexed);
     Deque edit_stack;
-    Deque edit_counts_stack;
+    IntDeque edit_counts_stack;
     Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
-    Cnf::edit_counts_stack = (Deque *)malloc(sizeof(Deque));
+    Cnf::edit_counts_stack = (IntDeque *)malloc(sizeof(IntDeque));
     *Cnf::edit_stack = edit_stack;
     *Cnf::edit_counts_stack = edit_counts_stack;
     Cnf::local_edit_count = 0;
     Cnf::conflict_id = -1;
-    Cnf::assigned_true = (bool *)calloc(sizeof(bool), Cnf::num_variables);
-    Cnf::assigned_false = (bool *)calloc(sizeof(bool), Cnf::num_variables);
     Cnf::depth = 0;
     Cnf::depth_str = "";
+    init_compression();
+    printf("Clauses_dropped = [");
+    for (int i = 0; i < Cnf::ints_needed_for_clauses * 32; i++) {
+        printf("%d ", clauses_dropped[i]);
+    }
+    printf("]\n");
+    printf("as_int = %u\n", bits_to_int(Cnf::clauses_dropped));
 }
 
 // Default constructor
@@ -230,6 +216,60 @@ Cnf::Cnf() {
     Cnf::conflict_id = -1;
     Cnf::depth = 0;
     Cnf::depth_str = "";
+}
+
+// Initializes CNF compression
+void Cnf::init_compression() {
+    Cnf::ints_needed_for_clauses = ceil_div(
+        Cnf::clauses.num_indexed, (sizeof(int) * 8));
+    Cnf::ints_needed_for_vars = ceil_div(
+        Cnf::num_variables, (sizeof(int) * 8));
+    int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
+    Cnf::work_ints = 2 + ints_per_state;
+    if (PRINT_LEVEL > 0) printf("\t%d bytes per state = ((2 * %d) + %d) * 4\n", ints_per_state * 4, Cnf::ints_needed_for_vars, Cnf::ints_needed_for_clauses);
+    int start_clause_id = 0;
+    for (int comp_index = 0; comp_index < Cnf::ints_needed_for_clauses; comp_index++) {
+        unsigned int running_addition = 1;
+        for (int clause_id = start_clause_id; clause_id < start_clause_id + 32; clause_id++) {
+            if (clause_id >= Cnf::clauses.num_indexed) {
+                break;
+            }
+            Clause *clause_ptr = (Clause *)(Cnf::clauses.get_value(clause_id));
+            Clause clause = *clause_ptr;
+            clause.clause_addition = running_addition;
+            clause.clause_addition_index = (unsigned int)(comp_index + 2);
+            *clause_ptr = clause;
+            running_addition = running_addition << 1;
+        }
+        start_clause_id += 32;
+    }
+    int start_variable_id = 0;
+    for (int comp_index = 0; comp_index < Cnf::ints_needed_for_vars; comp_index++) {
+        unsigned int running_addition = 1;
+        for (int var_id = start_variable_id; var_id < start_variable_id + 32; var_id++) {
+            if (var_id >= Cnf::num_variables) {
+                break;
+            }
+            VariableLocations locations = Cnf::variables[var_id];
+            locations.variable_addition = running_addition;
+            locations.variable_true_addition_index = 
+                (unsigned int)(Cnf::ints_needed_for_clauses + comp_index + 2);
+            locations.variable_false_addition_index = 
+                (unsigned int)(Cnf::ints_needed_for_clauses 
+                + Cnf::ints_needed_for_vars + comp_index + 2);
+            Cnf::variables[var_id] = locations;
+            running_addition = running_addition << 1;
+        }
+        start_variable_id += 32;
+    }
+    Cnf::clauses_dropped = (bool *)calloc(
+        sizeof(bool), Cnf::ints_needed_for_clauses * 32);
+    Cnf::assigned_true = (bool *)calloc(
+        sizeof(bool), Cnf::ints_needed_for_vars * 32);
+    Cnf::assigned_false = (bool *)calloc(
+        sizeof(bool), Cnf::ints_needed_for_vars * 32);
+    Cnf::oldest_compressed = to_int_rep();
+    if (PRINT_LEVEL > 2) print_compressed(0, "", "", Cnf::oldest_compressed, Cnf::work_ints);
 }
 
 // Gets string representation of clause
@@ -269,8 +309,9 @@ void Cnf::print_cnf(
         bool elimination) 
     {
     Cnf::clauses.reset_iterator();
-    std::string data_string = std::to_string(
-        Cnf::clauses.get_linked_list_size());
+    std::string data_string = "CNF ";
+    data_string.append(std::to_string(
+        Cnf::clauses.get_linked_list_size()));
     data_string.append(" clauses: ");
 
     if (!CONCISE_FORMULA) data_string.append("\n");
@@ -563,6 +604,15 @@ short **Cnf::get_sudoku_board() {
     return board;
 }
 
+// On success, finishes arbitrarily assigning remaining variables
+void Cnf::assign_remaining() {
+    for (int i = 0; i < Cnf::num_variables; i++) {
+        if ((!Cnf::assigned_true[i]) && (!Cnf::assigned_false[i])) {
+            Cnf::assigned_true[i] = true;
+        }
+    }
+}
+
 // Resets the cnf to its state before edit stack
 void Cnf::undo_local_edits() {
     for (int i = 0; i < Cnf::local_edit_count; i++) {
@@ -593,9 +643,7 @@ void Cnf::undo_local_edits() {
         }
         free(recent_ptr);
     }
-    void *local_edit_count_ptr = (*Cnf::edit_counts_stack).pop_from_front();
-    Cnf::local_edit_count = *((int *)local_edit_count_ptr);
-    free(local_edit_count_ptr);
+    Cnf::local_edit_count = (*Cnf::edit_counts_stack).pop_from_front();
 }
 
 // Updates internal variables based on a recursive backtrack
@@ -613,9 +661,7 @@ void Cnf::recurse() {
     if (PRINT_LEVEL > 0) printf("%s  PID %d recurse\n", Cnf::depth_str.c_str(), 0);
     Cnf::depth++;
     Cnf::depth_str.append("\t");
-    int *local_edit_count_ptr = (int *)malloc(sizeof(int));
-    *local_edit_count_ptr = Cnf::local_edit_count;
-    (*Cnf::edit_counts_stack).add_to_front((void *)local_edit_count_ptr);
+    (*Cnf::edit_counts_stack).add_to_front(Cnf::local_edit_count);
     Cnf::local_edit_count = 0;
 }
 
@@ -633,6 +679,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     // TODO: implement this
     unsigned int *compressed = (unsigned int *)work;
     int clause_group_offset = 0;
+    Cnf::clauses.reset_ll_bins();
     for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
         unsigned int compressed_group = compressed[clause_group];
         bool *clause_bits = int_to_bits(compressed_group);
@@ -670,6 +717,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     task_stack.add_to_front(undo_task);
     task_stack.add_to_front(
         make_task(first_task.var_id, first_task.assignment));
+    (*(Cnf::edit_stack)).free_data();
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::local_edit_count = 0;
@@ -692,20 +740,21 @@ unsigned int *Cnf::to_int_rep() {
     bool *bit_addr = Cnf::clauses_dropped;
     for (int i = 0; i < Cnf::ints_needed_for_clauses; i++) {
         unsigned int current = bits_to_int(bit_addr);
-        compressed[i] = current;
+        // printf("current = %u\n", current);
+        compressed[i + 2] = current;
         bit_addr = bit_addr + 32;
     }
     bit_addr = Cnf::assigned_true;
     for (int i = 0; i < Cnf::ints_needed_for_vars; i++) {
         unsigned int current = bits_to_int(bit_addr);
-        compressed[i + Cnf::ints_needed_for_clauses] = current;
+        compressed[i + 2 + Cnf::ints_needed_for_clauses] = current;
         bit_addr = bit_addr + 32;
     }
     bit_addr = Cnf::assigned_false;
     for (int i = 0; i < Cnf::ints_needed_for_vars; i++) {
         unsigned int current = bits_to_int(bit_addr);
         compressed[
-            i + Cnf::ints_needed_for_clauses + Cnf::ints_needed_for_vars
+            i + 2 + Cnf::ints_needed_for_clauses + Cnf::ints_needed_for_vars
             ] = current;
         bit_addr = bit_addr + 32;
     }

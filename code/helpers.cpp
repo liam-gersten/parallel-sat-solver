@@ -226,6 +226,25 @@ void print_board(short **board, int n) {
     printf("-\n\n\n");
 }
 
+// Prints current compressed Cnf
+void print_compressed(
+    int caller_pid,
+    std::string prefix_string, 
+    std::string tab_string,
+    unsigned int *compressed,
+    int n) 
+    {
+    std::string data_string = "compressed: [";
+    for (int i = 2; i < n; i++) {
+        data_string.append(std::to_string(compressed[i]));
+        if (i != n - 1) {
+            data_string.append(" ");
+        }
+    }
+    data_string.append("]");
+    printf("%sPID %d %s %s\n", tab_string.c_str(), caller_pid, prefix_string.c_str(), data_string.c_str());
+}
+
 // Raises an error with a print statement
 void raise_error(std::string error_message) {
     printf("\n\nERROR: %s\n\n\n", error_message.c_str());
@@ -624,6 +643,25 @@ void *Deque::pop_from_back() {
     return value;
 }
 
+// Returns the front value without removing it
+void *Deque::peak_front() {
+    assert(Deque::count > 0);
+    return (*(Deque::head)).value;
+}
+
+// Returns the back value without removing it
+void *Deque::peak_back() {
+    assert(Deque::count > 0);
+    return (*(Deque::tail)).value;
+}
+
+// Frees all data in the deque
+void Deque::free_data() {
+    while (Deque::count > 0) {
+        pop_from_front();
+    }
+}
+
 // Adds value to back of queue
 void Queue::add_to_front(void *value) {
     LinkedList current;
@@ -694,6 +732,13 @@ Task get_task(Deque &task_stack) {
     return task;
 }
 
+// Returns whether the top of the stack says to backtrack
+bool backtrack_at_top(Deque task_stack) {
+    void *task_ptr = task_stack.peak_back();
+    Task task = (*((Task *)task_ptr));
+    return (task.var_id == -1);
+}
+
 // Adds element to front of queue
 void IntDeque::add_to_front(int value) {
     IntDoublyLinkedList current;
@@ -750,6 +795,25 @@ int IntDeque::pop_from_back() {
     IntDeque::tail = prev;
     IntDeque::count--;
     return value;
+}
+
+// Returns the front value without removing it
+int IntDeque::peak_front() {
+    assert(IntDeque::count > 0);
+    return (*(IntDeque::head)).value;
+}
+
+// Returns the back value without removing it
+int IntDeque::peak_back() {
+    assert(IntDeque::count > 0);
+    return (*(IntDeque::tail)).value;
+}
+
+// Frees all data in the deque
+void IntDeque::free_data() {
+    while (IntDeque::count > 0) {
+        pop_from_front();
+    }
 }
 
 // Adds value to back of queue

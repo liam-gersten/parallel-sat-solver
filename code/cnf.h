@@ -8,6 +8,10 @@ struct VariableLocations {
     int variable_row;
     int variable_col;
     int variable_k;
+    // Used to quickly updates the compressed version of the CNF
+    unsigned int variable_addition;
+    unsigned int variable_true_addition_index;
+    unsigned int variable_false_addition_index;
     // Will have dynamic allocation size
     Queue *clauses_containing; // LL saving pointers to clause structures
 };
@@ -23,7 +27,8 @@ class Cnf {
         IndexableDLL clauses; // dynamic number
         VariableLocations *variables; // static number
         Deque *edit_stack;
-        Deque *edit_counts_stack;
+        IntDeque *edit_counts_stack;
+        unsigned int *oldest_compressed;
         int local_edit_count;
         int conflict_id;
         int num_variables;
@@ -46,6 +51,9 @@ class Cnf {
             int num_variables);
         // Default constructor
         Cnf();
+
+        // Initializes CNF compression
+        void init_compression();
 
         // Gets string representation of edited clause
         std::string clause_to_string_current(Clause clause, bool elimination);
@@ -85,6 +93,9 @@ class Cnf {
         // Creates and writes to sudoku board from formula
         short **get_sudoku_board();
 
+        // On success, finishes arbitrarily assigning remaining variables
+        void assign_remaining();
+        
         // Resets the cnf to its state before edit stack
         void undo_local_edits();
         
