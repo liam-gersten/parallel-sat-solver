@@ -110,7 +110,6 @@ void run_example_1() {
         current.clauses_containing = variable_clauses_ptr;
         input_variables[i] = current;
     }
-    
     Clause C1 = make_small_clause(0, 1, false, true);
     Clause C2 = make_small_clause(2, 3, false, true);
     Clause C3 = make_triple_clause(5, 4, 1, false, false, false);
@@ -126,6 +125,11 @@ void run_example_1() {
     add_clause(C6, input_clauses, input_variables);
 
     Cnf cnf(0, input_clauses, input_variables, num_variables);
+
+    // int vars[7] = {0,1,2,3,4,5,6};
+    // int vid = 7;
+    // cnf.oneOfClause(vars, 4, vid);
+
     Deque task_stack;
     Interconnect interconnect(0, 1, cnf.work_ints * 8);
     State state(0, 1, 2, false);

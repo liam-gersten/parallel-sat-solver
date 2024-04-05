@@ -7,6 +7,7 @@
 #include <vector>
 #include <cassert>
 #include <cstring>
+#include <cmath>
 
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
@@ -33,6 +34,124 @@ void add_clause(
         (void *)clause_ptr, new_clause_id, new_clause.num_literals);
 }
 
+/**
+ * @brief 
+ * 
+ * @param vars Assumes all to be positive
+ * @param length 
+ * @param var_id 
+ * @param beginning
+ * @param newComm 
+ * @param newCommSign 
+ * @return std::tuple<int, bool> 
+ */
+std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool beginning, int newComm, bool newCommSign) {
+    if (length == 1) {
+        return {vars[0], true};
+    } else if (length == 2 || (length == 3 && !beginning)) {
+        // define new commander variable if newComm=0, or use newComm
+        // if use newComm, don't increment var_id
+        VariableLocations comm;
+        if (newComm == -1) {
+            comm.variable_id = var_id;
+            // comm.variable_row = row;
+            // comm.variable_col = col;
+            // comm.variable_k = k;
+            Queue clauses_containing;
+            Queue *clauses_containing_ptr = (Queue *)malloc(sizeof(Queue));
+            *clauses_containing_ptr = clauses_containing;
+            comm.clauses_containing = clauses_containing_ptr;
+            Cnf::variables[var_id] = comm;
+            var_id++;
+        } else {
+            comm = Cnf::variables[newComm];
+        }
+        int comm_id = comm.variable_id;
+        bool comm_sign = newComm == -1 ? true : newCommSign;
+
+        // pairwise distinct
+        for (int i = 0; i < length; i++) {
+            for (int j = 0; j < i; j++) {
+                Clause unequal = make_small_clause(vars[j], vars[i], false, false);
+                add_clause(unequal, Cnf::clauses, Cnf::variables);
+            }
+        }
+        // comm => OR vars
+        Clause pos_comm;
+        pos_comm.num_literals = 1+length;
+        pos_comm.literal_variable_ids = (int *)malloc(sizeof(int) * pos_comm.num_literals);
+        pos_comm.literal_signs = (bool *)malloc(sizeof(int) * pos_comm.num_literals);
+
+        pos_comm.literal_variable_ids[0] = comm_id;
+        pos_comm.literal_signs[0] = !comm_sign;
+        for (int i = 0; i < length; i++) {
+            pos_comm.literal_variable_ids[i+1] = vars[i];
+            pos_comm.literal_signs[i+1] = true;
+        }
+        add_clause(pos_comm, Cnf::clauses, Cnf::variables);
+        // not comm => AND not vars
+        for (int i = 0; i < length; i++) {
+            Clause neg_comm = make_small_clause(comm_id, vars[i], comm_sign, false);
+            add_clause(neg_comm,  Cnf::clauses, Cnf::variables);
+        }
+
+        return {comm_id, comm_sign};
+    } else {
+        // if length odd, odd partition
+        if (length % 2 == 1) {
+            if (beginning) {
+                auto [comm1, comm1sign] = oneOfClause(vars + 2, length-2, var_id, beginning=false);
+                
+                add_clause(make_small_clause(comm1, vars[0], !comm1sign, false),  Cnf::clauses, Cnf::variables);
+                add_clause(make_small_clause(comm1, vars[1], !comm1sign, false),  Cnf::clauses, Cnf::variables);
+                add_clause(make_small_clause(vars[0], vars[1], false, false),  Cnf::clauses, Cnf::variables);
+                add_clause(make_triple_clause(comm1, vars[0], vars[1], comm1sign, true, true), Cnf::clauses, Cnf::variables);
+            } else {
+                auto [comm1, comm1sign] = oneOfClause(vars + 2, length-2, var_id, beginning=false);
+
+                int children[3] = {comm1, vars[0], vars[1]};
+                return oneOfClause(children, 3, var_id, beginning=false, newComm=newComm, newCommSign=newCommSign);
+            }
+        } else {
+            // even length: 2-partition into odd numbers
+            if (beginning) {
+                oneOfClause(vars+1, length-1, var_id, beginning=false, newComm=vars[0], newCommSign=false);
+            } else {
+                auto [comm2, comm2sign] = oneOfClause(vars+1, length-1, var_id, beginning=false);
+                int children[2] = {vars[0], comm2};
+                return oneOfClause(children, 2, var_id, beginning=false);
+            }
+        }
+    }
+    return {-1, false};
+}
+
+/**
+ * @brief Get id from [0,n**3)
+ * 
+ * @param i row
+ * @param j col
+ * @param k digit
+ * @param n 
+ * @return int 
+ */
+int getRegularVariable(int i, int j, int k, int n) {
+    return k*n*n + i*n + j;
+}
+int getSubcolID(int col, int xbox, int ybox, int k, int sqrt_n, int start, int spacing) {
+    int raw = k*(sqrt_n*sqrt_n*sqrt_n) + col * sqrt_n*sqrt_n + xbox * sqrt_n + ybox;
+    return start + spacing*raw;
+}
+
+int comm_num_clauses(int n) {
+    if (n == 2) {return 1;}
+    return ceil(7*(n/2)-1);
+}
+int comm_num_vars(int n) {
+    int ans = std::ceil(n/2) - 2;
+    return std::max(1, ans);
+}
+
 // Makes CNF formula from inputs
 Cnf::Cnf(
         short pid,
@@ -44,9 +163,10 @@ Cnf::Cnf(
     // This is broken
     int n_squ = n * n;
     Cnf::n = n;
-    Cnf::num_variables = (n * n_squ);
+    Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // SLIGHT OVERESTIMATE FOR N=4,9
     // Exact figure
-    int num_clauses = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
+    int num_clauses = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n);
+
     IndexableDLL clauses(num_clauses);
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
@@ -60,7 +180,9 @@ Cnf::Cnf(
     Cnf::pid = pid;
     Cnf::local_edit_count = 0;
     Cnf::conflict_id = -1;
+
     int variable_id = 0;
+
     for (int k = 0; k < n; k++) {
         for (int row = 0; row < n; row++) {
             for (int col = 0; col < n; col++) {
@@ -78,111 +200,95 @@ Cnf::Cnf(
             }
         }
     }
+
     int var1;
     int var2;
+    int vars[n];
     int variable_num = 0;
-    // For each position, there is at most one k value true
-    // Exactly n^3(1/2)(n-1) clauses
-    for (int row = 0; row < n; row++) {
-        for (int col = 0; col < n; col++) {
-            for (int k1 = 0; k1 < (n - 1); k1++) {
-                for (int k2 = k1 + 1; k2 < n; k2++) {
-                    var1 = ((n_squ) * k1) + variable_num;
-                    var2 = ((n_squ) * k2) + variable_num;
-                    Clause restriction = make_small_clause(
-                        var1, var2, false, false);
-                    add_clause(restriction, Cnf::clauses, Cnf::variables);
+
+    //HACK - WILL CALC LATER
+    int subcol_id_spacing = floor(sqrt_n / 2.);
+    int start;
+    if (sqrt_n == 3) {
+        start = 729;
+    } else if (sqrt_n == 4) {
+        start = 4097;
+    }
+
+    // subcols
+    for (int k = 0; k < n; k++) { 
+        for (int col = 0; col < sqrt_n; col++) {
+            for (int xbox = 0; xbox < sqrt_n; xbox++) {
+                for (int ybox = 0; ybox < sqrt_n; ybox++) {  
+                    for (int j = 0; j < sqrt_n; j++) {
+                        vars[j] = getRegularVariable(xbox*sqrt_n + col, ybox*sqrt_n + j, k, n);
+                    }
+                    auto [subcol_id, _] = oneOfClause(vars, sqrt_n, variable_id, false);
+                    // printf("%d, %d, %d, %d: %d vs %d\n", k, col, xbox, ybox, subcol_id, getSubcolID(col, xbox, ybox, k, sqrt_n, start, subcol_id_spacing));
+                    assert(subcol_id == getSubcolID(col, xbox, ybox, k, sqrt_n, start, subcol_id_spacing));
                 }
             }
-            variable_num++;
         }
     }
-    // For each position, there is at leadt one k value true
-    // Exactly n^2 clauses
+    printf("done w subcols\n");
+    // Each cell has one digit
     for (int row = 0; row < n; row++) {
         for (int col = 0; col < n; col++) {
-            int variable_offset = (row * n) + col;
-            Clause at_least_one;
-            at_least_one.num_literals = n;
-            at_least_one.literal_variable_ids = (int *)malloc(sizeof(int) * n);
-            at_least_one.literal_signs = (bool *)malloc(sizeof(int) * n);
             for (int k = 0; k < n; k++) {
-                at_least_one.literal_variable_ids[k] = 
-                    variable_offset + (k * n_squ);
-                at_least_one.literal_signs[k] = true;
+                vars[k] = getRegularVariable(col, row, k, n);
             }
-            add_clause(at_least_one, Cnf::clauses, Cnf::variables);
+            oneOfClause(vars, n, variable_id);
         }
     }
-    // For each row and k, there is at most one value with this k
-    // Exactly n^3(1/2)(n - 1) clauses
+    printf("cell uniq\n");
+    // Each row has exactly one of each digit
     for (int k = 0; k < n; k++) {
         for (int row = 0; row < n; row++) {
-            for (int col1 = 0; col1 < n - 1; col1++) {
-                for (int col2 = col1 + 1; col2 < n; col2++) {
-                    int var1 = (k * n_squ) + (row * n) + col1;
-                    int var2 = (k * n_squ) + (row * n) + col2;
-                    Clause restriction = make_small_clause(
-                        var1, var2, false, false);
-                    add_clause(restriction, Cnf::clauses, Cnf::variables);
-                }
+            for (int col = 0; col < n; col++) {
+                vars[col] = getRegularVariable(col, row, k, n);
             }
+            oneOfClause(vars, n, variable_id);
         }
     }
-    // For each col and k, there is at most one value with this k
-    // Exactly n^3(1/2)(n - 1) clauses
+    printf("row uniq\n");
+    // cols
     for (int k = 0; k < n; k++) {
-        for (int col = 0; col < n; col++) {
-            for (int row1 = 0; row1 < n - 1; row1++) {
-                for (int row2 = row1 + 1; row2 < n; row2++) {
-                    int var1 = (k * n_squ) + (row1 * n) + col;
-                    int var2 = (k * n_squ) + (row2 * n) + col;
-                    Clause restriction = make_small_clause(
-                        var1, var2, false, false);
-                    add_clause(restriction, Cnf::clauses, Cnf::variables);
+        for (int col = 0; col < sqrt_n; col++) {
+            for (int xbox = 0; xbox < sqrt_n; xbox++) {
+                for (int ybox = 0; ybox < sqrt_n; ybox++) {
+                    vars[ybox] = getSubcolID(col, xbox, ybox, k, sqrt_n, start, subcol_id_spacing);
                 }
+                oneOfClause(vars, sqrt_n, variable_id);
             }
         }
     }
+    printf("col uniq\n");
     // For each chunk and k, there is at most one value with this k
-    // Less than n^3(1/2)(n - 1) clauses
     for (int k = 0; k < n; k++) {
-        for (int block_row = 0; block_row < sqrt_n; block_row++) {
-            for (int block_col = 0; block_col < sqrt_n; block_col++) {
-                for (int local1 = 0; local1 < n - 1; local1++) {
-                    for (int local2 = local1+1; local2 < n; local2++) {
-                        int local_row1 = local1 / sqrt_n;
-                        int local_col1 = local1 % sqrt_n;
-                        int local_row2 = local2 / sqrt_n;
-                        int local_col2 = local2 % sqrt_n;
-                        int row1 = (block_row * sqrt_n) + local_row1;
-                        int col1 = (block_col * sqrt_n) + local_col1;
-                        int row2 = (block_row * sqrt_n) + local_row2;
-                        int col2 = (block_col * sqrt_n) + local_col2;
-                        if (row1 == row2 || col1 == col2) {
-                            continue;
-                        }
-                        int var1 = (k * n_squ) + (row1 * n) + col1;
-                        int var2 = (k * n_squ) + (row2 * n) + col2;
-                        Clause restriction = make_small_clause(
-                            var1, var2, false, false);
-                        add_clause(restriction, Cnf::clauses, Cnf::variables);
-                    }
+        for (int xbox = 0; xbox < sqrt_n; xbox++) {
+            for (int ybox = 0; ybox < sqrt_n; ybox++) {
+                for (int col = 0; col < sqrt_n; col++) {
+                    vars[col] = getSubcolID(col, xbox, ybox, k, sqrt_n, start, subcol_id_spacing);
                 }
+                oneOfClause(vars, sqrt_n, variable_id);
             }
         }
     }
-    if (pid == 0) {
-        printf("%d clauses added\n", Cnf::clauses.num_indexed);
-        printf("%d variables added\n", Cnf::num_variables);
-        printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
-    }
+    
+    printf("%d clauses added\n", Cnf::clauses.num_indexed);
+    printf("%d variables added\n", Cnf::num_variables);
+    printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
     // TODO: Add sum restrictions for killer Sudoku
 
     Cnf::depth = 0;
     Cnf::depth_str = "";
     if (PRINT_LEVEL > 1) print_cnf("Current CNF", Cnf::depth_str, true);
     init_compression();
+
+    // printf("hai\n");
+    // int vars[30] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29};
+    // Cnf::oneOfClause(vars, 6, variable_id);
+    // print_cnf("4: ", "", false);
 }
 
 // Makes CNF formula from premade data structures
@@ -593,7 +699,7 @@ short **Cnf::get_sudoku_board() {
     for (int i = 0; i < Cnf::n; i++) {
         board[i] = (short *)calloc(sizeof(short), Cnf::n);
     }
-    for (int var_id = 0; var_id < Cnf::num_variables; var_id++) {
+    for (int var_id = 0; var_id < Cnf::n*Cnf::n*Cnf::n; var_id++) {
         if (Cnf::assigned_true[var_id]) {
             VariableLocations current_location = Cnf::variables[var_id];
             int row = current_location.variable_row;
