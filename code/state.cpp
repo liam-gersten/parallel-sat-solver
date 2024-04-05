@@ -6,13 +6,9 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
     State::nprocs = nprocs;
     State::parent_id = (((pid + 1) / 2) - 1);
     State::num_children = 2;
-    State::child_ids = (short *)malloc(sizeof(short) * 3);
-    State::child_ids[0] = ((pid + 1) * 2) - 1;
-    State::child_ids[1] = ((pid + 1) * 2);
-    State::child_ids[2] = parent_id;
     State::child_statuses = (char *)malloc(sizeof(char) * 3);
-    State::child_statuses[0] = 'r';
-    State::child_statuses[1] = 'r';
+    State::child_statuses[0] = 'u'; // No work by default
+    State::child_statuses[1] = 'u'; // No work by default
     if (pid == 0) {
         State::child_statuses[2] = 'u';
         State::num_urgent = 1;
@@ -26,14 +22,38 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
     State::num_non_trivial_tasks = 0;
 }
 
+// Gets child (or parent) pid from child (or parent) index
+short State::pid_from_child_index(short child_index) {
+    assert(0 <= child_index && child_index <= State::num_children);
+    if (child_index == State::num_children) {
+        // Is parent
+        return State::parent_id;
+    }
+    assert(child_index == 0 || child_index == 1);
+    return ((State::pid + 1) * 2) - 1 + child_index;
+}
+
+// Gets child (or parent) index from child (or parent) pid
+short State::child_index_from_pid(short child_pid) {
+    assert(0 <= child_pid && child_pid <= State::nprocs);
+    if (child_pid == (((State::pid + 1) * 2) - 1)) {
+        return 0;
+    } else if (child_pid == ((State::pid + 1) * 2)) {
+        return 1;
+    }
+    // Is parent
+    assert(child_pid == (((State::pid + 1) / 2) - 1));
+    return State::num_children;
+}
+
 // Returns whether there are any other processes requesting our work
 bool State::workers_requesting() {
     return State::num_requesting > 0;
 }
 
 // Returns whether the state is able to supply work to requesters
-bool State::can_give_work(Deque task_stack) {
-    return State::num_non_trivial_tasks > 1;
+bool State::can_give_work(Deque task_stack, Interconnect interconnect) {
+    return ((State::num_non_trivial_tasks + interconnect.num_stashed_work) > 1);
 }
 
 // Gives one unit of work to lazy processors
@@ -51,6 +71,9 @@ bool State::get_work_from_interconnect_stash(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
+    // TODO: Perhaps we get stashed work from a sender who is no longer 
+    // asking us for work now (if possible)?
+    // Preference for children or parents?
     if (!interconnect.have_stashed_work()) {
         return false;
     }
@@ -79,7 +102,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
                 break;
             }
         }
-        short dest_pid = child_ids[dest_index];
+        short dest_pid = pid_from_child_index(dest_index);
         interconnect.send_work_request(dest_pid, true);
         State::waiting_on_response[dest_index] = true;
     } else {
@@ -102,7 +125,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
                     break;
                 }
             }
-            short dest_pid = child_ids[dest_index];
+            short dest_pid = pid_from_child_index(dest_index);
             interconnect.send_work_request(dest_pid, false);
             State::waiting_on_response[dest_index] = true;
         }
@@ -263,7 +286,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         } else if (task_stack.count == 0) {
             return false;
         }
-        while (workers_requesting() && can_give_work(task_stack)) {
+        while (workers_requesting() && can_give_work(task_stack, interconnect)) {
             give_work(cnf, task_stack, interconnect);
         }
         if (out_of_work(task_stack)) {

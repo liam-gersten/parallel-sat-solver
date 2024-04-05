@@ -73,3 +73,4 @@ Week 6. Final optimizations and assembly of final report.
 | Basic Parallel Version | Very Hard | Highest |
 | Work Stealing | Very Hard | Very High |
 | Better Unit Propagation | Easy | Moderate |
+| Free methods and Abort | Medium | High |

@@ -12,6 +12,9 @@ class Interconnect {
         int nproc;
         int work_bytes;
         void *permanent_message;
+        Message *stashed_work;
+        bool *work_is_stashed;
+        short num_stashed_work;
         DeadMessageQueue dead_message_queue;
 
         Interconnect(int pid, int nproc, int work_bytes);
@@ -28,11 +31,16 @@ class Interconnect {
         // Sends an abort message
         void send_abort_message(short recipient);
 
-        // Returns whether there is already work stashed for us
-        bool have_stashed_work();
+        // Returns whether there is already work stashed from a sender, or
+        // from anyone if sender is -1.
+        bool have_stashed_work(short sender = -1);
 
-        // Returns stashed work in the form of a work message
-        Message get_stashed_work();
+        // Saves work to use or give away at a later time
+        void stash_work(Message work);
+
+        // Returns stashed work (work message) from a sender, or from anyone
+        // if sender is -1.
+        Message get_stashed_work(short sender = -1);
 
         // Frees up saved dead messages
         void clean_dead_messages(bool always_free);

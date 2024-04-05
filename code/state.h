@@ -13,7 +13,6 @@ class State {
         short nprocs;
         short parent_id;
         short num_children;
-        short *child_ids;
         char *child_statuses; // 'r', 'u', or 's'
         bool *waiting_on_response;
         short num_requesting;
@@ -22,11 +21,17 @@ class State {
 
         State(short pid, short nprocs, Cnf &cnf, Deque &task_stack);
 
+        // Gets pid from child (or parent) index
+        short pid_from_child_index(short child_index);
+
+        // Gets child (or parent) index from child (or parent) pid
+        short child_index_from_pid(short child_pid);
+        
         // Returns whether there are any other processes requesting our work
         bool workers_requesting();
 
         // Returns whether the state is able to supply work to requesters
-        bool can_give_work(Deque task_stack);
+        bool can_give_work(Deque task_stack, Interconnect interconnect);
         
         // Gives one unit of work to lazy processors
         void give_work(
