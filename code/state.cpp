@@ -1,7 +1,7 @@
 #include "state.h"
 #include <cassert>
 
-State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
+State::State(short pid, short nprocs, short branching_factor) {
     State::pid = pid;
     State::nprocs = nprocs;
     State::parent_id = (((pid + 1) / 2) - 1);
@@ -16,10 +16,15 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
         State::child_statuses[2] = 's'; // ?
         State::num_urgent = 0;
     }
-    State::request_already_sent = (bool *)calloc(sizeof(bool), 3);
+    State::requests_sent = (char *)calloc(sizeof(char), 3);
+    State::requests_sent[0] = 'n';
+    State::requests_sent[1] = 'n';
+    State::requests_sent[2] = 'n';
     State::num_requesting = 0;
     State::num_urgent = 0;
     State::num_non_trivial_tasks = 0;
+    State::process_finished = false;
+    State::was_explicit_abort = false;
 }
 
 // Gets child (or parent) pid from child (or parent) index
@@ -154,11 +159,15 @@ bool State::out_of_work() {
     return State::num_non_trivial_tasks == 0;
 }
 
-// Asks parent or children for work
+// Asks parent or children for work, called once when we finish our work
 void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
     assert(!interconnect.have_stashed_work());
     assert(State::num_urgent <= State::num_children);
-    if (State::num_urgent == State::num_children) {
+    if (State::num_urgent == State::num_children + 1) {
+        // Self abort
+        abort_others(interconnect);
+        abort_process();
+    } else if (State::num_urgent == State::num_children) {
         // Send a single urgent work request
         short dest_index;
         // Find index of the only adjecent node that hasn't urgently requested
@@ -169,22 +178,23 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
             }
         }
         short dest_pid = pid_from_child_index(dest_index);
+        assert(State::requests_sent[dest_index] != 'u');
         interconnect.send_work_request(dest_pid, true);
-        State::request_already_sent[dest_index] = true;
+        State::requests_sent[dest_index] = true;
     } else {
         // Send a single work request to my parent.
         // If the parent has already been requested and hasn't responded,
         // ask a child who has not been requested yet if applicable.
-        bool parent_requested = State::request_already_sent[State::num_children];
+        bool parent_requested = (State::requests_sent[State::num_children] != 'n');
         bool parent_empty = State::child_statuses[State::num_children] == 'u';
         if (!parent_requested && !parent_empty) {
             interconnect.send_work_request(State::parent_id, false);
-            State::request_already_sent[State::num_children] = true;
+            State::requests_sent[State::num_children] = 'r';
         } else {
             short dest_index;
             // Find index of valid child
             for (short i = 0; i < State::num_children; i++) {
-                bool child_requested = State::request_already_sent[i];
+                bool child_requested = (State::requests_sent[i] != 'n');
                 bool child_empty = State::child_statuses[i] == 'u';
                 if (!child_requested && !child_empty) {
                     dest_index = i;
@@ -193,7 +203,36 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
             }
             short dest_pid = pid_from_child_index(dest_index);
             interconnect.send_work_request(dest_pid, false);
-            State::request_already_sent[dest_index] = true;
+            State::requests_sent[dest_index] = 'r';
+        }
+    }
+}
+
+// Empties/frees data structures and immidiately returns
+void State::abort_process(bool explicit_abort) {
+    // TODO: Implement this
+    State::process_finished = true;
+    State::was_explicit_abort = explicit_abort;
+    return;
+}
+
+// Sends messages to children to force them to abort
+void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
+    if (explicit_abort) {
+        // Success, broadcase explicit abort to every process
+        for (short i = 0; i < State::nprocs; i++) {
+            interconnect.send_abort_message(i);
+        }
+    } else {
+        // Any children who did not receive an urgent request from us should
+        assert(State::num_urgent == State::num_children + 1);
+        for (short child = 0; child < State::num_children; child++) {
+            if (State::requests_sent[child] != 'u') {
+                // Child needs one
+                short recipient = pid_from_child_index(child);
+                interconnect.send_work_request(recipient, true);
+                State::requests_sent[child] = 'u';
+            }
         }
     }
 }
@@ -206,7 +245,29 @@ void State::handle_work_request(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    // TODO: implement this
+    short child_index = child_index_from_pid(sender_pid);
+    if (is_urgent) {
+        assert(State::child_statuses[child_index] != 'u');
+        if (State::child_statuses[child_index] == 's') {
+            State::num_requesting++;
+        }
+        State::child_statuses[child_index] = 'u';
+        State::num_urgent++;
+        if (out_of_work()) {        
+            if (State::num_urgent == State::num_children + 1) {
+                // Self-abort
+                abort_others(interconnect);
+                abort_process();
+            } else if (State::num_urgent == State::num_children) {
+                // TODO: Forward urgent request   
+            }
+        }
+    } else {
+        assert(State::child_statuses[child_index] == 's');
+        // Log the request
+        State::child_statuses[child_index] = 'r';
+        State::num_requesting++;
+    }
 }
 
 // Handles work received
@@ -219,7 +280,7 @@ void State::handle_work_message(
     short sender_pid = message.sender;
     short child_index = child_index_from_pid(sender_pid);
     void *work = message.data;
-    assert(State::request_already_sent[child_index]);
+    assert(State::requests_sent[child_index] != 'n');
     assert(child_statuses[child_index] != 'u');
     assert(!interconnect.have_stashed_work(sender_pid));
     if (out_of_work()) {
@@ -230,10 +291,10 @@ void State::handle_work_message(
         // Add to interconnect work stash
         interconnect.stash_work(message);
     }
-    State::request_already_sent[child_index] = false;
+    State::requests_sent[child_index] = 'n';
 }
 
-// Handles an abort message, possibly forwarding it
+// Handles an abort message, possibly forwarding other messages
 void State::handle_abort_message(
         short sender_pid,
         Cnf &cnf,
@@ -250,6 +311,9 @@ void State::handle_message(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
+    assert(0 <= State::num_urgent && State::num_urgent <= State::num_children);
+    assert(State::num_urgent <= State::num_requesting);
+    assert(State::num_requesting <= State::num_children + 1);
     switch (message.type) {
         case 0: {
             handle_work_request(
@@ -268,6 +332,10 @@ void State::handle_message(
             return;
         }
     }
+    assert(0 <= State::num_urgent 
+        && State::num_urgent <= State::num_children + 1);
+    assert(State::num_urgent <= State::num_requesting);
+    assert(State::num_requesting <= State::num_children + 1);
 }
 
 // Adds one or two variable assignment tasks to task stack
@@ -354,16 +422,18 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     }
 }
 
-// Continues solve operation
+// Continues solve operation, returns true iff a solution was found by
+// the current thread.
 bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
     add_tasks_from_formula(cnf, task_stack, true);
-    while (true) {
+    assert(task_stack.count > 0);
+    while (!State::process_finished) {
         bool result = solve_iteration(cnf, task_stack);
         assert(State::num_non_trivial_tasks >= 0);
         if (result) {
+            abort_others(interconnect, true);
+            abort_process(true);
             return true;
-        } else if (task_stack.count == 0) {
-            return false;
         }
         while (workers_requesting() && can_give_work(task_stack, interconnect)) {
             give_work(cnf, task_stack, interconnect);
@@ -376,15 +446,16 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             }
         }
         Message message;
-        while (out_of_work()) {
+        while (out_of_work() && !State::process_finished) {
             bool message_received = interconnect.async_receive_message(message);
             if (message_received) {
                 handle_message(message, cnf, task_stack, interconnect);
             }
         }
-        while (interconnect.async_receive_message(message)) {
+        while (interconnect.async_receive_message(message) && !State::process_finished) {
             handle_message(message, cnf, task_stack, interconnect);
             // TODO: serve work here?
         }
     }
+    return false;
 }

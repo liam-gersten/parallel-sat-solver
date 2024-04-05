@@ -14,12 +14,14 @@ class State {
         short parent_id;
         short num_children;
         char *child_statuses; // 'r', 'u', or 's'
-        bool *request_already_sent;
+        char *requests_sent; // 'r', 'u', or 'n'
         short num_requesting;
         short num_urgent;
         int num_non_trivial_tasks;
+        bool process_finished;
+        bool was_explicit_abort;
 
-        State(short pid, short nprocs, Cnf &cnf, Deque &task_stack);
+        State(short pid, short nprocs, short branching_factor);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);
@@ -51,14 +53,22 @@ class State {
         // Returns whether we are out of work to do
         bool out_of_work();
 
-        // Asks parent or children for work
+        // Asks parent or children for work, called once when we finish our work
         void ask_for_work(Cnf &cnf, Interconnect &interconnect);
+
+        // Empties/frees data structures and immidiately returns
+        void abort_process(bool explicit_abort = false);
+
+        // Sends urgent requests to children to force them to abort
+        void abort_others(
+            Interconnect &interconnect,
+            bool explicit_abort = false);
         
         // Handles work request
         void handle_work_request(
             short sender_pid,
             bool is_urgent,
-            Cnf &cnf, 
+            Cnf &cnf,
             Deque &task_stack, 
             Interconnect &interconnect);
         
@@ -69,7 +79,7 @@ class State {
             Deque &task_stack, 
             Interconnect &interconnect);
         
-        // Handles an abort message, possibly forwarding it
+        // Handles an abort message, possibly forwarding other messages
         void handle_abort_message(
             short sender_pid,
             Cnf &cnf, 
@@ -89,7 +99,8 @@ class State {
         // Runs one iteration of the solver
         bool solve_iteration(Cnf &cnf, Deque &task_stack);
 
-        // Continues solve operation
+        // Continues solve operation, returns true iff a solution was found by
+        // the current thread.
         bool solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect);
 };
 

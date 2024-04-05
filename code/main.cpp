@@ -27,10 +27,14 @@ void run_filename(int argc, char *argv[]) {
     std::string input_filename;
     // Read command line arguments
     int opt;
-    while ((opt = getopt(argc, argv, "f:")) != -1) {
+    short branching_factor = 2;
+    while ((opt = getopt(argc, argv, "f:b:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
+            break;
+        case 'b':
+            branching_factor = (short)atoi(optarg);
             break;
         default:
             std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
@@ -48,7 +52,7 @@ void run_filename(int argc, char *argv[]) {
     Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
-    State state(pid, nproc, cnf, task_stack);
+    State state(pid, nproc, branching_factor);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -63,9 +67,17 @@ void run_filename(int argc, char *argv[]) {
 
     MPI_Finalize();
 
-    if (!result) {
-        raise_error("Couldn't solve");
+    if (state.was_explicit_abort) {
+        // A solution was found
+        if (!result) {
+            // somone else has the solution
+            return;
+        }
+    } else {
+        // No solution was found
+        raise_error("No solution was found");
     }
+    
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
         print_assignment((short)pid, "", "", assignment, cnf.num_variables);
@@ -110,10 +122,20 @@ void run_example_1() {
     Cnf cnf(0, input_clauses, input_variables, num_variables);
     Deque task_stack;
     Interconnect interconnect(0, 1, cnf.work_ints * 8);
-    State state(0, 1, cnf, task_stack);
+    State state(0, 1, 2);
 
     bool result = state.solve(cnf, task_stack, interconnect);
-    assert(result);
+    
+    if (state.was_explicit_abort) {
+        // A solution was found
+        if (!result) {
+            // somone else has the solution
+            return;
+        }
+    } else {
+        // No solution was found
+        raise_error("No solution was found");
+    }
 
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
