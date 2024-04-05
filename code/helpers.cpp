@@ -573,10 +573,38 @@ bool IndexableDLL::iterator_is_finished() {
         || (IndexableDLL::linked_list_count == 0));
 }
 
+// Joins two lists, first is now at the second's head
+void IndexableDLL::combine_lists(
+        DoublyLinkedList *first_head, 
+        DoublyLinkedList *first_tail,
+        DoublyLinkedList *second_head,
+        DoublyLinkedList *second_tail) 
+    {
+    if ((*first_head).next == first_tail) {
+        return;
+    }
+    DoublyLinkedList *first_first_element = (*first_head).next;
+    DoublyLinkedList *first_last_element = (*first_tail).prev;
+    DoublyLinkedList *second_first_element = (*second_head).next;
+    (*(second_head)).next = first_first_element;
+    (*first_first_element).prev = second_head;
+    (*first_last_element).next = second_first_element;
+    (*second_first_element).prev = first_last_element;
+    (*first_head).next = first_tail;
+    (*first_tail).prev = first_head;
+}
+
 // Moves all ll items to their original bins.
 void IndexableDLL::reset_ll_bins() {
-    // TODO: implement this
-    return;
+    combine_lists(
+        IndexableDLL::two_big_head, IndexableDLL::two_big_tail, 
+        IndexableDLL::big_head, IndexableDLL::big_tail);
+    combine_lists(
+        IndexableDLL::one_big_head, IndexableDLL::one_big_tail, 
+        IndexableDLL::big_head, IndexableDLL::big_tail);
+    combine_lists(
+        IndexableDLL::one_small_head, IndexableDLL::one_small_tail, 
+        IndexableDLL::two_head, IndexableDLL::two_tail);
 }
 
 // Frees data structures used

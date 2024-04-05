@@ -189,6 +189,13 @@ class IndexableDLL {
     // Returns whether the iterator is at the end
     bool iterator_is_finished();
 
+    // Joins two lists, first is now at the second's head
+    void combine_lists(
+        DoublyLinkedList *first_head, 
+        DoublyLinkedList *first_tail,
+        DoublyLinkedList *second_head,
+        DoublyLinkedList *second_tail);
+
     // Moves all ll items to their original bins.
     void reset_ll_bins();
 
