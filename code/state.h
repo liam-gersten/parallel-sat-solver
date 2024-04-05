@@ -16,7 +16,9 @@ class State {
         short *child_ids;
         char *child_statuses; // 'r', 'u', or 's'
         bool *waiting_on_response;
+        short num_requesting;
         short num_urgent;
+        int num_non_trivial_tasks;
 
         State(short pid, short nprocs, Cnf &cnf, Deque &task_stack);
 

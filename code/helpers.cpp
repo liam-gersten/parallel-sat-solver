@@ -739,6 +739,13 @@ bool backtrack_at_top(Deque task_stack) {
     return (task.var_id == -1);
 }
 
+// Returns whether the front of the stack says to backtrack
+bool backtrack_at_front(Deque task_stack) {
+    void *task_ptr = task_stack.peak_front();
+    Task task = (*((Task *)task_ptr));
+    return (task.var_id == -1);
+}
+
 // Adds element to front of queue
 void IntDeque::add_to_front(int value) {
     IntDoublyLinkedList current;

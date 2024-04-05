@@ -6,9 +6,10 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
     State::nprocs = nprocs;
     State::parent_id = (((pid + 1) / 2) - 1);
     State::num_children = 2;
-    State::child_ids = (short *)malloc(sizeof(short) * 2);
+    State::child_ids = (short *)malloc(sizeof(short) * 3);
     State::child_ids[0] = ((pid + 1) * 2) - 1;
     State::child_ids[1] = ((pid + 1) * 2);
+    State::child_ids[2] = parent_id;
     State::child_statuses = (char *)malloc(sizeof(char) * 3);
     State::child_statuses[0] = 'r';
     State::child_statuses[1] = 'r';
@@ -20,18 +21,19 @@ State::State(short pid, short nprocs, Cnf &cnf, Deque &task_stack) {
         State::num_urgent = 0;
     }
     State::waiting_on_response = (bool *)calloc(sizeof(bool), 3);
+    State::num_requesting = 0;
+    State::num_urgent = 0;
+    State::num_non_trivial_tasks = 0;
 }
 
 // Returns whether there are any other processes requesting our work
 bool State::workers_requesting() {
-    // TODO: implement this
-    return false;
+    return State::num_requesting > 0;
 }
 
 // Returns whether the state is able to supply work to requesters
 bool State::can_give_work(Deque task_stack) {
-    // TODO: implement this
-    return false;
+    return State::num_non_trivial_tasks > 1;
 }
 
 // Gives one unit of work to lazy processors
@@ -49,19 +51,62 @@ bool State::get_work_from_interconnect_stash(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    // TODO: implement this
-    return false;
+    if (!interconnect.have_stashed_work()) {
+        return false;
+    }
+    Message work_message = interconnect.get_stashed_work();
+    handle_work_message(
+        work_message.sender, work_message.data, cnf, task_stack, interconnect);
+    return true;
 }
 
 // Returns whether we are out of work to do
 bool State::out_of_work(Deque task_stack) {
-    // TODO: implement this
-    return false;
+    return State::num_non_trivial_tasks == 0;
 }
 
 // Asks parent or children for work
 void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
-    // TODO: implement this
+    assert(!interconnect.have_stashed_work());
+    assert(State::num_urgent <= State::num_children);
+    if (State::num_urgent == State::num_children) {
+        // Send a single urgent work request
+        short dest_index;
+        // Find index of the only adjecent node that hasn't urgently requested
+        for (short i = 0; i <= State::num_children; i++) {
+            if (State::child_statuses[i] != 'u') {
+                dest_index = i;
+                break;
+            }
+        }
+        short dest_pid = child_ids[dest_index];
+        interconnect.send_work_request(dest_pid, true);
+        State::waiting_on_response[dest_index] = true;
+    } else {
+        // Send a single work request to my parent.
+        // If the parent has already been requested and hasn't responded,
+        // ask a child who has not been requested yet if applicable.
+        bool parent_requested = State::waiting_on_response[State::num_children];
+        bool parent_empty = State::child_statuses[State::num_children] == 'u';
+        if (!parent_requested && !parent_empty) {
+            interconnect.send_work_request(State::parent_id, false);
+            State::waiting_on_response[State::num_children] = true;
+        } else {
+            short dest_index;
+            // Find index of valid child
+            for (short i = 0; i < State::num_children; i++) {
+                bool child_requested = State::waiting_on_response[i];
+                bool child_empty = State::child_statuses[i] == 'u';
+                if (!child_requested && !child_empty) {
+                    dest_index = i;
+                    break;
+                }
+            }
+            short dest_pid = child_ids[dest_index];
+            interconnect.send_work_request(dest_pid, false);
+            State::waiting_on_response[dest_index] = true;
+        }
+    }
 }
 
 // Handles work received
@@ -136,6 +181,7 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, new_var_sign);
         task_stack.add_to_front(only_task);
+        State::num_non_trivial_tasks++;
         return 1;
     } else {
         // Add an undo task to do last
@@ -148,6 +194,7 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
         void *other_task = make_task(new_var_id, !first_choice);
         task_stack.add_to_front(other_task);
         task_stack.add_to_front(important_task);
+        State::num_non_trivial_tasks += 2;
         return 2;
     }
 }
@@ -164,6 +211,7 @@ void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
 // Runs one iteration of the solver
 bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     assert(!backtrack_at_top(task_stack));
+    assert(State::num_non_trivial_tasks > 0);
     if (PRINT_LEVEL >= 5) printf("\n");
     Task task = get_task(task_stack);
     int var_id = task.var_id;
@@ -172,6 +220,8 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
         print_data(cnf, task_stack, "Children backtrack");
         cnf.backtrack();
         return false;
+    } else {
+        State::num_non_trivial_tasks--;
     }
     cnf.recurse();
     while (true) {
@@ -195,6 +245,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
             Task task = get_task(task_stack);
             var_id = task.var_id;
             assignment = task.assignment;
+            State::num_non_trivial_tasks--;
             continue;
         }
         return false;
@@ -206,6 +257,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
     add_tasks_from_formula(cnf, task_stack, true);
     while (true) {
         bool result = solve_iteration(cnf, task_stack);
+        assert(State::num_non_trivial_tasks >= 0);
         if (result) {
             return true;
         } else if (task_stack.count == 0) {

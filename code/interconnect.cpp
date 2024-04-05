@@ -62,6 +62,19 @@ void Interconnect::send_abort_message(short recipient) {
     return;
 }
 
+// Returns whether there is already work stashed for us
+bool Interconnect::have_stashed_work() {
+  // TODO: implement this
+  return false;
+}
+
+// Returns stashed work in the form of a work message
+Message Interconnect::get_stashed_work() {
+  // TODO: implement this
+  Message message;
+  return message;
+}
+
 // Frees up saved dead messages
 void Interconnect::clean_dead_messages(bool always_free) {
   if (PRINT_LEVEL >= 2) printf("\tPID %d cleaning_dead_message\n", Interconnect::pid);

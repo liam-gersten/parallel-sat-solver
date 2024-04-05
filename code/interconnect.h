@@ -28,6 +28,12 @@ class Interconnect {
         // Sends an abort message
         void send_abort_message(short recipient);
 
+        // Returns whether there is already work stashed for us
+        bool have_stashed_work();
+
+        // Returns stashed work in the form of a work message
+        Message get_stashed_work();
+
         // Frees up saved dead messages
         void clean_dead_messages(bool always_free);
 

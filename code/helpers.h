@@ -254,6 +254,9 @@ Task get_task(Deque &task_stack);
 // Returns whether the top of the stack says to backtrack
 bool backtrack_at_top(Deque task_stack);
 
+// Returns whether the front of the stack says to backtrack
+bool backtrack_at_front(Deque task_stack);
+
 struct IntDoublyLinkedList {
     IntDoublyLinkedList *prev;
     IntDoublyLinkedList *next;
