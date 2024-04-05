@@ -217,10 +217,8 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
 
 // Empties/frees data structures and immidiately returns
 void State::abort_process(bool explicit_abort) {
-    // TODO: Implement this
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
-    return;
 }
 
 // Sends messages to children to force them to abort
@@ -266,7 +264,15 @@ void State::handle_work_request(
                 abort_others(interconnect);
                 abort_process();
             } else if (State::num_urgent == State::num_children) {
-                // TODO: Forward urgent request   
+                // Forward urgent request
+                for (short child = 0; child <= State::num_children; child++) {
+                    if (State::child_statuses[child] != 'u') {
+                        short child_pid = pid_from_child_index(child);
+                        interconnect.send_work_request(child_pid, true);
+                        State::requests_sent[child_pid] = true;
+                        return;
+                    }
+                }
             }
         }
     } else {
@@ -301,16 +307,6 @@ void State::handle_work_message(
     State::requests_sent[child_index] = 'n';
 }
 
-// Handles an abort message, possibly forwarding other messages
-void State::handle_abort_message(
-        short sender_pid,
-        Cnf &cnf,
-        Deque &task_stack,
-        Interconnect &interconnect)
-    {
-    // TODO: implement this
-}
-
 // Handles an abort message, possibly forwarding it
 void State::handle_message(
         Message message, 
@@ -335,7 +331,8 @@ void State::handle_message(
                 message, cnf, task_stack, interconnect);
             return;
         } default: {
-            handle_abort_message(message.sender, cnf, task_stack, interconnect);
+            assert(message.type == 3);
+            abort_process(true);
             return;
         }
     }

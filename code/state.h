@@ -79,13 +79,6 @@ class State {
             Deque &task_stack, 
             Interconnect &interconnect);
         
-        // Handles an abort message, possibly forwarding other messages
-        void handle_abort_message(
-            short sender_pid,
-            Cnf &cnf, 
-            Deque &task_stack, 
-            Interconnect &interconnect);
-        
         // Updates self and possibly sends other messages depending on type
         void handle_message(
             Message message, 
