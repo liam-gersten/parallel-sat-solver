@@ -29,6 +29,7 @@ class Cnf {
         Deque *edit_stack;
         IntDeque *edit_counts_stack;
         unsigned int *oldest_compressed;
+        short pid;
         int local_edit_count;
         int conflict_id;
         int num_variables;
@@ -43,9 +44,15 @@ class Cnf {
         std::string depth_str;
 
         // Makes CNF formula from inputs
-        Cnf(int **constraints, int n, int sqrt_n, int num_constraints);
+        Cnf(
+            short pid, 
+            int **constraints, 
+            int n, 
+            int sqrt_n, 
+            int num_constraints);
         // Makes CNF formula from premade data structures
         Cnf(
+            short pid,
             IndexableDLL input_clauses, 
             VariableLocations *input_variables, 
             int num_variables);
@@ -60,20 +67,17 @@ class Cnf {
 
         // Debug print a full cnf structure
         void print_cnf(
-            int caller_pid,
             std::string prefix_string, 
             std::string tab_string,
             bool elimination);
 
         // Prints out the task stack
         void print_task_stack(
-            int caller_pid,
             std::string prefix_string, 
             Deque &task_stack);
 
         // Prints out the task stack
         void print_edit_stack(
-            int caller_pid,
             std::string prefix_string, 
             Deque &edit_stack);
 

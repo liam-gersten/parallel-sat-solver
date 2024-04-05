@@ -228,11 +228,11 @@ void print_board(short **board, int n) {
 
 // Prints current compressed Cnf
 void print_compressed(
-    int caller_pid,
-    std::string prefix_string, 
-    std::string tab_string,
-    unsigned int *compressed,
-    int n) 
+        int caller_pid,
+        std::string prefix_string, 
+        std::string tab_string,
+        unsigned int *compressed,
+        int n) 
     {
     std::string data_string = "compressed: [";
     for (int i = 2; i < n; i++) {

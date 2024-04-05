@@ -45,7 +45,7 @@ void run_filename(int argc, char *argv[]) {
     int **constraints = read_puzzle_file(
         input_filename, &n, &sqrt_n, &num_constraints);
 
-    Cnf cnf(constraints, n, sqrt_n, num_constraints);
+    Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
     State state(pid, nproc, cnf, task_stack);
@@ -68,7 +68,7 @@ void run_filename(int argc, char *argv[]) {
     }
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
-        print_assignment(0, "", "", assignment, cnf.num_variables);
+        print_assignment((short)pid, "", "", assignment, cnf.num_variables);
     }
     short **board = cnf.get_sudoku_board();
     print_board(board, cnf.n);
@@ -107,7 +107,7 @@ void run_example_1() {
     add_clause(C5, input_clauses, input_variables);
     add_clause(C6, input_clauses, input_variables);
 
-    Cnf cnf(input_clauses, input_variables, num_variables);
+    Cnf cnf(0, input_clauses, input_variables, num_variables);
     Deque task_stack;
     Interconnect interconnect(0, 1, cnf.work_ints * 8);
     State state(0, 1, cnf, task_stack);
@@ -144,7 +144,7 @@ void print_memory_stats() {
         int n = sqrt_n * sqrt_n;
         printf("\nn = %d\n", n);
         int n_squ = n * n;
-        unsigned long long int v = (n * n_squ);
+        unsigned long long int v = (n * n_squ) + (2 * n_squ);
         unsigned long long int c = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
         printf("\tnum_variables =         %llu\n", v);
         printf("\tnum_clauses =           %llu\n", c);

@@ -108,7 +108,7 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
     bool new_var_sign;
     int num_unsat = cnf.pick_from_clause(
         current_clause, &new_var_id, &new_var_sign);
-    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), 0, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
+    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, new_var_sign);
         task_stack.add_to_front(only_task);
@@ -130,11 +130,11 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
 
 // Displays data structure data for debugging purposes
 void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
-    if (PRINT_LEVEL > 1) cnf.print_task_stack(0, prefix_str, task_stack);
-    if (PRINT_LEVEL > 3) cnf.print_edit_stack(0, prefix_str, *(cnf.edit_stack));
-    if (PRINT_LEVEL > 1) cnf.print_cnf(0, prefix_str, cnf.depth_str, (PRINT_LEVEL >= 2));
+    if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
+    if (PRINT_LEVEL > 3) cnf.print_edit_stack(prefix_str, *(cnf.edit_stack));
+    if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, (PRINT_LEVEL >= 2));
     if (PRINT_LEVEL > 4) print_compressed(
-        0, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
+        cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
 }
 
 // Runs one iteration of the solver
@@ -152,7 +152,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     cnf.recurse();
     while (true) {
         assert(!backtrack_at_top(task_stack));
-        if (PRINT_LEVEL > 0) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), 0, var_id, assignment);
+        if (PRINT_LEVEL > 0) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
         print_data(cnf, task_stack, "Loop start");
         if (!cnf.propagate_assignment(var_id, assignment)) {
             // Conflict clause found
