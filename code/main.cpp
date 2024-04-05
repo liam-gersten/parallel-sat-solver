@@ -28,13 +28,17 @@ void run_filename(int argc, char *argv[]) {
     // Read command line arguments
     int opt;
     short branching_factor = 2;
-    while ((opt = getopt(argc, argv, "f:b:")) != -1) {
+    bool pick_greedy = false;
+    while ((opt = getopt(argc, argv, "f:b:g:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
             break;
         case 'b':
             branching_factor = (short)atoi(optarg);
+            break;
+        case 'g':
+            pick_greedy = (bool)atoi(optarg);
             break;
         default:
             std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
@@ -52,9 +56,7 @@ void run_filename(int argc, char *argv[]) {
     Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
-    State state(pid, nproc, branching_factor);
-
-    
+    State state(pid, nproc, branching_factor, pick_greedy);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -63,6 +65,8 @@ void run_filename(int argc, char *argv[]) {
     const auto compute_start = std::chrono::steady_clock::now();
 
     bool result = state.solve(cnf, task_stack, interconnect);
+
+    printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
     
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
@@ -124,7 +128,7 @@ void run_example_1() {
     Cnf cnf(0, input_clauses, input_variables, num_variables);
     Deque task_stack;
     Interconnect interconnect(0, 1, cnf.work_ints * 8);
-    State state(0, 1, 2);
+    State state(0, 1, 2, false);
 
     bool result = state.solve(cnf, task_stack, interconnect);
     

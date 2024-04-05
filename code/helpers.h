@@ -6,9 +6,9 @@
 
 #define PRINT_LEVEL 0
 
-#define CONCISE_FORMULA 1
+#define PRINT_INTERCONNECT 0
 
-#define RANDOM_FIRST_PICK 1
+#define CONCISE_FORMULA 1
 
 // Will have fixed allocation size
 struct Clause {
@@ -60,9 +60,6 @@ Clause make_triple_clause(
     bool sign1, 
     bool sign2, 
     bool sign3);
-
-// Possibly flips value at random
-bool get_first_pick(bool heuristic);
 
 // Makes a variable edit
 void *variable_edit(int var_id);
@@ -305,6 +302,12 @@ class IntDeque {
 
         // Returns the back value without removing it
         int peak_back();
+
+        // Prints out current int deque
+        void print_deque(
+            short pid, 
+            std::string prefix_string, 
+            std::string depth_string);
 
         // Frees all data in the deque
         void free_data();

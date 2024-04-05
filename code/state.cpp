@@ -1,11 +1,17 @@
 #include "state.h"
 #include <cassert>
 
-State::State(short pid, short nprocs, short branching_factor) {
+State::State(
+        short pid, 
+        short nprocs, 
+        short branching_factor, 
+        bool pick_greedy) 
+    {
     State::pid = pid;
     State::nprocs = nprocs;
     State::parent_id = (pid - 1) / branching_factor;
     State::num_children = branching_factor;
+    State::branching_factor = branching_factor;
     short actual_num_children = 0;
     for (short child = 0; child < branching_factor; child++) {
         short child_pid = pid_from_child_index(child);
@@ -15,10 +21,11 @@ State::State(short pid, short nprocs, short branching_factor) {
         actual_num_children++;
     }
     State::num_children = actual_num_children;
+    if (PRINT_LEVEL > 0) printf("PID %d has %d children\n", pid, (int)State::num_children);
     State::child_statuses = (char *)malloc(
         sizeof(char) * (State::num_children + 1));
     for (short child = 0; child < State::num_children; child++) {
-        State::child_statuses[child] = 'u';
+        State::child_statuses[child] = 's';
     }
     if (pid == 0) {
         State::child_statuses[State::num_children] = 'u';
@@ -37,6 +44,8 @@ State::State(short pid, short nprocs, short branching_factor) {
     State::num_non_trivial_tasks = 0;
     State::process_finished = false;
     State::was_explicit_abort = false;
+    State::calls_to_solve = 0;
+    State::pick_greedy = pick_greedy;
 }
 
 // Gets child (or parent) pid from child (or parent) index
@@ -46,7 +55,7 @@ short State::pid_from_child_index(short child_index) {
         // Is parent
         return State::parent_id;
     }
-    return (State::pid * State::num_children) + child_index + 1;
+    return (State::pid * State::branching_factor) + child_index + 1;
 }
 
 // Gets child (or parent) index from child (or parent) pid
@@ -55,7 +64,7 @@ short State::child_index_from_pid(short child_pid) {
     if (child_pid == State::parent_id) {
         return State::num_children;
     }
-    return child_pid - 1 - (State::pid * State::num_children);
+    return child_pid - 1 - (State::pid * State::branching_factor);
 }
 
 // Returns whether there are any other processes requesting our work
@@ -68,11 +77,62 @@ bool State::can_give_work(Deque task_stack, Interconnect interconnect) {
     return ((State::num_non_trivial_tasks + interconnect.num_stashed_work) > 1);
 }
 
+// Applies an edit to the given compressed CNF
+void State::apply_edit_to_compressed(
+        Cnf &cnf,
+        unsigned int *compressed, 
+        FormulaEdit edit) 
+    {
+    switch (edit.edit_type) {
+        case 'v': {
+            // Add variable set to it's int offset
+            int variable_id = edit.edit_id;
+            VariableLocations location = cnf.variables[variable_id];
+            unsigned int mask_to_add = location.variable_addition;
+            unsigned int offset;
+            if (cnf.assigned_true[variable_id]) {
+                offset = location.variable_true_addition_index;
+            } else {
+                assert(cnf.assigned_false[variable_id]);
+                offset = location.variable_false_addition_index;
+            }
+            compressed[offset] += mask_to_add;
+            return;
+        } case 'c': {
+            // Add clause drop to it's int offset
+            int clause_id = edit.edit_id;
+            Clause clause = *((Clause *)(cnf.clauses.get_value(clause_id)));
+            unsigned int mask_to_add = clause.clause_addition;
+            unsigned int offset = clause.clause_addition_index;
+            compressed[offset] += mask_to_add;
+            return;
+        } default: {
+            return;
+        }
+    }
+}
+
 // Grabs work from the top of the task stack, updates Cnf structures
 void *State::steal_work(Cnf &cnf, Deque &task_stack) {
+    if (PRINT_LEVEL > 0) printf("PID %d stealing work\n", State::pid);
     assert(State::num_non_trivial_tasks > 1);
-    // TODO: implement this
-    void *work = (void *)malloc(1 * sizeof(int));
+    // Get the actual work as a copy
+    Task top_task = *((Task *)(task_stack.pop_from_back()));
+    void *work = cnf.convert_to_work_message(cnf.oldest_compressed, top_task);
+    // Prune the top of the tree
+    while (backtrack_at_top(task_stack)) {
+        // Two deques loose their top element, one looses at least one element
+        int edits_to_apply = (*cnf.edit_counts_stack).pop_from_back();
+        assert(edits_to_apply > 0);
+        while (edits_to_apply) {
+            FormulaEdit edit = *((FormulaEdit *)((*(cnf.edit_stack)).pop_from_back()));
+            apply_edit_to_compressed(cnf, cnf.oldest_compressed, edit);
+            edits_to_apply--;
+        }
+        // Ditch the backtrack task at the top
+        task_stack.pop_from_back();
+    }
+    State::num_non_trivial_tasks--;
     assert(State::num_non_trivial_tasks >= 1);
     return work;
 }
@@ -83,6 +143,7 @@ void State::give_work(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
+    if (PRINT_LEVEL > 0) printf("PID %d giving work\n", State::pid);
     short recipient_index;
     short recipient_pid;
     void *work;
@@ -149,6 +210,7 @@ bool State::get_work_from_interconnect_stash(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
+    if (PRINT_LEVEL > 0) printf("PID %d getting work from interconnect stash\n", State::pid);
     // TODO: Perhaps we get stashed work from a sender who is no longer 
     // asking us for work now (if possible)?
     // Preference for children or parents?
@@ -175,6 +237,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
         abort_others(interconnect);
         abort_process();
     } else if (State::num_urgent == State::num_children) {
+        if (PRINT_LEVEL > 0) printf("PID %d urgently asking for work\n", State::pid);
         // Send a single urgent work request
         short dest_index;
         // Find index of the only adjecent node that hasn't urgently requested
@@ -189,6 +252,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
         interconnect.send_work_request(dest_pid, true);
         State::requests_sent[dest_index] = true;
     } else {
+        if (PRINT_LEVEL > 0) printf("PID %d asking for work\n", State::pid);
         // Send a single work request to my parent.
         // If the parent has already been requested and hasn't responded,
         // ask a child who has not been requested yet if applicable.
@@ -217,6 +281,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
 
 // Empties/frees data structures and immidiately returns
 void State::abort_process(bool explicit_abort) {
+    if (PRINT_LEVEL > 0) printf("PID %d aborting process\n", State::pid);
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
 }
@@ -224,11 +289,13 @@ void State::abort_process(bool explicit_abort) {
 // Sends messages to children to force them to abort
 void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
     if (explicit_abort) {
+        if (PRINT_LEVEL > 0) printf("PID %d explicitly aborting others\n", State::pid);
         // Success, broadcase explicit abort to every process
         for (short i = 0; i < State::nprocs; i++) {
             interconnect.send_abort_message(i);
         }
     } else {
+        if (PRINT_LEVEL > 0) printf("PID %d aborting others\n", State::pid);
         // Any children who did not receive an urgent request from us should
         assert(State::num_urgent == State::num_children + 1);
         for (short child = 0; child < State::num_children; child++) {
@@ -252,6 +319,7 @@ void State::handle_work_request(
     {
     short child_index = child_index_from_pid(sender_pid);
     if (is_urgent) {
+        if (PRINT_LEVEL > 0) printf("PID %d handling urgent work request from sender %d (child %d)\n", State::pid, sender_pid, child_index);
         assert(State::child_statuses[child_index] != 'u');
         if (State::child_statuses[child_index] == 's') {
             State::num_requesting++;
@@ -261,6 +329,7 @@ void State::handle_work_request(
         if (out_of_work()) {        
             if (State::num_urgent == State::num_children + 1) {
                 // Self-abort
+                printf(" Urgent = %d\n", State::num_urgent);
                 abort_others(interconnect);
                 abort_process();
             } else if (State::num_urgent == State::num_children) {
@@ -276,6 +345,7 @@ void State::handle_work_request(
             }
         }
     } else {
+        if (PRINT_LEVEL > 0) printf("PID %d handling work request from sender %d (child %d)\n", State::pid, sender_pid, child_index);
         assert(State::child_statuses[child_index] == 's');
         // Log the request
         State::child_statuses[child_index] = 'r';
@@ -290,6 +360,7 @@ void State::handle_work_message(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
+    if (PRINT_LEVEL > 0) printf("PID %d handling work message\n", State::pid);
     short sender_pid = message.sender;
     short child_index = child_index_from_pid(sender_pid);
     void *work = message.data;
@@ -314,6 +385,7 @@ void State::handle_message(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
+    if (PRINT_LEVEL > 0) printf("PID %d handling message\n", State::pid);
     assert(0 <= State::num_urgent && State::num_urgent <= State::num_children);
     assert(State::num_urgent <= State::num_requesting);
     assert(State::num_requesting <= State::num_children + 1);
@@ -351,7 +423,7 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
     bool new_var_sign;
     int num_unsat = cnf.pick_from_clause(
         current_clause, &new_var_id, &new_var_sign);
-    if (PRINT_LEVEL > 0) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
+    if (PRINT_LEVEL > 1) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, new_var_sign);
         task_stack.add_to_front(only_task);
@@ -359,11 +431,11 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
         return 1;
     } else {
         // Add an undo task to do last
-        if (!skip_undo) {
+        if (!skip_undo && (task_stack.count > 0)) {
             void *undo_task = make_task(-1, true);
             task_stack.add_to_front(undo_task);
         }
-        bool first_choice = get_first_pick(new_var_sign);
+        bool first_choice = State::pick_greedy ? new_var_sign : !new_var_sign;
         void *important_task = make_task(new_var_id, first_choice);
         void *other_task = make_task(new_var_id, !first_choice);
         task_stack.add_to_front(other_task);
@@ -384,6 +456,7 @@ void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
 
 // Runs one iteration of the solver
 bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
+    State::calls_to_solve++;
     assert(State::num_non_trivial_tasks > 0);
     task_stack_invariant(task_stack, State::num_non_trivial_tasks);
     if (PRINT_LEVEL >= 5) printf("\n");
@@ -397,10 +470,9 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     } else {
         State::num_non_trivial_tasks--;
     }
-    cnf.recurse();
     while (true) {
         task_stack_invariant(task_stack, State::num_non_trivial_tasks);
-        if (PRINT_LEVEL > 0) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
+        if (PRINT_LEVEL > 1) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
         print_data(cnf, task_stack, "Loop start");
         if (!cnf.propagate_assignment(var_id, assignment)) {
             // Conflict clause found
@@ -422,6 +494,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
             State::num_non_trivial_tasks--;
             continue;
         }
+        cnf.recurse();
         return false;
     }
 }
@@ -429,23 +502,15 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
 // Continues solve operation, returns true iff a solution was found by
 // the current thread.
 bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
-    add_tasks_from_formula(cnf, task_stack, true);
-    assert(task_stack.count > 0);
+    if (interconnect.pid == 0) {
+        add_tasks_from_formula(cnf, task_stack, true);
+        assert(task_stack.count > 0);
+    }
     while (!State::process_finished) {
-        bool result = solve_iteration(cnf, task_stack);
-        assert(State::num_non_trivial_tasks >= 0);
-        if (result) {
-            abort_others(interconnect, true);
-            abort_process(true);
-            return true;
-        }
-        while (workers_requesting() && can_give_work(task_stack, interconnect)) {
-            give_work(cnf, task_stack, interconnect);
-        }
         if (out_of_work()) {
-            bool still_out_of_work = get_work_from_interconnect_stash(
+            bool found_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
-            if (still_out_of_work) {
+            if (!found_work) {
                 ask_for_work(cnf, interconnect);
             }
         }
@@ -456,9 +521,20 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
                 handle_message(message, cnf, task_stack, interconnect);
             }
         }
+        if (State::process_finished) break;
+        bool result = solve_iteration(cnf, task_stack);
+        assert(State::num_non_trivial_tasks >= 0);
+        if (result) {
+            abort_others(interconnect, true);
+            abort_process(true);
+            return true;
+        }
         while (interconnect.async_receive_message(message) && !State::process_finished) {
             handle_message(message, cnf, task_stack, interconnect);
             // TODO: serve work here?
+        }
+        while (workers_requesting() && can_give_work(task_stack, interconnect)) {
+            give_work(cnf, task_stack, interconnect);
         }
     }
     return false;

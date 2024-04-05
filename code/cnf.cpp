@@ -172,14 +172,16 @@ Cnf::Cnf(
             }
         }
     }
-    printf("%d clauses added\n", Cnf::clauses.num_indexed);
-    printf("%d variables added\n", Cnf::num_variables);
-    printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
+    if (pid == 0) {
+        printf("%d clauses added\n", Cnf::clauses.num_indexed);
+        printf("%d variables added\n", Cnf::num_variables);
+        printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
+    }
     // TODO: Add sum restrictions for killer Sudoku
 
     Cnf::depth = 0;
     Cnf::depth_str = "";
-    if (PRINT_LEVEL > 0) print_cnf("Current CNF", Cnf::depth_str, true);
+    if (PRINT_LEVEL > 1) print_cnf("Current CNF", Cnf::depth_str, true);
     init_compression();
 }
 
@@ -235,7 +237,6 @@ void Cnf::init_compression() {
         Cnf::num_variables, (sizeof(int) * 8));
     int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
     Cnf::work_ints = 2 + ints_per_state;
-    if (PRINT_LEVEL > 0) printf("\t%d bytes per state = ((2 * %d) + %d) * 4\n", ints_per_state * 4, Cnf::ints_needed_for_vars, Cnf::ints_needed_for_clauses);
     int start_clause_id = 0;
     for (int comp_index = 0; comp_index < Cnf::ints_needed_for_clauses; comp_index++) {
         unsigned int running_addition = 1;
@@ -525,7 +526,7 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
 // Updates formula with given assignment.
 // Returns false on failure and populates conflict id.
 bool Cnf::propagate_assignment(int var_id, bool value) {
-    if (PRINT_LEVEL > 0) printf("%sPID %d trying var %d |= %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value);
+    if (PRINT_LEVEL > 1) printf("%sPID %d trying var %d |= %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value);
     (*Cnf::edit_stack).add_to_front(variable_edit(var_id));
     Cnf::local_edit_count++;
     VariableLocations locations = (Cnf::variables)[var_id];
@@ -559,7 +560,7 @@ bool Cnf::propagate_assignment(int var_id, bool value) {
                     Cnf::conflict_id = clause_id;
                     (*locations.clauses_containing).add_to_back(
                         (void *)current);
-                    if (PRINT_LEVEL > 0) printf("%sPID %d assignment propagation of var %d = %d failed (conflict = %d)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, Cnf::conflict_id);
+                    if (PRINT_LEVEL > 1) printf("%sPID %d assignment propagation of var %d = %d failed (conflict = %d)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, Cnf::conflict_id);
                     return false;
                 } default: {
                     // At least the size changed
@@ -577,7 +578,7 @@ bool Cnf::propagate_assignment(int var_id, bool value) {
         clauses_to_check--;
     }
     if (PRINT_LEVEL >= 4) printf("%sPID %d propagated var %d |= %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value);
-    if (PRINT_LEVEL > 0) print_cnf("Post prop CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
+    if (PRINT_LEVEL > 1) print_cnf("Post prop CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
     return true;
 }
 
@@ -648,7 +649,7 @@ void Cnf::undo_local_edits() {
 
 // Updates internal variables based on a recursive backtrack
 void Cnf::backtrack() {
-    if (PRINT_LEVEL > 0) printf("%sPID %d backtracking\n", Cnf::depth_str.c_str(), Cnf::pid);
+    if (PRINT_LEVEL > 1) printf("%sPID %d backtracking\n", Cnf::depth_str.c_str(), Cnf::pid);
     undo_local_edits();
     if (PRINT_LEVEL > 1) print_cnf("Restored CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
     Cnf::depth_str = Cnf::depth_str.substr(1);
@@ -658,11 +659,14 @@ void Cnf::backtrack() {
 
 // Updates internal variables based on a recursive call
 void Cnf::recurse() {
-    if (PRINT_LEVEL > 0) printf("%s  PID %d recurse\n", Cnf::depth_str.c_str(), Cnf::pid);
-    Cnf::depth++;
-    Cnf::depth_str.append("\t");
+    if (PRINT_LEVEL > 1) printf("%s  PID %d recurse\n", Cnf::depth_str.c_str(), Cnf::pid);
+    if (Cnf::depth != 0) {
+        assert(Cnf::local_edit_count > 0);    
+    }
     (*Cnf::edit_counts_stack).add_to_front(Cnf::local_edit_count);
     Cnf::local_edit_count = 0;
+    Cnf::depth++;
+    Cnf::depth_str.append("\t");
 }
 
 // Returns the task embedded in the work received
@@ -685,6 +689,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         bool *clause_bits = int_to_bits(compressed_group);
         for (int bit = 0; bit < 32; bit++) {
             int clause_id = bit + clause_group_offset;
+            if (clause_id >= Cnf::clauses.num_indexed) break;
             bool is_dropped = Cnf::clauses_dropped[clause_id];
             bool should_be_dropped = clause_bits[bit];
             if (is_dropped == should_be_dropped) {
@@ -725,13 +730,15 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     return; // Cnf and task stack are now ready for a new call to solve
 }
 
-// Converts task + state into work message
+// Converts task + state into work message, returns a COPY of the data
 void *Cnf::convert_to_work_message(unsigned int *compressed, Task task) {
-    assert(task.var_id > 0);
+    assert(task.var_id >= 0);
+    unsigned int *work = (unsigned int *)malloc(sizeof(unsigned int) * work_ints);
+    memcpy(work, compressed, sizeof(unsigned int) * work_ints);
     int offset = Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars);
-    compressed[offset] = (unsigned int)task.var_id;
-    compressed[offset + 1] = (unsigned int)task.assignment;
-    return (void *)compressed;
+    work[offset] = (unsigned int)task.var_id;
+    work[offset + 1] = (unsigned int)task.assignment;
+    return (void *)work;
 }
 
 // Converts current formula to integer representation

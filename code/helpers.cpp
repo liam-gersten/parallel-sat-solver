@@ -100,17 +100,6 @@ Clause make_triple_clause(
     return current;
 }
 
-// Possibly flips value at random
-bool get_first_pick(bool heuristic) {
-    if (!RANDOM_FIRST_PICK) {
-        return heuristic;
-    }
-    // if ((rand() % 2) == 0) {
-    //     return heuristic;
-    // }
-    return !heuristic;
-}
-
 // Makes a variable edit
 void *variable_edit(int var_id) {
     FormulaEdit edit;
@@ -780,6 +769,9 @@ Task get_task(Deque &task_stack) {
 
 // Returns whether the top of the stack says to backtrack
 bool backtrack_at_top(Deque task_stack) {
+    if (task_stack.count == 0) {
+        return false;
+    }
     void *task_ptr = task_stack.peak_back();
     Task task = (*((Task *)task_ptr));
     return (task.var_id == -1);
@@ -787,6 +779,9 @@ bool backtrack_at_top(Deque task_stack) {
 
 // Returns whether the front of the stack says to backtrack
 bool backtrack_at_front(Deque task_stack) {
+    if (task_stack.count == 0) {
+        return false;
+    }
     void *task_ptr = task_stack.peak_front();
     Task task = (*((Task *)task_ptr));
     return (task.var_id == -1);
@@ -794,7 +789,7 @@ bool backtrack_at_front(Deque task_stack) {
 
 // Ensures the task stack is a valid one
 void task_stack_invariant(Deque &task_stack, int supposed_num_tasks) {
-    assert(!backtrack_at_top(task_stack));
+    assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     int num_processed = 0;
     int num_to_process = task_stack.count;
     int true_num_tasks = 0;
@@ -890,6 +885,29 @@ int IntDeque::peak_front() {
 int IntDeque::peak_back() {
     assert(IntDeque::count > 0);
     return (*((*(IntDeque::tail)).prev)).value;
+}
+
+// Prints out current int deque
+void IntDeque::print_deque(
+        short pid,
+        std::string prefix_string, 
+        std::string depth_string) 
+    {
+    std::string data_string = std::to_string(IntDeque::count);
+    data_string.append(" edit counts: (");
+    int num_to_check = IntDeque::count;
+    while (num_to_check > 0) {
+        int value = pop_from_front();
+        data_string.append(std::to_string(value));
+        add_to_back(value);
+        num_to_check--;
+        if (num_to_check > 0) {
+            data_string.append(" ");
+        }
+    }
+    data_string.append(")");
+    printf("%sPID %d %s %s\n", depth_string.c_str(), pid, 
+        prefix_string.c_str(), data_string.c_str());
 }
 
 // Frees all data in the deque

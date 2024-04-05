@@ -13,6 +13,7 @@ class State {
         short nprocs;
         short parent_id;
         short num_children;
+        short branching_factor;
         char *child_statuses; // 'r', 'u', or 's'
         char *requests_sent; // 'r', 'u', or 'n'
         short num_requesting;
@@ -20,8 +21,14 @@ class State {
         int num_non_trivial_tasks;
         bool process_finished;
         bool was_explicit_abort;
+        unsigned long long int calls_to_solve;
+        bool pick_greedy;
 
-        State(short pid, short nprocs, short branching_factor);
+        State(
+            short pid, 
+            short nprocs, 
+            short branching_factor, 
+            bool pick_greedy);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);
@@ -34,6 +41,12 @@ class State {
 
         // Returns whether the state is able to supply work to requesters
         bool can_give_work(Deque task_stack, Interconnect interconnect);
+        
+        // Applies an edit to the given compressed CNF
+        void apply_edit_to_compressed(
+            Cnf &cnf, 
+            unsigned int *compressed,
+            FormulaEdit edit);
         
         // Grabs work from the top of the task stack, updates Cnf structures
         void *steal_work(Cnf &cnf, Deque &task_stack);

@@ -115,7 +115,7 @@ class Cnf {
         // Reconstructs one's own formula (state) from an integer representation
         void reconstruct_state(void *work, Deque &task_stack);
 
-        // Converts task + state into work message
+        // Converts task + state into work message, returns a COPY of the data
         void *convert_to_work_message(unsigned int *compressed, Task task);
         
         // Converts current formula to integer representation
