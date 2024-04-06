@@ -767,6 +767,18 @@ Task get_task(Deque &task_stack) {
     return task;
 }
 
+// Returns whether given work responds to dual requests
+bool work_responds_to_dual_requests(void *work) {
+    int int_of_inderest = (int)((unsigned int *)work)[1];
+    return (2 & int_of_inderest);
+}
+
+// Sets bit in work to indicate it responds to two requests
+void set_work_responds_to_dual_requests(void *work) {
+    ((unsigned int *)work)[1] = ((unsigned int *)work)[1] | 2;
+    return;
+}
+
 // Returns whether the top of the stack says to backtrack
 bool backtrack_at_top(Deque task_stack) {
     if (task_stack.count == 0) {

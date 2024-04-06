@@ -154,7 +154,8 @@ void State::give_work(
                 // Urgent requests take precedence
                 // Pick an urgently-requesting child that has stashed work,
                 // or an arbitrary one.
-                if (State::child_statuses[child] != 'u') {
+                if (State::child_statuses[child] != 'u' 
+                    && State::child_statuses[child] != 'd') {
                     continue;
                 }
             } else {
@@ -181,7 +182,8 @@ void State::give_work(
         for (short child = 0; child <= State::num_children; child++) {
             if (State::num_urgent > 0) {
                 // must be an urgently-requesting child
-                if (State::child_statuses[child] != 'u') {
+                if (State::child_statuses[child] != 'u'
+                    && State::child_statuses[child] != 'd') {
                     continue;
                 }
             } else {
@@ -196,12 +198,19 @@ void State::give_work(
         }
         work = steal_work(cnf, task_stack);
     }
-    interconnect.send_work(recipient_pid, work);
-    State::child_statuses[recipient_index] = 's';
-    if (State::num_urgent > 0) {
+    if (State::child_statuses[recipient_index] == 'd') {
+        set_work_responds_to_dual_requests(work);
+        State::child_statuses[recipient_index] = 'r';
         State::num_urgent--;
+    } else if (State::child_statuses[recipient_index] == 'u') {
+        State::child_statuses[recipient_index] = 's';
+        State::num_urgent--;
+        State::num_requesting--;
+    } else {
+        State::child_statuses[recipient_index] = 's';
+        State::num_requesting--;
     }
-    State::num_requesting--;
+    interconnect.send_work(recipient_pid, work);
 }
 
 // Gets stashed work, returns true if any was grabbed
@@ -242,7 +251,7 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
         short dest_index;
         // Find index of the only adjecent node that hasn't urgently requested
         for (short i = 0; i <= State::num_children; i++) {
-            if (State::child_statuses[i] != 'u') {
+            if (State::child_statuses[i] != 'u' && State::child_statuses[i] != 'd') {
                 dest_index = i;
                 break;
             }
@@ -250,7 +259,12 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
         short dest_pid = pid_from_child_index(dest_index);
         assert(State::requests_sent[dest_index] != 'u');
         interconnect.send_work_request(dest_pid, true);
-        State::requests_sent[dest_index] = true;
+        if (State::requests_sent[dest_pid] == 'r') {
+            State::requests_sent[dest_index] = 'd';
+        } else {
+            assert(State::requests_sent[dest_pid] == 'n');
+            State::requests_sent[dest_index] = 'u';
+        }
     } else {
         if (PRINT_LEVEL > 0) printf("PID %d asking for work\n", State::pid);
         // Send a single work request to my parent.
@@ -299,11 +313,12 @@ void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
         // Any children who did not receive an urgent request from us should
         assert(State::num_urgent == State::num_children + 1);
         for (short child = 0; child < State::num_children; child++) {
-            if (State::requests_sent[child] != 'u') {
+            if (State::requests_sent[child] != 'u' 
+                && State::requests_sent[child] != 'd') {
                 // Child needs one
                 short recipient = pid_from_child_index(child);
                 interconnect.send_work_request(recipient, true);
-                State::requests_sent[child] = 'u';
+                State::requests_sent[child] = 'd';
             }
         }
     }
@@ -323,8 +338,11 @@ void State::handle_work_request(
         assert(State::child_statuses[child_index] != 'u');
         if (State::child_statuses[child_index] == 's') {
             State::num_requesting++;
+            State::child_statuses[child_index] = 'u';
+        } else {
+            assert(State::child_statuses[child_index] == 'r');
+            State::child_statuses[child_index] = 'd';
         }
-        State::child_statuses[child_index] = 'u';
         State::num_urgent++;
         if (out_of_work()) {        
             if (State::num_urgent == State::num_children + 1) {
@@ -338,7 +356,12 @@ void State::handle_work_request(
                     if (State::child_statuses[child] != 'u') {
                         short child_pid = pid_from_child_index(child);
                         interconnect.send_work_request(child_pid, true);
-                        State::requests_sent[child_pid] = true;
+                        if (State::requests_sent[child_pid] == 'r') {
+                            State::requests_sent[child_pid] = 'd';
+                        } else {
+                            assert(State::requests_sent[child_pid] == 's');
+                            State::requests_sent[child_pid] = 'u';
+                        }
                         return;
                     }
                 }
@@ -375,7 +398,15 @@ void State::handle_work_message(
         // Add to interconnect work stash
         interconnect.stash_work(message);
     }
-    State::requests_sent[child_index] = 'n';
+    if (State::requests_sent[child_index] == 'd') {
+        if (work_responds_to_dual_requests(work)) {
+            State::requests_sent[child_index] = 'n';
+        } else {
+            State::requests_sent[child_index] = 'u';
+        }
+    } else {
+        State::requests_sent[child_index] = 'n';
+    }
 }
 
 // Handles an abort message, possibly forwarding it

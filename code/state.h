@@ -14,8 +14,8 @@ class State {
         short parent_id;
         short num_children;
         short branching_factor;
-        char *child_statuses; // 'r', 'u', or 's'
-        char *requests_sent; // 'r', 'u', or 'n'
+        char *child_statuses; // 'r', 'u', 'd', or 's'
+        char *requests_sent; // 'r', 'u', 'd', or 'n'
         short num_requesting;
         short num_urgent;
         int num_non_trivial_tasks;

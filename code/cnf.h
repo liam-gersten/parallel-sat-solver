@@ -61,6 +61,12 @@ class Cnf {
 
         std::tuple<int, bool> oneOfClause(int* vars, int length, int &var_id, bool beginning=true, int newComm=-1, bool newCommSign=false);
 
+        // Working version that reduces the number of clauses needed
+        void reduce_puzzle_clauses_truncated(int n, int sqrt_n);
+
+        // Original version with lowest variable count
+        void reduce_puzzle_original(int n, int sqrt_n);
+        
         // Initializes CNF compression
         void init_compression();
 

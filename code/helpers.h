@@ -261,6 +261,12 @@ class Queue {
 // Gets first task from stack, frees pointer
 Task get_task(Deque &task_stack);
 
+// Returns whether given work responds to dual requests
+bool work_responds_to_dual_requests(void *work);
+
+// Sets bit in work to indicate it responds to two requests
+void set_work_responds_to_dual_requests(void *work);
+
 // Returns whether the top of the stack says to backtrack
 bool backtrack_at_top(Deque task_stack);
 
