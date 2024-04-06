@@ -131,6 +131,7 @@ void State::apply_edit_to_compressed(
 void *State::grab_work_from_stack(Cnf &cnf, Deque &task_stack) {
     if (PRINT_LEVEL > 0) printf("PID %d grabbing work from stack\n", State::pid);
     assert(State::num_non_trivial_tasks > 1);
+    assert(task_stack.count >= State::num_non_trivial_tasks);
     // Get the actual work as a copy
     Task top_task = *((Task *)(task_stack.pop_from_back()));
     void *work = cnf.convert_to_work_message(cnf.oldest_compressed, top_task);

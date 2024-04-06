@@ -55,7 +55,7 @@ void run_filename(int argc, char *argv[]) {
 
     Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
-    Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
+    Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, pick_greedy);
 
     if (pid == 0) {
@@ -131,7 +131,7 @@ void run_example_1() {
     // cnf.oneOfClause(vars, 4, vid);
 
     Deque task_stack;
-    Interconnect interconnect(0, 1, cnf.work_ints * 8);
+    Interconnect interconnect(0, 1, cnf.work_ints * 4);
     State state(0, 1, 2, false);
 
     bool result = state.solve(cnf, task_stack, interconnect);
