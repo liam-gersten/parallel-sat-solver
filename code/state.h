@@ -14,10 +14,16 @@ class State {
         short parent_id;
         short num_children;
         short branching_factor;
-        char *child_statuses; // 'r', 'u', 'd', or 's'
-        char *requests_sent; // 'r', 'u', 'd', or 'n'
-        short num_requesting;
-        short num_urgent;
+        char *cchild_statuses; 
+        // 'r' (requesting), 
+        // 'u' (urgently requesting), 
+        // 'w' (working)
+        char *rrequests_sent; 
+        // 'r' (request),
+        // 'u' (urgent request),
+        // 'n' (none)
+        short nnum_requesting;
+        short nnum_urgent;
         int num_non_trivial_tasks;
         bool process_finished;
         bool was_explicit_abort;
@@ -39,6 +45,12 @@ class State {
         // Returns whether there are any other processes requesting our work
         bool workers_requesting();
 
+        // Returns whether we should forward an urgent request
+        bool should_forward_urgent_request();
+
+        // Returns whether we should implicitly abort due to urgent requests
+        bool should_implicit_abort();
+
         // Returns whether the state is able to supply work to requesters
         bool can_give_work(Deque task_stack, Interconnect interconnect);
         
@@ -49,8 +61,14 @@ class State {
             FormulaEdit edit);
         
         // Grabs work from the top of the task stack, updates Cnf structures
-        void *steal_work(Cnf &cnf, Deque &task_stack);
+        void *grab_work_from_stack(Cnf &cnf, Deque &task_stack);
         
+        // Picks recipient index to give work to
+        short pick_work_recipient();
+
+        // Picks recipient index to ask for work
+        short pick_request_recipient();
+
         // Gives one unit of work to lazy processors
         void give_work(
             Cnf &cnf, 
@@ -80,7 +98,7 @@ class State {
         // Handles work request
         void handle_work_request(
             short sender_pid,
-            bool is_urgent,
+            short version,
             Cnf &cnf,
             Deque &task_stack, 
             Interconnect &interconnect);

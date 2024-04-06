@@ -66,7 +66,7 @@ void run_filename(int argc, char *argv[]) {
 
     bool result = state.solve(cnf, task_stack, interconnect);
 
-    printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
+    if (PRINT_LEVEL > 0) printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
     
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';

@@ -174,13 +174,15 @@ Cnf::Cnf(
     reduce_puzzle_original(n, sqrt_n);
     // reduce_puzzle_clauses_truncated(n, sqrt_n);
 
-    printf("%d clauses added\n", Cnf::clauses.num_indexed);
-    printf("%d variables added\n", Cnf::num_variables);
-    printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
+    if (pid == 0) {
+        printf("%d clauses added\n", Cnf::clauses.num_indexed);
+        printf("%d variables added\n", Cnf::num_variables);
+        printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
+    }
     Cnf::depth = 0;
     Cnf::depth_str = "";
-    if (PRINT_LEVEL > 0) print_cnf("Current CNF", Cnf::depth_str, true);
     init_compression();
+    if (PRINT_LEVEL > 1) print_cnf("Current CNF", Cnf::depth_str, true);
 }
 
 // Makes CNF formula from premade data structures

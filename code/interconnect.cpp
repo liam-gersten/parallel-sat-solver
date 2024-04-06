@@ -39,31 +39,30 @@ bool Interconnect::async_receive_message(Message &message) {
 }
 
 // Sends message asking for work
-void Interconnect::send_work_request(short recipient, bool urgent) {
+void Interconnect::send_work_request(short recipient, short version) {
   MPI_Request request;
-  int tag = (int)(urgent);
   void *data = (void *)malloc(sizeof(char));
-  MPI_Isend(data, 1, MPI_CHAR, recipient, tag, MPI_COMM_WORLD, &request);
+  MPI_Isend(data, 1, MPI_CHAR, recipient, version, MPI_COMM_WORLD, &request);
   Interconnect::dead_message_queue.add_to_queue(data, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type %d [%d -> %d] sent)\n", tag, Interconnect::pid, recipient);
+  if (PRINT_INTERCONNECT) printf(" I(message type %d [%d -> %d] sent)\n", version, Interconnect::pid, recipient);
 }
 
 // Sends work message
 void Interconnect::send_work(short recipient, void *work) {
   MPI_Request request;
-  MPI_Isend(work, Interconnect::work_bytes, MPI_CHAR, recipient, 2, 
+  MPI_Isend(work, Interconnect::work_bytes, MPI_CHAR, recipient, 3, 
     MPI_COMM_WORLD, &request);
   Interconnect::dead_message_queue.add_to_queue(work, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type 2 [%d -> %d] sent)\n", Interconnect::pid, recipient);
+  if (PRINT_INTERCONNECT) printf(" I(message type 3 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Sends an abort message
 void Interconnect::send_abort_message(short recipient) {
   MPI_Request request;
   void *data = (void *)malloc(sizeof(char));
-  MPI_Isend(data, 1, MPI_CHAR, recipient, 3, MPI_COMM_WORLD, &request);
+  MPI_Isend(data, 1, MPI_CHAR, recipient, 4, MPI_COMM_WORLD, &request);
   Interconnect::dead_message_queue.add_to_queue(data, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type 3 [%d -> %d] sent)\n", Interconnect::pid, recipient);
+  if (PRINT_INTERCONNECT) printf(" I(message type 4 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Returns whether there is already work stashed from a sender, or
