@@ -213,6 +213,8 @@ Cnf::Cnf(
         start = 729;
     } else if (sqrt_n == 4) {
         start = 4097;
+    } else if (sqrt_n == 2) {
+        start = 64;
     }
 
     // subcols
