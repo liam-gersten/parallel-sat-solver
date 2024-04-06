@@ -160,17 +160,7 @@ Cnf::Cnf(
         int sqrt_n, 
         int num_constraints) 
     {
-    // This is broken
-    int n_squ = n * n;
     Cnf::n = n;
-    Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // SLIGHT OVERESTIMATE FOR N=4,9
-    // Exact figure
-    int num_clauses = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n);
-
-    IndexableDLL clauses(num_clauses);
-    Cnf::clauses = clauses;
-    Cnf::variables = (VariableLocations *)malloc(
-        sizeof(VariableLocations) * Cnf::num_variables);
     Deque edit_stack;
     IntDeque edit_counts_stack;
     Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
@@ -181,8 +171,73 @@ Cnf::Cnf(
     Cnf::local_edit_count = 0;
     Cnf::conflict_id = -1;
 
-    int variable_id = 0;
+    reduce_puzzle_original(n, sqrt_n);
+    // reduce_puzzle_clauses_truncated(n, sqrt_n);
 
+    printf("%d clauses added\n", Cnf::clauses.num_indexed);
+    printf("%d variables added\n", Cnf::num_variables);
+    printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
+    Cnf::depth = 0;
+    Cnf::depth_str = "";
+    if (PRINT_LEVEL > 0) print_cnf("Current CNF", Cnf::depth_str, true);
+    init_compression();
+}
+
+// Makes CNF formula from premade data structures
+Cnf::Cnf(
+        short pid,
+        IndexableDLL input_clauses, 
+        VariableLocations *input_variables, 
+        int num_variables) 
+    {
+    Cnf::pid = pid;
+    Cnf::n = 0;
+    Cnf::clauses = input_clauses;
+    Cnf::variables = input_variables;
+    Cnf::num_variables = num_variables;
+    Deque edit_stack;
+    IntDeque edit_counts_stack;
+    Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
+    Cnf::edit_counts_stack = (IntDeque *)malloc(sizeof(IntDeque));
+    *Cnf::edit_stack = edit_stack;
+    *Cnf::edit_counts_stack = edit_counts_stack;
+    Cnf::local_edit_count = 0;
+    Cnf::conflict_id = -1;
+    Cnf::depth = 0;
+    Cnf::depth_str = "";
+    init_compression();
+    printf("Clauses_dropped = [");
+    for (int i = 0; i < Cnf::ints_needed_for_clauses * 32; i++) {
+        printf("%d ", clauses_dropped[i]);
+    }
+    printf("]\n");
+    printf("as_int = %u\n", bits_to_int(Cnf::clauses_dropped));
+}
+
+// Default constructor
+Cnf::Cnf() {
+    Cnf::n = 0;
+    Cnf::num_variables = 0;
+    Cnf::ints_needed_for_clauses = 0;
+    Cnf::ints_needed_for_vars = 0;
+    Cnf::work_ints = 0;
+    Cnf::local_edit_count = 0;
+    Cnf::conflict_id = -1;
+    Cnf::depth = 0;
+    Cnf::depth_str = "";
+}
+
+void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
+    int n_squ = n * n;
+    Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // SLIGHT OVERESTIMATE FOR N=4,9
+    // Exact figure
+    int num_clauses = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n);
+    IndexableDLL clauses(num_clauses);
+    Cnf::clauses = clauses;
+    Cnf::variables = (VariableLocations *)malloc(
+        sizeof(VariableLocations) * Cnf::num_variables);
+    
+    int variable_id = 0;
     for (int k = 0; k < n; k++) {
         for (int row = 0; row < n; row++) {
             for (int col = 0; col < n; col++) {
@@ -200,7 +255,6 @@ Cnf::Cnf(
             }
         }
     }
-
     int var1;
     int var2;
     int vars[n];
@@ -276,65 +330,134 @@ Cnf::Cnf(
             }
         }
     }
-    
-    printf("%d clauses added\n", Cnf::clauses.num_indexed);
-    printf("%d variables added\n", Cnf::num_variables);
-    printf("%d max indexable clauses added\n", Cnf::clauses.max_indexable);
-    // TODO: Add sum restrictions for killer Sudoku
-
-    Cnf::depth = 0;
-    Cnf::depth_str = "";
-    if (PRINT_LEVEL > 1) print_cnf("Current CNF", Cnf::depth_str, true);
-    init_compression();
-
     // printf("hai\n");
     // int vars[30] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29};
     // Cnf::oneOfClause(vars, 6, variable_id);
     // print_cnf("4: ", "", false);
 }
 
-// Makes CNF formula from premade data structures
-Cnf::Cnf(
-        short pid,
-        IndexableDLL input_clauses, 
-        VariableLocations *input_variables, 
-        int num_variables) 
-    {
-    Cnf::pid = pid;
-    Cnf::n = 0;
-    Cnf::clauses = input_clauses;
-    Cnf::variables = input_variables;
-    Cnf::num_variables = num_variables;
-    Deque edit_stack;
-    IntDeque edit_counts_stack;
-    Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
-    Cnf::edit_counts_stack = (IntDeque *)malloc(sizeof(IntDeque));
-    *Cnf::edit_stack = edit_stack;
-    *Cnf::edit_counts_stack = edit_counts_stack;
-    Cnf::local_edit_count = 0;
-    Cnf::conflict_id = -1;
-    Cnf::depth = 0;
-    Cnf::depth_str = "";
-    init_compression();
-    printf("Clauses_dropped = [");
-    for (int i = 0; i < Cnf::ints_needed_for_clauses * 32; i++) {
-        printf("%d ", clauses_dropped[i]);
+// Original version with lowest variable count
+void Cnf::reduce_puzzle_original(int n, int sqrt_n) {
+    int n_squ = n * n;
+    Cnf::num_variables = (n * n_squ);
+    // Exact figure
+    int num_clauses = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
+    IndexableDLL clauses(num_clauses);
+    Cnf::clauses = clauses;
+    Cnf::variables = (VariableLocations *)malloc(
+        sizeof(VariableLocations) * Cnf::num_variables);
+    int variable_id = 0;
+    for (int k = 0; k < n; k++) {
+        for (int row = 0; row < n; row++) {
+            for (int col = 0; col < n; col++) {
+                VariableLocations current_variable;
+                current_variable.variable_id = variable_id;
+                current_variable.variable_row = row;
+                current_variable.variable_col = col;
+                current_variable.variable_k = k;
+                Queue clauses_containing;
+                Queue *clauses_containing_ptr = (Queue *)malloc(sizeof(Queue));
+                *clauses_containing_ptr = clauses_containing;
+                current_variable.clauses_containing = clauses_containing_ptr;
+                Cnf::variables[variable_id] = current_variable;
+                variable_id++;
+            }
+        }
     }
-    printf("]\n");
-    printf("as_int = %u\n", bits_to_int(Cnf::clauses_dropped));
-}
-
-// Default constructor
-Cnf::Cnf() {
-    Cnf::n = 0;
-    Cnf::num_variables = 0;
-    Cnf::ints_needed_for_clauses = 0;
-    Cnf::ints_needed_for_vars = 0;
-    Cnf::work_ints = 0;
-    Cnf::local_edit_count = 0;
-    Cnf::conflict_id = -1;
-    Cnf::depth = 0;
-    Cnf::depth_str = "";
+    int var1;
+    int var2;
+    int variable_num = 0;
+    // For each position, there is at most one k value true
+    // Exactly n^3(1/2)(n-1) clauses
+    for (int row = 0; row < n; row++) {
+        for (int col = 0; col < n; col++) {
+            for (int k1 = 0; k1 < (n - 1); k1++) {
+                for (int k2 = k1 + 1; k2 < n; k2++) {
+                    var1 = ((n_squ) * k1) + variable_num;
+                    var2 = ((n_squ) * k2) + variable_num;
+                    Clause restriction = make_small_clause(
+                        var1, var2, false, false);
+                    add_clause(restriction, Cnf::clauses, Cnf::variables);
+                }
+            }
+            variable_num++;
+        }
+    }
+    // For each position, there is at leadt one k value true
+    // Exactly n^2 clauses
+    for (int row = 0; row < n; row++) {
+        for (int col = 0; col < n; col++) {
+            int variable_offset = (row * n) + col;
+            Clause at_least_one;
+            at_least_one.num_literals = n;
+            at_least_one.literal_variable_ids = (int *)malloc(sizeof(int) * n);
+            at_least_one.literal_signs = (bool *)malloc(sizeof(int) * n);
+            for (int k = 0; k < n; k++) {
+                at_least_one.literal_variable_ids[k] = 
+                    variable_offset + (k * n_squ);
+                at_least_one.literal_signs[k] = true;
+            }
+            add_clause(at_least_one, Cnf::clauses, Cnf::variables);
+        }
+    }
+    // For each row and k, there is at most one value with this k
+    // Exactly n^3(1/2)(n - 1) clauses
+    for (int k = 0; k < n; k++) {
+        for (int row = 0; row < n; row++) {
+            for (int col1 = 0; col1 < n - 1; col1++) {
+                for (int col2 = col1 + 1; col2 < n; col2++) {
+                    int var1 = (k * n_squ) + (row * n) + col1;
+                    int var2 = (k * n_squ) + (row * n) + col2;
+                    Clause restriction = make_small_clause(
+                        var1, var2, false, false);
+                    add_clause(restriction, Cnf::clauses, Cnf::variables);
+                }
+            }
+        }
+    }
+    // For each col and k, there is at most one value with this k
+    // Exactly n^3(1/2)(n - 1) clauses
+    for (int k = 0; k < n; k++) {
+        for (int col = 0; col < n; col++) {
+            for (int row1 = 0; row1 < n - 1; row1++) {
+                for (int row2 = row1 + 1; row2 < n; row2++) {
+                    int var1 = (k * n_squ) + (row1 * n) + col;
+                    int var2 = (k * n_squ) + (row2 * n) + col;
+                    Clause restriction = make_small_clause(
+                        var1, var2, false, false);
+                    add_clause(restriction, Cnf::clauses, Cnf::variables);
+                }
+            }
+        }
+    }
+    // For each chunk and k, there is at most one value with this k
+    // Less than n^3(1/2)(n - 1) clauses
+    for (int k = 0; k < n; k++) {
+        for (int block_row = 0; block_row < sqrt_n; block_row++) {
+            for (int block_col = 0; block_col < sqrt_n; block_col++) {
+                for (int local1 = 0; local1 < n - 1; local1++) {
+                    for (int local2 = local1+1; local2 < n; local2++) {
+                        int local_row1 = local1 / sqrt_n;
+                        int local_col1 = local1 % sqrt_n;
+                        int local_row2 = local2 / sqrt_n;
+                        int local_col2 = local2 % sqrt_n;
+                        int row1 = (block_row * sqrt_n) + local_row1;
+                        int col1 = (block_col * sqrt_n) + local_col1;
+                        int row2 = (block_row * sqrt_n) + local_row2;
+                        int col2 = (block_col * sqrt_n) + local_col2;
+                        if (row1 == row2 || col1 == col2) {
+                            continue;
+                        }
+                        int var1 = (k * n_squ) + (row1 * n) + col1;
+                        int var2 = (k * n_squ) + (row2 * n) + col2;
+                        Clause restriction = make_small_clause(
+                            var1, var2, false, false);
+                        add_clause(restriction, Cnf::clauses, Cnf::variables);
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Initializes CNF compression
