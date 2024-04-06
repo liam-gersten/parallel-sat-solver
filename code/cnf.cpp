@@ -82,16 +82,16 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
         pos_comm.literal_variable_ids = (int *)malloc(sizeof(int) * pos_comm.num_literals);
         pos_comm.literal_signs = (bool *)malloc(sizeof(int) * pos_comm.num_literals);
 
-        pos_comm.literal_variable_ids[0] = comm_id;
-        pos_comm.literal_signs[0] = !comm_sign;
         for (int i = 0; i < length; i++) {
-            pos_comm.literal_variable_ids[i+1] = vars[i];
-            pos_comm.literal_signs[i+1] = true;
+            pos_comm.literal_variable_ids[i] = vars[i];
+            pos_comm.literal_signs[i] = true;
         }
+        pos_comm.literal_variable_ids[length] = comm_id;
+        pos_comm.literal_signs[length] = !comm_sign;
         add_clause(pos_comm, Cnf::clauses, Cnf::variables);
         // not comm => AND not vars
         for (int i = 0; i < length; i++) {
-            Clause neg_comm = make_small_clause(comm_id, vars[i], comm_sign, false);
+            Clause neg_comm = make_small_clause(vars[i], comm_id, false, comm_sign);
             add_clause(neg_comm,  Cnf::clauses, Cnf::variables);
         }
 
@@ -102,14 +102,14 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
             if (beginning) {
                 auto [comm1, comm1sign] = oneOfClause(vars + 2, length-2, var_id, beginning=false);
                 
-                add_clause(make_small_clause(comm1, vars[0], !comm1sign, false),  Cnf::clauses, Cnf::variables);
-                add_clause(make_small_clause(comm1, vars[1], !comm1sign, false),  Cnf::clauses, Cnf::variables);
+                add_clause(make_small_clause(vars[0], comm1, false, !comm1sign),  Cnf::clauses, Cnf::variables);
+                add_clause(make_small_clause(vars[1], comm1, false, !comm1sign),  Cnf::clauses, Cnf::variables);
                 add_clause(make_small_clause(vars[0], vars[1], false, false),  Cnf::clauses, Cnf::variables);
-                add_clause(make_triple_clause(comm1, vars[0], vars[1], comm1sign, true, true), Cnf::clauses, Cnf::variables);
+                add_clause(make_triple_clause(vars[0], vars[1], comm1, true, true, comm1sign), Cnf::clauses, Cnf::variables);
             } else {
                 auto [comm1, comm1sign] = oneOfClause(vars + 2, length-2, var_id, beginning=false);
 
-                int children[3] = {comm1, vars[0], vars[1]};
+                int children[3] = {vars[0], vars[1], comm1};
                 return oneOfClause(children, 3, var_id, beginning=false, newComm=newComm, newCommSign=newCommSign);
             }
         } else {
