@@ -23,13 +23,14 @@ void run_filename(int argc, char *argv[]) {
     // Get total number of processes specificed at start of run
     MPI_Comm_size(MPI_COMM_WORLD, &nproc);
 
-
     std::string input_filename;
     // Read command line arguments
     int opt;
     short branching_factor = 2;
     bool pick_greedy = false;
-    while ((opt = getopt(argc, argv, "f:b:g:")) != -1) {
+    bool use_smart_prop = true;
+    bool explicit_true = false;
+    while ((opt = getopt(argc, argv, "f:b:g:s:e:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -39,6 +40,12 @@ void run_filename(int argc, char *argv[]) {
             break;
         case 'g':
             pick_greedy = (bool)atoi(optarg);
+            break;
+        case 's':
+            use_smart_prop = (bool)atoi(optarg);
+            break;
+        case 'e':
+            explicit_true = (bool)atoi(optarg);
             break;
         default:
             std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
@@ -56,7 +63,9 @@ void run_filename(int argc, char *argv[]) {
     Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
-    State state(pid, nproc, branching_factor, pick_greedy, n);
+    State state(pid, nproc, branching_factor, 
+        pick_greedy, n,
+        use_smart_prop, explicit_true);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -66,7 +75,7 @@ void run_filename(int argc, char *argv[]) {
 
     bool result = state.solve(cnf, task_stack, interconnect);
 
-    if (PRINT_LEVEL > 0) printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
+    printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
     
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
@@ -92,7 +101,49 @@ void run_filename(int argc, char *argv[]) {
     print_board(board, cnf.n);
 }
 
-void run_example_1() {
+void run_example_1(int argc, char *argv[]) {
+    const auto init_start = std::chrono::steady_clock::now();
+    int pid;
+    int nproc;
+
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
+    // Get process rank
+    MPI_Comm_rank(MPI_COMM_WORLD, &pid);
+    // Get total number of processes specificed at start of run
+    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+
+    std::string input_filename;
+    // Read command line arguments
+    int opt;
+    short branching_factor = 2;
+    bool pick_greedy = false;
+    bool use_smart_prop = true;
+    bool explicit_true = false;
+    while ((opt = getopt(argc, argv, "f:b:g:s:e:")) != -1) {
+        switch (opt) {
+        case 'f':
+            input_filename = optarg;
+            break;
+        case 'b':
+            branching_factor = (short)atoi(optarg);
+            break;
+        case 'g':
+            pick_greedy = (bool)atoi(optarg);
+            break;
+        case 's':
+            use_smart_prop = (bool)atoi(optarg);
+            break;
+        case 'e':
+            explicit_true = (bool)atoi(optarg);
+            break;
+        default:
+            std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
+            MPI_Finalize();    
+            exit(EXIT_FAILURE);
+        }
+    }
+
     int num_variables = 7;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
@@ -124,18 +175,29 @@ void run_example_1() {
     add_clause(C5, input_clauses, input_variables);
     add_clause(C6, input_clauses, input_variables);
 
-    Cnf cnf(0, input_clauses, input_variables, num_variables);
-
-    // int vars[7] = {0,1,2,3,4,5,6};
-    // int vid = 7;
-    // cnf.oneOfClause(vars, 4, vid);
+    Cnf cnf(pid, input_clauses, input_variables, num_variables);
 
     Deque task_stack;
-    Interconnect interconnect(0, 1, cnf.work_ints * 4);
-    State state(0, 1, 2, false, num_variables);
+    Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
+    State state(pid, nproc, branching_factor, 
+        pick_greedy, n,
+        use_smart_prop, explicit_true);
+
+    if (pid == 0) {
+        const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
+        std::cout << "Initialization time (sec): " << std::fixed << std::setprecision(10) << init_time << '\n';
+    }
+    const auto compute_start = std::chrono::steady_clock::now();
 
     bool result = state.solve(cnf, task_stack, interconnect);
+
+    if (PRINT_LEVEL > 1) printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
     
+    const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
+    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+
+    MPI_Finalize();
+
     if (state.was_explicit_abort) {
         // A solution was found
         if (!result) {
@@ -146,10 +208,10 @@ void run_example_1() {
         // No solution was found
         raise_error("No solution was found");
     }
-
+    
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
-        print_assignment(0, "", "", assignment, cnf.num_variables);
+        print_assignment((short)pid, "", "", assignment, cnf.num_variables);
     }
 }
 
@@ -211,9 +273,7 @@ void print_memory_stats() {
 }
 
 int main(int argc, char *argv[]) {
-    // run_example_1();
-    // print_memory_stats();
     run_filename(argc, argv);
+    // run_example_1(argc, argv);
     // print_memory_stats();
-    
 }

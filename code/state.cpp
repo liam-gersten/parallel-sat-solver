@@ -7,7 +7,9 @@ State::State(
         short nprocs, 
         short branching_factor, 
         bool pick_greedy,
-        int n) 
+        int n,
+        bool use_smart_prop,
+        bool explicit_true) 
     {
     State::pid = pid;
     State::nprocs = nprocs;
@@ -50,6 +52,9 @@ State::State(
 
     State::n = n;
     State::prev_chosen_var = 0;
+    State::use_smart_prop = use_smart_prop;
+    State::explicit_true = explicit_true;
+    State::print_index = 0;
 }
 
 // Gets child (or parent) pid from child (or parent) index
@@ -69,6 +74,14 @@ short State::child_index_from_pid(short child_pid) {
         return State::num_children;
     }
     return child_pid - 1 - (State::pid * State::branching_factor);
+}
+
+// Prints out the current progress of the solver
+void State::print_progress(Cnf &cnf, Deque &task_stack) {
+    unsigned int assigned_variables = cnf.num_vars_assigned;
+    unsigned int unassigned_variables = cnf.num_variables - assigned_variables;
+    unsigned int remaining_clauses = cnf.clauses.num_indexed - cnf.num_clauses_dropped;
+    printf("PID %d: [ depth %d || %d unassigned variables || %d remaining clauses || %d size work stack ]\n", State::pid, cnf.depth, unassigned_variables, remaining_clauses, task_stack.count);
 }
 
 // Returns whether there are any other processes requesting our work
@@ -521,7 +534,12 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
             void *undo_task = make_task(-1, true);
             task_stack.add_to_front(undo_task);
         }
-        bool first_choice = State::pick_greedy ? new_var_sign : !new_var_sign;
+        bool first_choice;
+        if (State::explicit_true) {
+            first_choice = true;
+        } else {
+            first_choice = State::pick_greedy ? new_var_sign : !new_var_sign;
+        }
         void *important_task = make_task(new_var_id, first_choice);
         void *other_task = make_task(new_var_id, !first_choice);
         task_stack.add_to_front(other_task);
@@ -542,6 +560,7 @@ void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
 
 // Runs one iteration of the solver
 bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
+    unsigned int vars_assigned_at_start = cnf.num_vars_assigned;
     State::calls_to_solve++;
     assert(State::num_non_trivial_tasks > 0);
     task_stack_invariant(task_stack, State::num_non_trivial_tasks);
@@ -556,6 +575,11 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     } else {
         State::num_non_trivial_tasks--;
     }
+    if (print_index == 100 && PRINT_PROGRESS) {
+        print_progress(cnf, task_stack);
+        print_index = 0;
+    }
+    print_index++;
     while (true) {
         task_stack_invariant(task_stack, State::num_non_trivial_tasks);
         if (PRINT_LEVEL > 1) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
@@ -566,7 +590,16 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
             cnf.backtrack();
             return false;
         }
+        if (State::use_smart_prop) {
+            if (!cnf.smart_propagate_assignment(var_id, assignment)) {
+                // Conflict clause found
+                print_data(cnf, task_stack, "Smart prop fail");
+                cnf.backtrack();
+                return false;
+            }
+        }
         if (cnf.clauses.get_linked_list_size() == 0) {
+            if (PRINT_PROGRESS) print_progress(cnf, task_stack);
             cnf.assign_remaining();
             print_data(cnf, task_stack, "Base case success");
             return true;
@@ -593,6 +626,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         assert(task_stack.count > 0);
     }
     while (!State::process_finished) {
+        interconnect.clean_dead_messages();
         if (out_of_work()) {
             bool found_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
@@ -615,9 +649,11 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             abort_process(true);
             return true;
         }
-        while (interconnect.async_receive_message(message) && !State::process_finished) {
-            handle_message(message, cnf, task_stack, interconnect);
-            // TODO: serve work here?
+        if (print_index % 10 == 0) {
+            while (interconnect.async_receive_message(message) && !State::process_finished) {
+                handle_message(message, cnf, task_stack, interconnect);
+                // TODO: serve work here?
+            }
         }
         while (workers_requesting() && can_give_work(task_stack, interconnect)) {
             give_work(cnf, task_stack, interconnect);

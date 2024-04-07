@@ -29,6 +29,9 @@ class State {
         bool was_explicit_abort;
         unsigned long long int calls_to_solve;
         bool pick_greedy;
+        bool use_smart_prop;
+        bool explicit_true;
+        short print_index;
 
         int n; // length of sudoku grid
         int prev_chosen_var;
@@ -38,13 +41,18 @@ class State {
             short nprocs, 
             short branching_factor, 
             bool pick_greedy,
-            int n);
+            int n,
+            bool use_smart_prop,
+            bool explicit_true);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);
 
         // Gets child (or parent) index from child (or parent) pid
         short child_index_from_pid(short child_pid);
+
+        // Prints out the current progress of the solver
+        void print_progress(Cnf &cnf, Deque &task_stack);
         
         // Returns whether there are any other processes requesting our work
         bool workers_requesting();

@@ -3,6 +3,12 @@ sequential:
 
 parallel:
 	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp
+	
+debug:
+	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -pg
+
+fast:
+	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp
 
 clean:
 	/bin/rm -rf *~ *.o $(APP_NAME) *.class

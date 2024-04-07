@@ -42,6 +42,8 @@ class Cnf {
         bool *clauses_dropped;
         bool *assigned_true;
         bool *assigned_false;
+        unsigned int num_clauses_dropped;
+        unsigned int num_vars_assigned;
         int n;
         int depth;
         std::string depth_str;
@@ -109,6 +111,10 @@ class Cnf {
         // Returns false on failure and populates conflict id.
         bool propagate_assignment(int var_id, bool value);
 
+        // Uses Sudoku context with variable indexing to immidiately assign
+        // other variables
+        bool smart_propagate_assignment(int var_id, bool value);
+        
         // Returns the assignment of variables
         bool *get_assignment();
 

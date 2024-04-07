@@ -8,6 +8,8 @@
 
 #define PRINT_INTERCONNECT 0
 
+#define PRINT_PROGRESS 0
+
 #define CONCISE_FORMULA 1
 
 // Will have fixed allocation size
@@ -258,6 +260,9 @@ class Queue {
 
         // Returns the front value without removing it
         void *peak_front();
+
+        // Returns self as a list
+        void **get_list();
 
         // Frees all data in the queue
         void free_data();
