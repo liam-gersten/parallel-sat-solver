@@ -751,6 +751,24 @@ void *Queue::peak_front() {
     return current.value;
 }
 
+// Returns self as a list
+void **Queue::get_list() {
+    assert(Queue::count > 0);
+    void **result = (void **)malloc(sizeof(void *) * Queue::count);
+    unsigned int i = 0;
+    LinkedList *current = Queue::head;
+    while (true) {
+        result[i] = (*current).value;
+        i++;  
+        if (current == Queue::tail) {
+            break;
+        }
+        current = (*current).next;
+    }
+    assert(i == Queue::count);
+    return result;
+}
+
 // Frees all data in the queue
 void Queue::free_data() {
     while (Queue::count > 0) {
