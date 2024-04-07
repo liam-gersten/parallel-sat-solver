@@ -180,7 +180,7 @@ void run_example_1(int argc, char *argv[]) {
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, n,
+        pick_greedy, num_variables,
         use_smart_prop, explicit_true);
 
     if (pid == 0) {

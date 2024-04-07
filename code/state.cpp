@@ -51,6 +51,7 @@ State::State(
     State::pick_greedy = pick_greedy;
 
     State::n = n;
+    State::sqrt_n = int(sqrt(n+1));
     State::prev_chosen_var = 0;
     State::use_smart_prop = use_smart_prop;
     State::explicit_true = explicit_true;
@@ -481,9 +482,9 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
         current_clause = *((Clause *)(cnf.clauses.get_current_value()));
         current_clause_id = current_clause.id;
         num_unsat = cnf.pick_from_clause(current_clause, &new_var_id, &new_var_sign);
+        // only want to case on normal variables - have unit prop take care of additional vars
         if (num_unsat == 1 || new_var_id < pow(State::n, 3)) { //FAST FOR 16, BUT NOT 9??
-        // int sqrt_n = 4;
-        // if (num_unsat == 1 || !(new_var_id >= getSubcolID(sqrt_n, sqrt_n, sqrt_n, n, sqrt_n, n*n*n, sqrt_n/2))) {
+        // if (num_unsat == 1 || isSubcolID(new_var_id, sqrt_n) || new_var_id < pow(State::n, 3)) {
             break;
         }
          else if (hasntTried) {
@@ -500,7 +501,7 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
                     break;
                 }
                 ptr = ptr->next;
-                break; // NOT WORKING WELL FOR N=16
+                break; // put in break - NOT WORKING WELL FOR N=16
             }
             if (validPick) {
                 break;

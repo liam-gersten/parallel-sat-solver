@@ -34,6 +34,7 @@ class State {
         short print_index;
 
         int n; // length of sudoku grid
+        int sqrt_n;
         int prev_chosen_var;
 
         State(

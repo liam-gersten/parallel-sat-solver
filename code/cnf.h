@@ -23,7 +23,7 @@ void add_clause(
     IndexableDLL &clauses, 
     VariableLocations *variables);
     
-int getSubcolID(int col, int xbox, int ybox, int k, int sqrt_n, int start, int spacing);
+bool isSubcolID(int id, int sqrt_n);
 
 class Cnf {
     public:

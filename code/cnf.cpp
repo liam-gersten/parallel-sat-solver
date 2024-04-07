@@ -136,6 +136,20 @@ int getSubcolID(int col, int xbox, int ybox, int k, int sqrt_n, int start, int s
     int raw = k*(sqrt_n*sqrt_n*sqrt_n) + col * sqrt_n*sqrt_n + xbox * sqrt_n + ybox;
     return start + spacing*raw;
 }
+// BASED ON DATA FOR N<=25
+bool isSubcolID(int id, int sqrt_n) {
+    int n = sqrt_n * sqrt_n;
+    int subcol_id_spacing = floor(sqrt_n / 2.);
+    int start = n*n*n + subcol_id_spacing - 1;
+    int rawBd = n*pow(sqrt_n,3) + sqrt_n*n + n + sqrt_n;
+
+    id -= start;
+    if (id % subcol_id_spacing == 0) {
+        id /= subcol_id_spacing;
+        return 0 <= id && id <= rawBd;
+    }
+    return false;
+}
 
 int comm_num_clauses(int n) {
     if (n == 2) {return 1;}
