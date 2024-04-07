@@ -181,6 +181,8 @@ Cnf::Cnf(
     Cnf::depth_str = "";
     if (PRINT_LEVEL > 0) print_cnf("Current CNF", Cnf::depth_str, true);
     init_compression();
+
+    init_sorted_vars();
 }
 
 // Makes CNF formula from premade data structures

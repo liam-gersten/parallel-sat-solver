@@ -43,6 +43,9 @@ class Cnf {
         int depth;
         std::string depth_str;
 
+        // heuristic use
+        int *sorted_vars;
+
         // Makes CNF formula from inputs
         Cnf(
             short pid, 
