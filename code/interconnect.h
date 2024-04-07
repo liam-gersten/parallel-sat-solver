@@ -22,7 +22,7 @@ class Interconnect {
         bool async_receive_message(Message &message);
 
         // Sends message asking for work
-        void send_work_request(short recipient, bool urgent);
+        void send_work_request(short recipient, short version);
         
         // Sends work data to recipient
         void send_work(short recipient, void *work);

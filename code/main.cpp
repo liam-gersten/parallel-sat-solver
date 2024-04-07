@@ -55,7 +55,7 @@ void run_filename(int argc, char *argv[]) {
 
     Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
-    Interconnect interconnect(pid, nproc, cnf.work_ints * 8);
+    Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, pick_greedy);
 
     if (pid == 0) {
@@ -66,7 +66,7 @@ void run_filename(int argc, char *argv[]) {
 
     bool result = state.solve(cnf, task_stack, interconnect);
 
-    printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
+    if (PRINT_LEVEL > 0) printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
     
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
@@ -131,7 +131,7 @@ void run_example_1() {
     // cnf.oneOfClause(vars, 4, vid);
 
     Deque task_stack;
-    Interconnect interconnect(0, 1, cnf.work_ints * 8);
+    Interconnect interconnect(0, 1, cnf.work_ints * 4);
     State state(0, 1, 2, false);
 
     bool result = state.solve(cnf, task_stack, interconnect);
