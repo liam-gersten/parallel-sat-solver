@@ -56,7 +56,7 @@ void run_filename(int argc, char *argv[]) {
     Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
-    State state(pid, nproc, branching_factor, pick_greedy);
+    State state(pid, nproc, branching_factor, pick_greedy, n);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -132,7 +132,7 @@ void run_example_1() {
 
     Deque task_stack;
     Interconnect interconnect(0, 1, cnf.work_ints * 4);
-    State state(0, 1, 2, false);
+    State state(0, 1, 2, false, num_variables);
 
     bool result = state.solve(cnf, task_stack, interconnect);
     

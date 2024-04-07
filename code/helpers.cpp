@@ -737,7 +737,7 @@ void Queue::add_to_back(void *value) {
 
 // Pops value from front of queue
 void *Queue::pop_from_front() {
-    // printf("Poping\n");
+    // printf("Popping\n");
     LinkedList current = *(Queue::head);
     free(Queue::head);
     Queue::head = current.next;

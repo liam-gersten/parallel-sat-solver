@@ -2,6 +2,7 @@
 #define CNF_H
 
 #include "helpers.h"
+#include <queue>
 
 struct VariableLocations {
     int variable_id; // id of variable
@@ -21,6 +22,8 @@ void add_clause(
     Clause new_clause, 
     IndexableDLL &clauses, 
     VariableLocations *variables);
+    
+int getSubcolID(int col, int xbox, int ybox, int k, int sqrt_n, int start, int spacing);
 
 class Cnf {
     public:
@@ -44,7 +47,8 @@ class Cnf {
         std::string depth_str;
 
         // heuristic use
-        int *sorted_vars;
+        // {priority, var}
+        std::priority_queue<std::tuple<int, int>> sortedVars;
 
         // Makes CNF formula from inputs
         Cnf(
@@ -72,6 +76,9 @@ class Cnf {
         
         // Initializes CNF compression
         void init_compression();
+
+        // Puts variables into a priority queue to optimize casing choice
+        void sort_vars();
 
         // Gets string representation of edited clause
         std::string clause_to_string_current(Clause clause, bool elimination);

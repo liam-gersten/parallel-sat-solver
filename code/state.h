@@ -30,11 +30,15 @@ class State {
         unsigned long long int calls_to_solve;
         bool pick_greedy;
 
+        int n; // length of sudoku grid
+        int prev_chosen_var;
+
         State(
             short pid, 
             short nprocs, 
             short branching_factor, 
-            bool pick_greedy);
+            bool pick_greedy,
+            int n);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);

@@ -9,6 +9,8 @@
 #include <cstring>
 #include <cmath>
 
+#include <queue>
+
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
 //----------------------------------------------------------------
@@ -126,15 +128,7 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
     return {-1, false};
 }
 
-/**
- * @brief Get id from [0,n**3)
- * 
- * @param i row
- * @param j col
- * @param k digit
- * @param n 
- * @return int 
- */
+/* Get id from [0,n**3) */
 int getRegularVariable(int i, int j, int k, int n) {
     return k*n*n + i*n + j;
 }
@@ -149,7 +143,7 @@ int comm_num_clauses(int n) {
 }
 int comm_num_vars(int n) {
     int ans = std::ceil(n/2) - 2;
-    return std::max(1, ans);
+    return std::max(1, ans); //OVEREST
 }
 
 // Makes CNF formula from inputs
@@ -171,8 +165,8 @@ Cnf::Cnf(
     Cnf::local_edit_count = 0;
     Cnf::conflict_id = -1;
 
-    reduce_puzzle_original(n, sqrt_n);
-    // reduce_puzzle_clauses_truncated(n, sqrt_n);
+    // reduce_puzzle_original(n, sqrt_n);
+    reduce_puzzle_clauses_truncated(n, sqrt_n);
 
     if (pid == 0) {
         printf("%d clauses added\n", Cnf::clauses.num_indexed);
@@ -183,6 +177,8 @@ Cnf::Cnf(
     Cnf::depth_str = "";
     init_compression();
     if (PRINT_LEVEL > 1) print_cnf("Current CNF", Cnf::depth_str, true);
+
+    // sort_vars();
 }
 
 // Makes CNF formula from premade data structures
@@ -262,16 +258,9 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
     int vars[n];
     int variable_num = 0;
 
-    //HACK - WILL CALC LATER
+    //works for n=2-5. UNCERTAIN FOR 6 <=
     int subcol_id_spacing = floor(sqrt_n / 2.);
-    int start;
-    if (sqrt_n == 3) {
-        start = 729;
-    } else if (sqrt_n == 4) {
-        start = 4097;
-    } else if (sqrt_n == 2) {
-        start = 64;
-    }
+    int start = n*n*n + subcol_id_spacing - 1;
 
     // subcols
     for (int k = 0; k < n; k++) { 
@@ -332,10 +321,6 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
             }
         }
     }
-    // printf("hai\n");
-    // int vars[30] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29};
-    // Cnf::oneOfClause(vars, 6, variable_id);
-    // print_cnf("4: ", "", false);
 }
 
 // Original version with lowest variable count
@@ -513,6 +498,15 @@ void Cnf::init_compression() {
         sizeof(bool), Cnf::ints_needed_for_vars * 32);
     Cnf::oldest_compressed = to_int_rep();
     if (PRINT_LEVEL > 2) print_compressed(Cnf::pid, "", "", Cnf::oldest_compressed, Cnf::work_ints);
+}
+
+// populates sortedVars priority [max] queue
+// in this case, priority is num of occurences [pos, neg are distinct]
+void Cnf::sort_vars() {
+    int pos, neg;
+    for (int i = 0; i < (Cnf::n)*(Cnf::n)*(Cnf::n); i++) {
+        Cnf::sortedVars.push({(Cnf::variables[i]).clauses_containing->count, i});
+    }
 }
 
 // Gets string representation of clause
@@ -726,7 +720,7 @@ int Cnf::pick_from_clause(Clause clause, int *var_id, bool *var_sign) {
             num_unsat++;
         }
     }
-    assert(0 < num_unsat && num_unsat <= clause.num_literals);
+    // assert(0 < num_unsat && num_unsat <= clause.num_literals);
     return num_unsat;
 }
 
@@ -849,6 +843,8 @@ void Cnf::assign_remaining() {
 
 // Resets the cnf to its state before edit stack
 void Cnf::undo_local_edits() {
+    // int currentVar = -2;
+    // int occurences = 0;
     for (int i = 0; i < Cnf::local_edit_count; i++) {
         FormulaEdit *recent_ptr = (FormulaEdit *)((*Cnf::edit_stack).pop_from_front());
         FormulaEdit recent = *recent_ptr;
@@ -860,11 +856,19 @@ void Cnf::undo_local_edits() {
                 } else {
                     Cnf::assigned_false[var_id] = false;
                 }
+
+                // if (currentVar != -2) {
+                //     // change sortedVars
+                //     Cnf::sortedVars.push({occurences, currentVar});
+                // }
+                // currentVar = var_id;
+                // occurences = 0;
                 break;
             } case 'c': {
                 int clause_id = recent.edit_id;
                 Cnf::clauses.re_add_value(clause_id);
                 Cnf::clauses_dropped[clause_id] = false;
+                // occurences++;
                 break;
             } default: {
                 int clause_id = recent.edit_id;
@@ -872,6 +876,7 @@ void Cnf::undo_local_edits() {
                 int size_after = (int)recent.size_after;
                 Cnf::clauses.change_size_of_value(
                     clause_id, size_after, size_before);
+                // occurences++;
                 break;
             }
         }
