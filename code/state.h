@@ -33,16 +33,11 @@ class State {
         bool explicit_true;
         short print_index;
 
-        int n; // length of sudoku grid
-        int sqrt_n;
-        int prev_chosen_var;
-
         State(
             short pid, 
             short nprocs, 
             short branching_factor, 
             bool pick_greedy,
-            int n,
             bool use_smart_prop,
             bool explicit_true);
 

@@ -64,8 +64,7 @@ void run_filename(int argc, char *argv[]) {
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, n,
-        use_smart_prop, explicit_true);
+        pick_greedy, use_smart_prop, explicit_true);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -180,8 +179,7 @@ void run_example_1(int argc, char *argv[]) {
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, num_variables,
-        use_smart_prop, explicit_true);
+        pick_greedy, use_smart_prop, explicit_true);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();

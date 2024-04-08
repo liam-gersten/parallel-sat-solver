@@ -1,13 +1,11 @@
 #include "state.h"
 #include <cassert>
-#include <cmath>
 
 State::State(
         short pid, 
         short nprocs, 
         short branching_factor, 
         bool pick_greedy,
-        int n,
         bool use_smart_prop,
         bool explicit_true) 
     {
@@ -49,10 +47,6 @@ State::State(
     State::was_explicit_abort = false;
     State::calls_to_solve = 0;
     State::pick_greedy = pick_greedy;
-
-    State::n = n;
-    State::sqrt_n = int(sqrt(n+1));
-    State::prev_chosen_var = 0;
     State::use_smart_prop = use_smart_prop;
     State::explicit_true = explicit_true;
     State::print_index = 0;
@@ -470,60 +464,13 @@ void State::handle_message(
 // Adds one or two variable assignment tasks to task stack
 int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
     cnf.clauses.reset_iterator();
-
-    Clause current_clause;
-    int current_clause_id;
-    int num_unsat;
+    Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
+    int current_clause_id = current_clause.id;
     int new_var_id;
     bool new_var_sign;
-
-    bool hasntTried = true;
-    while (true) {
-        current_clause = *((Clause *)(cnf.clauses.get_current_value()));
-        current_clause_id = current_clause.id;
-        num_unsat = cnf.pick_from_clause(current_clause, &new_var_id, &new_var_sign);
-        // only want to case on normal variables - have unit prop take care of additional vars
-        if (num_unsat == 1 || new_var_id < pow(State::n, 3)) { //FAST FOR 16, BUT NOT 9??
-        // if (num_unsat == 1 || isSubcolID(new_var_id, sqrt_n) || new_var_id < pow(State::n, 3)) {
-            break;
-        }
-         else if (hasntTried) {
-            // try picking something related to the last cased-on variable
-            Queue queue = *((cnf.variables[State::prev_chosen_var]).clauses_containing);
-            LinkedList *ptr = queue.head;
-            bool validPick = false;
-            while (ptr != NULL) {
-                current_clause_id = *(int *) ptr->value;
-                current_clause = *(Clause *)(cnf.clauses.element_ptrs[current_clause_id]->value);
-                num_unsat = cnf.pick_from_clause(current_clause, &new_var_id, &new_var_sign);
-                if (num_unsat <= 2 && new_var_id < (State::n)*(State::n)*(State::n)) {
-                    validPick = true;
-                    break;
-                }
-                ptr = ptr->next;
-                break; // put in break - NOT WORKING WELL FOR N=16
-            }
-            if (validPick) {
-                break;
-            }
-            hasntTried = false;
-        }
-        // else if (num_unsat >= 2) {
-        //     // grab from sortedVars
-        //     auto [_, val] = cnf.sortedVars.top();
-        //     while (cnf.assigned_false[val] && cnf.assigned_true[val]) {
-        //         cnf.sortedVars.pop();
-        //         auto [_, y] = cnf.sortedVars.top();
-        //         val = y;
-        //     }
-        //     new_var_id = val;
-        //     new_var_sign = false; //CHANGE
-        //     break;
-        // }
-        cnf.clauses.advance_iterator();
-    }
+    int num_unsat = cnf.pick_from_clause(
+        current_clause, &new_var_id, &new_var_sign);
     if (PRINT_LEVEL > 1) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
-    
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, new_var_sign);
         task_stack.add_to_front(only_task);
