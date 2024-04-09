@@ -56,9 +56,10 @@ int **read_puzzle_file(
 }
 
 // Makes a task from inputs
-void *make_task(int var_id, bool assignment) {
+void *make_task(int var_id, int implier, bool assignment) {
     Task task;
     task.var_id = var_id;
+    task.implier = implier;
     task.assignment = assignment;
     Task *task_ptr = (Task *)malloc(sizeof(Task));
     *task_ptr = task;
@@ -100,11 +101,33 @@ Clause make_triple_clause(
     return current;
 }
 
+// Returns a copy of a clause
+Clause copy_clause(Clause clause) {
+    Clause result;
+    result.id = clause.id;
+    result.literal_variable_ids = (int *)malloc(
+        sizeof(int) * clause.num_literals);
+    result.literal_signs = (bool *)malloc(
+        sizeof(bool) * clause.num_literals);
+    result.num_literals = clause.num_literals;
+    result.clause_addition = clause.clause_addition;
+    result.clause_addition_index = clause.clause_addition_index;
+    return result;
+}
+
+// Frees the data in a clause
+void free_clause(Clause clause) {
+    free(clause.literal_variable_ids);
+    free(clause.literal_signs);
+    return;
+}
+
 // Makes a variable edit
-void *variable_edit(int var_id) {
+void *variable_edit(int var_id, int implier) {
     FormulaEdit edit;
     edit.edit_type = 'v';
     edit.edit_id = var_id;
+    edit.implier = implier;
     FormulaEdit *edit_ptr = (FormulaEdit *)malloc(sizeof(FormulaEdit));
     *edit_ptr = edit;
     return (void *)edit_ptr;
@@ -401,17 +424,6 @@ void IndexableDLL::strip_value(int value_index) {
     IndexableDLL::linked_list_count--;
 }
 
-// Removes value from the list, pointer saved in index still, easy to re-add
-void IndexableDLL::strip_current() {
-    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
-    DoublyLinkedList *prev = (*current_ptr).prev;
-    DoublyLinkedList *next = (*current_ptr).next;
-    IndexableDLL::iterator = prev;
-    (*prev).next = next;
-    (*next).prev = prev;
-    IndexableDLL::linked_list_count--;
-}
-
 // Re adds a value to the list, will now be traversable again
 void IndexableDLL::re_add_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
@@ -475,30 +487,6 @@ void IndexableDLL::change_size_of_value(
     (*(current_ptr)).next = first_element;
     (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
-}
-
-// Moves element at iterator to a new bin based on a new size
-// This will move the element to an earlier position before the iterator
-void IndexableDLL::change_size_of_current(int old_size, int new_size) {
-    assert(iterator_position_valid() && (!iterator_is_finished()));
-    assert(0 < old_size && 0 < new_size && new_size != old_size);
-    if ((new_size > 2) && (old_size > 2)) {
-        // No re-ordering to do
-        return;
-    }
-    DoublyLinkedList *current_ptr = IndexableDLL::iterator;
-    DoublyLinkedList *prev = (*current_ptr).prev;
-    DoublyLinkedList *next = (*current_ptr).next;
-    IndexableDLL::iterator = prev;
-    (*prev).next = next;
-    (*next).prev = prev;
-    DoublyLinkedList *head_of_interest = get_head_of_interest(
-        old_size, new_size);
-    DoublyLinkedList *first_element = (*head_of_interest).next;
-    (*head_of_interest).next = current_ptr;
-    (*(current_ptr)).prev = head_of_interest;
-    (*(current_ptr)).next = first_element;
-    (*first_element).prev = current_ptr;
 }
 
 // Returns saved value at index
@@ -600,6 +588,117 @@ void IndexableDLL::reset_ll_bins() {
 void IndexableDLL::free_data() {
     // TODO: implement this
     return;
+}
+
+// Holds two IndexableDLL structures, one for normal clauses and one for
+// conflict clauses.
+Clauses::Clauses(int num_regular_to_index, int num_conflict_to_index) {
+    // TODO: implement this
+    Clauses::max_indexable = num_regular_to_index;
+    Clauses::num_indexed = 0;
+    Clauses::max_conflict_indexable = 0;
+    Clauses::max_conflict_indexed = 0;
+    IndexableDLL normal_clauses(num_regular_to_index);
+    Clauses::normal_clauses = normal_clauses;
+}
+
+// default constructor
+Clauses::Clauses() {
+    Clauses::max_indexable = 0;
+    Clauses::num_indexed = 0;
+    Clauses::max_conflict_indexable = 0;
+    Clauses::max_conflict_indexed = 0;
+}
+
+// Adds clause to regular clause list, O(1)
+void Clauses::add_regular_clause(Clause clause) {
+    Clause *clause_ptr = (Clause *)malloc(sizeof(Clause));
+    *clause_ptr = clause;
+    Clauses::normal_clauses.add_value(
+        (void *)clause_ptr, Clauses::num_indexed, clause.num_literals);
+    Clauses::num_indexed++;
+}
+
+// Adds clause to conflict clause list, O(1)
+void Clauses::add_conflict_clause(Clause clause) {
+    // TODO: implement this
+    assert(false);
+    return;
+}
+
+// Removes from the list, pointer saved in index still, easy to re-add
+void Clauses::strip_clause(int clause_id) {
+    // TODO: implement this
+    Clauses::normal_clauses.strip_value(clause_id);
+}
+
+// Re adds to the list, will now be traversable again
+void Clauses::re_add_clause(int clause_id) {
+    // TODO: implement this
+    Clauses::normal_clauses.re_add_value(clause_id);
+}
+
+// Moves clause element to a new bin based on a new size
+void Clauses::change_clause_size(int clause_id, int old_size, int new_size) {
+    // TODO: implement this
+    Clauses::normal_clauses.change_size_of_value(clause_id, old_size, new_size);
+}
+
+// Returns saved clause at index
+Clause Clauses::get_clause(int clause_id) {
+    // TODO: implement this
+    void *result_ptr = Clauses::normal_clauses.get_value(clause_id);
+    return *((Clause *)result_ptr);
+}
+
+// Returns saved clause pointer at index
+Clause *Clauses::get_clause_ptr(int clause_id) {
+    // TODO: implement this
+    void *result_ptr = Clauses::normal_clauses.get_value(clause_id);
+    return (Clause *)result_ptr;
+}
+
+// Gets clause at iterator
+Clause Clauses::get_current_clause() {
+    // TODO: implement this
+    void *result_ptr = Clauses::normal_clauses.get_current_value();
+    return *((Clause *)result_ptr);
+}
+
+// Returns the size of the linked list
+int Clauses::get_linked_list_size() {
+    // TODO: implement this
+    return Clauses::normal_clauses.get_linked_list_size();
+}
+
+// Sets iterator to the start
+void Clauses::reset_iterator() {
+    // TODO: implement this
+    Clauses::normal_clauses.reset_iterator();
+}
+
+// Moves iterator forward
+void Clauses::advance_iterator() {
+    // TODO: implement this
+    Clauses::normal_clauses.advance_iterator();
+}
+
+// Returns whether the iterator is at the end
+bool Clauses::iterator_is_finished() {
+    // TODO: implement this
+    return Clauses::normal_clauses.iterator_is_finished();
+}
+
+// Moves all ll items to their original bins.
+void Clauses::reset_ll_bins() {
+    // TODO: implement this
+    Clauses::normal_clauses.reset_ll_bins();
+}
+
+// Frees data structures used
+void Clauses::free_data() {
+    // TODO: implement this
+    Clauses::normal_clauses.free_data();
 }
 
 // Default constructor

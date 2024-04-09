@@ -12,6 +12,8 @@ struct VariableLocations {
     unsigned int variable_addition;
     unsigned int variable_true_addition_index;
     unsigned int variable_false_addition_index;
+    // Used to determine who caused a conflict
+    int implying_clause_id;
     // Will have dynamic allocation size
     Queue *clauses_containing; // LL saving pointers to clause structures
 };
@@ -19,19 +21,18 @@ struct VariableLocations {
 // Adds a clause to data structures
 void add_clause(
     Clause new_clause, 
-    IndexableDLL &clauses, 
+    Clauses &clauses, 
     VariableLocations *variables);
 
 class Cnf {
     public:
-        IndexableDLL clauses; // dynamic number
+        Clauses clauses; // dynamic number
         VariableLocations *variables; // static number
         Deque *edit_stack;
         IntDeque *edit_counts_stack;
         unsigned int *oldest_compressed;
         short pid;
         int local_edit_count;
-        int conflict_id;
         int num_variables;
         int ints_needed_for_clauses;
         int ints_needed_for_vars;
@@ -57,7 +58,7 @@ class Cnf {
         // Makes CNF formula from premade data structures
         Cnf(
             short pid,
-            IndexableDLL input_clauses, 
+            Clauses input_clauses, 
             VariableLocations *input_variables, 
             int num_variables);
         // Default constructor
@@ -99,13 +100,22 @@ class Cnf {
         // Gets the status of a clause, 's', 'u', or 'n'.
         char check_clause(Clause clause, int *num_unsat);
 
+        // Adds a new conflict clause to the CNF
+        void add_conflict_clause(Clause new_clause);
+
+        // Resolves two clauses, returns the resulting clause
+        Clause resolve_clauses(Clause A, Clause B, int variable);
+        
+        // Performs resoltion, returning true if successful
+        bool conflict_resolution(int conflict_clause_id, Clause &result);
+
         // Updates formula with given assignment.
         // Returns false on failure and populates conflict id.
-        bool propagate_assignment(int var_id, bool value);
+        bool propagate_assignment(int var_id, bool value, int implier);
 
         // Uses Sudoku context with variable indexing to immidiately assign
         // other variables
-        bool smart_propagate_assignment(int var_id, bool value);
+        bool smart_propagate_assignment(int var_id, bool value, int implier);
         
         // Returns the assignment of variables
         bool *get_assignment();

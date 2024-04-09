@@ -129,7 +129,7 @@ void State::apply_edit_to_compressed(
         } case 'c': {
             // Add clause drop to it's int offset
             int clause_id = edit.edit_id;
-            Clause clause = *((Clause *)(cnf.clauses.get_value(clause_id)));
+            Clause clause = cnf.clauses.get_clause(clause_id);
             unsigned int mask_to_add = clause.clause_addition;
             unsigned int offset = clause.clause_addition_index;
             compressed[offset] += mask_to_add;
@@ -464,7 +464,7 @@ void State::handle_message(
 // Adds one or two variable assignment tasks to task stack
 int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
     cnf.clauses.reset_iterator();
-    Clause current_clause = *((Clause *)(cnf.clauses.get_current_value()));
+    Clause current_clause = cnf.clauses.get_current_clause();
     int current_clause_id = current_clause.id;
     int new_var_id;
     bool new_var_sign;
@@ -472,14 +472,14 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
         current_clause, &new_var_id, &new_var_sign);
     if (PRINT_LEVEL > 1) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
     if (num_unsat == 1) {
-        void *only_task = make_task(new_var_id, new_var_sign);
+        void *only_task = make_task(new_var_id, current_clause_id, new_var_sign);
         task_stack.add_to_front(only_task);
         State::num_non_trivial_tasks++;
         return 1;
     } else {
         // Add an undo task to do last
         if (!skip_undo && (task_stack.count > 0)) {
-            void *undo_task = make_task(-1, true);
+            void *undo_task = make_task(-1, -1, true);
             task_stack.add_to_front(undo_task);
         }
         bool first_choice;
@@ -488,8 +488,8 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
         } else {
             first_choice = State::pick_greedy ? new_var_sign : !new_var_sign;
         }
-        void *important_task = make_task(new_var_id, first_choice);
-        void *other_task = make_task(new_var_id, !first_choice);
+        void *important_task = make_task(new_var_id, -1, first_choice);
+        void *other_task = make_task(new_var_id, -1, !first_choice);
         task_stack.add_to_front(other_task);
         task_stack.add_to_front(important_task);
         State::num_non_trivial_tasks += 2;
@@ -516,6 +516,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
     Task task = get_task(task_stack);
     int var_id = task.var_id;
     int assignment = task.assignment;
+    int implier = task.implier;
     if (var_id == -1) { // Children backtracked, need to backtrack ourselves
         print_data(cnf, task_stack, "Children backtrack");
         cnf.backtrack();
@@ -532,14 +533,14 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
         task_stack_invariant(task_stack, State::num_non_trivial_tasks);
         if (PRINT_LEVEL > 1) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
         print_data(cnf, task_stack, "Loop start");
-        if (!cnf.propagate_assignment(var_id, assignment)) {
+        if (!cnf.propagate_assignment(var_id, assignment, implier)) {
             // Conflict clause found
             print_data(cnf, task_stack, "Prop fail");
             cnf.backtrack();
             return false;
         }
         if (State::use_smart_prop) {
-            if (!cnf.smart_propagate_assignment(var_id, assignment)) {
+            if (!cnf.smart_propagate_assignment(var_id, assignment, implier)) {
                 // Conflict clause found
                 print_data(cnf, task_stack, "Smart prop fail");
                 cnf.backtrack();
@@ -558,6 +559,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
             Task task = get_task(task_stack);
             var_id = task.var_id;
             assignment = task.assignment;
+            implier = task.implier;
             State::num_non_trivial_tasks--;
             continue;
         }
