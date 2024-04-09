@@ -154,7 +154,7 @@ void run_example_1(int argc, char *argv[]) {
     int num_variables = 7;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
-    IndexableDLL input_clauses(30);
+    Clauses input_clauses(30, 0);
 
     for (int i = 0; i < num_variables; i++) {
         VariableLocations current;

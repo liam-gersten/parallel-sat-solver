@@ -25,6 +25,7 @@ struct Clause {
 
 struct FormulaEdit {
     int edit_id; // var or clause id
+    int implier;
     char edit_type; // v c d
     short size_before;
     short size_after;
@@ -43,6 +44,7 @@ struct Message {
 
 struct Task {
     int var_id;
+    int implier;
     bool assignment;
 };
 
@@ -54,7 +56,7 @@ int **read_puzzle_file(
     int *num_constraints_ptr);
 
 // Makes a task from inputs
-void *make_task(int var_id, bool assignment);
+void *make_task(int var_id, int implier, bool assignment);
 
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
@@ -68,8 +70,14 @@ Clause make_triple_clause(
     bool sign2, 
     bool sign3);
 
+// Returns a copy of a clause
+Clause copy_clause(Clause clause);
+
+// Frees the data in a clause
+void free_clause(Clause clause);
+
 // Makes a variable edit
-void *variable_edit(int var_id);
+void *variable_edit(int var_id, int implier);
 
 // Makes a clause edit
 void *clause_edit(int clause_id);
@@ -156,9 +164,6 @@ class IndexableDLL {
     // Removes value from the list, pointer saved in index still, easy to re-add
     void strip_value(int value_index);
 
-    // Removes value from the list, pointer saved in index still, easy to re-add
-    void strip_current();
-
     // Re adds a value to the list, will now be traversable again
     void re_add_value(int value_index);
 
@@ -167,10 +172,6 @@ class IndexableDLL {
 
     // Moves element to a new bin based on a new size
     void change_size_of_value(int value_index, int old_size, int new_size);
-    
-    // Moves element at iterator to a new bin based on a new size
-    // This will move the element to an earlier position before the iterator
-    void change_size_of_current(int old_size, int new_size);
 
     // Returns saved value at index
     void *get_value(int value_index);
@@ -199,6 +200,64 @@ class IndexableDLL {
         DoublyLinkedList *first_tail,
         DoublyLinkedList *second_head,
         DoublyLinkedList *second_tail);
+
+    // Moves all ll items to their original bins.
+    void reset_ll_bins();
+
+    // Frees data structures used
+    void free_data();
+};
+
+// Holds two IndexableDLL structures, one for normal clauses and one for
+// conflict clauses.
+class Clauses {
+    public:
+        int max_indexable; // Max amount of normal clauses that can be held
+        int num_indexed; // Number of normal clauses we're storing
+        int max_conflict_indexable; // Same but for conflict clauses
+        int max_conflict_indexed; // Same but for conflict clauses
+        IndexableDLL normal_clauses;
+        IndexableDLL conflict_clauses;
+
+    Clauses(int num_regular_to_index, int num_conflict_to_index);
+    // default constructor
+    Clauses();
+
+    // Adds clause to regular clause list, O(1)
+    void add_regular_clause(Clause clause);
+
+    // Adds clause to conflict clause list, O(1)
+    void add_conflict_clause(Clause clause);
+
+    // Removes from the list, pointer saved in index still, easy to re-add
+    void strip_clause(int clause_id);
+
+    // Re adds to the list, will now be traversable again
+    void re_add_clause(int clause_id);
+
+    // Moves clause element to a new bin based on a new size
+    void change_clause_size(int clause_id, int old_size, int new_size);
+
+    // Returns saved clause at index
+    Clause get_clause(int clause_id);
+
+    // Returns saved clause pointer at index
+    Clause *get_clause_ptr(int clause_id);
+
+    // Gets clause at iterator
+    Clause get_current_clause();
+
+    // Returns the size of the linked list
+    int get_linked_list_size();
+
+    // Sets iterator to the start
+    void reset_iterator();
+
+    // Moves iterator forward
+    void advance_iterator();
+
+    // Returns whether the iterator is at the end
+    bool iterator_is_finished();
 
     // Moves all ll items to their original bins.
     void reset_ll_bins();
