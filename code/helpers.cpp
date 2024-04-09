@@ -371,18 +371,18 @@ void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
     IndexableDLL::element_ptrs[value_index] = current_ptr;
     IndexableDLL::element_counts[value_index] = num_elements;
     IndexableDLL::num_indexed += 1;
-    DoublyLinkedList *tail_of_interest;
+    DoublyLinkedList *head_of_interest;
     if (num_elements == 2) {
-        tail_of_interest = IndexableDLL::two_tail;
+        head_of_interest = IndexableDLL::two_head;
     } else {
         assert(num_elements > 2);
-        tail_of_interest = IndexableDLL::big_tail;
+        head_of_interest = IndexableDLL::big_head;
     }
-    DoublyLinkedList *final_element = (*tail_of_interest).prev;
-    (*final_element).next = current_ptr;
-    (*(current_ptr)).prev = final_element;
-    (*(current_ptr)).next = tail_of_interest;
-    (*tail_of_interest).prev = current_ptr;
+    DoublyLinkedList *first_element = (*head_of_interest).next;
+    (*head_of_interest).next = current_ptr;
+    (*(current_ptr)).prev = head_of_interest;
+    (*(current_ptr)).next = first_element;
+    (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
 }
 
@@ -417,41 +417,41 @@ void IndexableDLL::re_add_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     int num_elements = IndexableDLL::element_counts[value_index];
-    DoublyLinkedList *tail_of_interest;
+    DoublyLinkedList *head_of_interest;
     if (num_elements == 2) {
-        tail_of_interest = IndexableDLL::two_tail;
+        head_of_interest = IndexableDLL::two_head;
     } else {
         assert(num_elements > 2);
-        tail_of_interest = IndexableDLL::big_tail;
+        head_of_interest = IndexableDLL::big_head;
     }
-    DoublyLinkedList *final_element = (*tail_of_interest).prev;
-    (*final_element).next = current_ptr;
-    (*(current_ptr)).prev = final_element;
-    (*(current_ptr)).next = tail_of_interest;
-    (*tail_of_interest).prev = current_ptr;
+    DoublyLinkedList *first_element = (*head_of_interest).next;
+    (*head_of_interest).next = current_ptr;
+    (*(current_ptr)).prev = head_of_interest;
+    (*(current_ptr)).next = first_element;
+    (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
 }
 
-// Returns the tail an element should be added to given the size change
-DoublyLinkedList *IndexableDLL::get_tail_of_interest(
+// Returns the head an element should be added to given the size change
+DoublyLinkedList *IndexableDLL::get_head_of_interest(
         int old_size, 
         int new_size) 
     {
     if (new_size == 1) {
         // Decreases to 1
         if (old_size == 2) {
-            return IndexableDLL::one_small_tail;
+            return IndexableDLL::one_small_head;
         }
         assert(old_size > 2);
-        return IndexableDLL::one_big_tail;
+        return IndexableDLL::one_big_head;
     } else if (new_size == 2) {
         if (old_size == 1) {
-            return IndexableDLL::two_tail;
+            return IndexableDLL::two_head;
         }
         assert(old_size > 2);
-        return IndexableDLL::two_big_tail;
+        return IndexableDLL::two_big_head;
     }
-    return IndexableDLL::big_tail;
+    return IndexableDLL::big_head;
 }
 
 // Moves element to a new bin based on a new size
@@ -467,13 +467,13 @@ void IndexableDLL::change_size_of_value(
     }
     strip_value(value_index);
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
-    DoublyLinkedList *tail_of_interest = get_tail_of_interest(
+    DoublyLinkedList *head_of_interest = get_head_of_interest(
         old_size, new_size);
-    DoublyLinkedList *final_element = (*tail_of_interest).prev;
-    (*final_element).next = current_ptr;
-    (*(current_ptr)).prev = final_element;
-    (*(current_ptr)).next = tail_of_interest;
-    (*tail_of_interest).prev = current_ptr;
+    DoublyLinkedList *first_element = (*head_of_interest).next;
+    (*head_of_interest).next = current_ptr;
+    (*(current_ptr)).prev = head_of_interest;
+    (*(current_ptr)).next = first_element;
+    (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
 }
 
@@ -492,13 +492,13 @@ void IndexableDLL::change_size_of_current(int old_size, int new_size) {
     IndexableDLL::iterator = prev;
     (*prev).next = next;
     (*next).prev = prev;
-    DoublyLinkedList *tail_of_interest = get_tail_of_interest(
+    DoublyLinkedList *head_of_interest = get_head_of_interest(
         old_size, new_size);
-    DoublyLinkedList *final_element = (*tail_of_interest).prev;
-    (*final_element).next = current_ptr;
-    (*(current_ptr)).prev = final_element;
-    (*(current_ptr)).next = tail_of_interest;
-    (*tail_of_interest).prev = current_ptr;
+    DoublyLinkedList *first_element = (*head_of_interest).next;
+    (*head_of_interest).next = current_ptr;
+    (*(current_ptr)).prev = head_of_interest;
+    (*(current_ptr)).next = first_element;
+    (*first_element).prev = current_ptr;
 }
 
 // Returns saved value at index

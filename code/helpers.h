@@ -162,8 +162,8 @@ class IndexableDLL {
     // Re adds a value to the list, will now be traversable again
     void re_add_value(int value_index);
 
-    // Returns the tail an element should be added to given the size change
-    DoublyLinkedList *get_tail_of_interest(int old_size, int new_size);
+    // Returns the head an element should be added to given the size change
+    DoublyLinkedList *get_head_of_interest(int old_size, int new_size);
 
     // Moves element to a new bin based on a new size
     void change_size_of_value(int value_index, int old_size, int new_size);
