@@ -43,6 +43,7 @@ class Cnf {
         unsigned int num_vars_assigned;
         int n;
         int depth;
+        int reduction_method;
         std::string depth_str;
 
         // Makes CNF formula from inputs
@@ -51,7 +52,8 @@ class Cnf {
             int **constraints, 
             int n, 
             int sqrt_n, 
-            int num_constraints);
+            int num_constraints,
+            int reduction_method);
         // Makes CNF formula from premade data structures
         Cnf(
             short pid,

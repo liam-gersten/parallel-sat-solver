@@ -30,7 +30,8 @@ void run_filename(int argc, char *argv[]) {
     bool pick_greedy = false;
     bool use_smart_prop = true;
     bool explicit_true = false;
-    while ((opt = getopt(argc, argv, "f:b:g:s:e:")) != -1) {
+    int reduction_method = 0;
+    while ((opt = getopt(argc, argv, "f:b:g:s:e:r:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -47,6 +48,9 @@ void run_filename(int argc, char *argv[]) {
         case 'e':
             explicit_true = (bool)atoi(optarg);
             break;
+        case 'r':
+            reduction_method = (int)atoi(optarg);
+            break;
         default:
             std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
             MPI_Finalize();    
@@ -60,7 +64,7 @@ void run_filename(int argc, char *argv[]) {
     int **constraints = read_puzzle_file(
         input_filename, &n, &sqrt_n, &num_constraints);
 
-    Cnf cnf(pid, constraints, n, sqrt_n, num_constraints);
+    Cnf cnf(pid, constraints, n, sqrt_n, num_constraints, reduction_method);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
@@ -119,7 +123,8 @@ void run_example_1(int argc, char *argv[]) {
     bool pick_greedy = false;
     bool use_smart_prop = true;
     bool explicit_true = false;
-    while ((opt = getopt(argc, argv, "f:b:g:s:e:")) != -1) {
+    int reduction_method = 0;
+    while ((opt = getopt(argc, argv, "f:b:g:s:e:r:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -135,6 +140,9 @@ void run_example_1(int argc, char *argv[]) {
             break;
         case 'e':
             explicit_true = (bool)atoi(optarg);
+            break;
+        case 'r':
+            reduction_method = (int)atoi(optarg);
             break;
         default:
             std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  

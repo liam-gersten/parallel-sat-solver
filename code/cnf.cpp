@@ -158,7 +158,8 @@ Cnf::Cnf(
         int **constraints, 
         int n, 
         int sqrt_n, 
-        int num_constraints) 
+        int num_constraint,
+        int reduction_method) 
     {
     Cnf::n = n;
     Deque edit_stack;
@@ -172,9 +173,17 @@ Cnf::Cnf(
     Cnf::conflict_id = -1;
     Cnf::num_clauses_dropped = 0;
     Cnf::num_vars_assigned = 0;
+    Cnf::reduction_method = reduction_method;
 
-    reduce_puzzle_original(n, sqrt_n);
-    // reduce_puzzle_clauses_truncated(n, sqrt_n);
+    switch (reduction_method) {
+        case (0): {
+            reduce_puzzle_original(n, sqrt_n);
+            break;
+        } case (1): {
+            reduce_puzzle_clauses_truncated(n, sqrt_n);
+            break;
+        }
+    }
 
     if (pid == 0) {
         printf("%d clauses added\n", Cnf::clauses.num_indexed);
@@ -211,6 +220,7 @@ Cnf::Cnf(
     Cnf::depth_str = "";
     Cnf::num_clauses_dropped = 0;
     Cnf::num_vars_assigned = 0;
+    Cnf::reduction_method = 0;
     init_compression();
     printf("Clauses_dropped = [");
     for (int i = 0; i < Cnf::ints_needed_for_clauses * 32; i++) {
@@ -233,6 +243,7 @@ Cnf::Cnf() {
     Cnf::depth_str = "";
     Cnf::num_clauses_dropped = 0;
     Cnf::num_vars_assigned = 0;
+    Cnf::reduction_method = 0;
 }
 
 void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
