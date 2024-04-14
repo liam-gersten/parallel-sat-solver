@@ -9,6 +9,8 @@ Much of the work done surrounded eliminating the many race conditions associated
 
 As of now, are largest concerns are whether we can get $n \geq 25$ running in reasonable time, and whether good speedup is even attainable. The primary problem with speedup is that $P_0$ tends to make the most optimal choices and is usually good heuristic wise. For this reason, $P_0$ will almost always find a valid solution before the other threads do, effectively ruining program speedup.
 
+While we don't plan on showing a demo of the project during our poster session, we will be walking through the project's ideation, evolving scope, and debugging in detail. Speedup and other various performance graphs will be included.
+
 ## Completed Todo List
 
 | Task    | Difficulty | Priority |
