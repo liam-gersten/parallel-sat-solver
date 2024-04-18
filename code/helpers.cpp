@@ -122,6 +122,16 @@ void free_clause(Clause clause) {
     return;
 }
 
+// Returns whether the clause's variables are sorted
+bool clause_is_sorted(Clause clause) {
+    for (int i = 1; i < clause.num_literals; i++) {
+        if (clause.literal_variable_ids[i - 1] >= clause.literal_variable_ids[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Makes a variable edit
 void *variable_edit(int var_id, int implier) {
     FormulaEdit edit;
@@ -369,6 +379,7 @@ IndexableDLL::IndexableDLL(int num_to_index) {
 
     // All are empty
     IndexableDLL::linked_list_count = 0;
+    IndexableDLL::iterator_size = -1;
 }
 
 // default constructor
@@ -376,6 +387,7 @@ IndexableDLL::IndexableDLL() {
     IndexableDLL::max_indexable = 0;
     IndexableDLL::num_indexed = 0;
     IndexableDLL::linked_list_count = 0;
+    IndexableDLL::iterator_size = -1;
 }
 
 // Adds value with index to the list, O(1)
@@ -531,6 +543,13 @@ void IndexableDLL::reset_iterator() {
         return;
     }
     while (!iterator_position_valid()) {
+        if (IndexableDLL::iterator == one_big_head) {
+            IndexableDLL::iterator_size = 1;
+        } else if (IndexableDLL::iterator == two_big_head) {
+            IndexableDLL::iterator_size = 2;
+        } else if (IndexableDLL::iterator == big_head) {
+            IndexableDLL::iterator_size = 3;
+        }
         IndexableDLL::iterator = (*(IndexableDLL::iterator)).next;
     }
 }
@@ -540,6 +559,13 @@ void IndexableDLL::advance_iterator() {
     IndexableDLL::iterator = (*(IndexableDLL::iterator)).next;
     // Keep moving until we find a valid element or the end
     while (!iterator_position_valid()) {
+        if (IndexableDLL::iterator == one_big_head) {
+            IndexableDLL::iterator_size = 1;
+        } else if (IndexableDLL::iterator == two_big_head) {
+            IndexableDLL::iterator_size = 2;
+        } else if (IndexableDLL::iterator == big_head) {
+            IndexableDLL::iterator_size = 3;
+        }
         IndexableDLL::iterator = (*(IndexableDLL::iterator)).next;
     }
 }
@@ -593,13 +619,14 @@ void IndexableDLL::free_data() {
 // Holds two IndexableDLL structures, one for normal clauses and one for
 // conflict clauses.
 Clauses::Clauses(int num_regular_to_index, int num_conflict_to_index) {
-    // TODO: implement this
     Clauses::max_indexable = num_regular_to_index;
     Clauses::num_indexed = 0;
-    Clauses::max_conflict_indexable = 0;
-    Clauses::max_conflict_indexed = 0;
+    Clauses::max_conflict_indexable = num_conflict_to_index;
+    Clauses::num_conflict_indexed = 0;
     IndexableDLL normal_clauses(num_regular_to_index);
+    IndexableDLL conflict_clauses(num_conflict_to_index);
     Clauses::normal_clauses = normal_clauses;
+    Clauses::conflict_clauses = conflict_clauses;
 }
 
 // default constructor
@@ -607,7 +634,7 @@ Clauses::Clauses() {
     Clauses::max_indexable = 0;
     Clauses::num_indexed = 0;
     Clauses::max_conflict_indexable = 0;
-    Clauses::max_conflict_indexed = 0;
+    Clauses::num_conflict_indexed = 0;
 }
 
 // Adds clause to regular clause list, O(1)
@@ -621,84 +648,128 @@ void Clauses::add_regular_clause(Clause clause) {
 
 // Adds clause to conflict clause list, O(1)
 void Clauses::add_conflict_clause(Clause clause) {
-    // TODO: implement this
-    assert(false);
-    return;
+    Clause *clause_ptr = (Clause *)malloc(sizeof(Clause));
+    *clause_ptr = clause;
+    Clauses::conflict_clauses.add_value(
+        (void *)clause_ptr, Clauses::num_conflict_indexed, clause.num_literals);
+    Clauses::num_conflict_indexed++;
 }
 
 // Removes from the list, pointer saved in index still, easy to re-add
 void Clauses::strip_clause(int clause_id) {
-    // TODO: implement this
-    Clauses::normal_clauses.strip_value(clause_id);
+    if (clause_id >= Clauses::max_indexable) {
+        Clauses::conflict_clauses.strip_value(
+            clause_id - Clauses::max_indexable);
+    } else {
+        Clauses::normal_clauses.strip_value(clause_id);
+    }
 }
 
 // Re adds to the list, will now be traversable again
 void Clauses::re_add_clause(int clause_id) {
-    // TODO: implement this
-    Clauses::normal_clauses.re_add_value(clause_id);
+    if (clause_id >= Clauses::max_indexable) {
+        Clauses::conflict_clauses.re_add_value(
+            clause_id - Clauses::max_indexable);
+    } else {
+        Clauses::normal_clauses.re_add_value(clause_id);
+    }
 }
 
 // Moves clause element to a new bin based on a new size
 void Clauses::change_clause_size(int clause_id, int old_size, int new_size) {
-    // TODO: implement this
-    Clauses::normal_clauses.change_size_of_value(clause_id, old_size, new_size);
+    if (clause_id >= Clauses::max_indexable) {
+        Clauses::conflict_clauses.change_size_of_value(
+            clause_id - Clauses::max_indexable, old_size, new_size);
+    } else {
+        Clauses::normal_clauses.change_size_of_value(
+            clause_id, old_size, new_size);
+    }
 }
 
 // Returns saved clause at index
 Clause Clauses::get_clause(int clause_id) {
-    // TODO: implement this
-    void *result_ptr = Clauses::normal_clauses.get_value(clause_id);
-    return *((Clause *)result_ptr);
+    return *(get_clause_ptr(clause_id));
 }
 
 // Returns saved clause pointer at index
 Clause *Clauses::get_clause_ptr(int clause_id) {
-    // TODO: implement this
-    void *result_ptr = Clauses::normal_clauses.get_value(clause_id);
+    void *result_ptr;
+    if (clause_id >= Clauses::max_indexable) {
+        result_ptr = Clauses::normal_clauses.get_value(
+            clause_id - Clauses::max_indexable);
+    } else {
+        result_ptr = Clauses::normal_clauses.get_value(clause_id);
+    }
     return (Clause *)result_ptr;
+}
+
+// Returns whether the iterator is on the conflict clause linked list
+bool Clauses::working_on_conflict_clauses() {
+    short normal_size = Clauses::normal_clauses.iterator_size;
+    short conflict_size = Clauses::conflict_clauses.iterator_size;
+    if (conflict_size == -1) {
+        return false;
+    } else if (normal_size == -1) {
+        return true;
+    } else if (conflict_size == -1 && normal_size == -1) {
+        assert(false);
+    } else if (ALWAYS_PREFER_CONFLICT_CLAUSES) {
+        return true;
+    } else if (normal_size < conflict_size) {
+        return false;
+    } else {
+        return true;
+    }
 }
 
 // Gets clause at iterator
 Clause Clauses::get_current_clause() {
-    // TODO: implement this
-    void *result_ptr = Clauses::normal_clauses.get_current_value();
+    void *result_ptr;
+    if (working_on_conflict_clauses()) {
+        result_ptr = Clauses::conflict_clauses.get_current_value();
+    } else {
+        result_ptr = Clauses::normal_clauses.get_current_value();
+    }
     return *((Clause *)result_ptr);
 }
 
 // Returns the size of the linked list
 int Clauses::get_linked_list_size() {
-    // TODO: implement this
-    return Clauses::normal_clauses.get_linked_list_size();
+    return Clauses::normal_clauses.get_linked_list_size() 
+        + Clauses::conflict_clauses.get_linked_list_size();
 }
 
 // Sets iterator to the start
 void Clauses::reset_iterator() {
-    // TODO: implement this
     Clauses::normal_clauses.reset_iterator();
+    Clauses::conflict_clauses.reset_iterator();
 }
 
 // Moves iterator forward
 void Clauses::advance_iterator() {
-    // TODO: implement this
-    Clauses::normal_clauses.advance_iterator();
+    if (working_on_conflict_clauses()) {
+        Clauses::conflict_clauses.advance_iterator();
+    } else {
+        Clauses::normal_clauses.advance_iterator();
+    }
 }
 
 // Returns whether the iterator is at the end
 bool Clauses::iterator_is_finished() {
-    // TODO: implement this
-    return Clauses::normal_clauses.iterator_is_finished();
+    return Clauses::normal_clauses.iterator_is_finished() 
+        && Clauses::conflict_clauses.iterator_is_finished();
 }
 
 // Moves all ll items to their original bins.
 void Clauses::reset_ll_bins() {
-    // TODO: implement this
     Clauses::normal_clauses.reset_ll_bins();
+    Clauses::conflict_clauses.reset_ll_bins();
 }
 
 // Frees data structures used
 void Clauses::free_data() {
-    // TODO: implement this
     Clauses::normal_clauses.free_data();
+    Clauses::conflict_clauses.free_data();
 }
 
 // Default constructor

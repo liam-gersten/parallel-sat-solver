@@ -12,11 +12,13 @@
 
 #define CONCISE_FORMULA 1
 
+#define ALWAYS_PREFER_CONFLICT_CLAUSES 0
+
 // Will have fixed allocation size
 struct Clause {
-    int id;
     int *literal_variable_ids; // variable ids for each literal
     bool *literal_signs; // each literal
+    int id;
     int num_literals; // size of the two pointers
     // Used to quickly updates the compressed version of the CNF
     unsigned int clause_addition;
@@ -75,6 +77,9 @@ Clause copy_clause(Clause clause);
 
 // Frees the data in a clause
 void free_clause(Clause clause);
+
+// Returns whether the clause's variables are sorted
+bool clause_is_sorted(Clause clause);
 
 // Makes a variable edit
 void *variable_edit(int var_id, int implier);
@@ -153,6 +158,7 @@ class IndexableDLL {
         int linked_list_count;
         // Could be within any one of the above
         DoublyLinkedList *iterator; // Used to traverse the LL
+        short iterator_size; // Size of element iterator is at
         
     IndexableDLL(int num_to_index);
     // default constructor
@@ -215,7 +221,7 @@ class Clauses {
         int max_indexable; // Max amount of normal clauses that can be held
         int num_indexed; // Number of normal clauses we're storing
         int max_conflict_indexable; // Same but for conflict clauses
-        int max_conflict_indexed; // Same but for conflict clauses
+        int num_conflict_indexed; // Same but for conflict clauses
         IndexableDLL normal_clauses;
         IndexableDLL conflict_clauses;
 
@@ -244,6 +250,9 @@ class Clauses {
     // Returns saved clause pointer at index
     Clause *get_clause_ptr(int clause_id);
 
+    // Returns whether the iterator is on the conflict clause linked list
+    bool working_on_conflict_clauses();
+    
     // Gets clause at iterator
     Clause get_current_clause();
 

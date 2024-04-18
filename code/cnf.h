@@ -34,6 +34,7 @@ class Cnf {
         short pid;
         int local_edit_count;
         int num_variables;
+        int num_conflict_to_hold;
         int ints_needed_for_clauses;
         int ints_needed_for_vars;
         int work_ints;
@@ -75,6 +76,9 @@ class Cnf {
         // Initializes CNF compression
         void init_compression();
 
+        // Testing method only
+        bool clauses_equal(Clause a, Clause b);
+
         // Gets string representation of edited clause
         std::string clause_to_string_current(Clause clause, bool elimination);
 
@@ -101,7 +105,7 @@ class Cnf {
         char check_clause(Clause clause, int *num_unsat);
 
         // Adds a new conflict clause to the CNF
-        void add_conflict_clause(Clause new_clause);
+        void add_conflict_clause(Clause new_clause, int inducing_clause_id);
 
         // Resolves two clauses, returns the resulting clause
         Clause resolve_clauses(Clause A, Clause B, int variable);

@@ -19,6 +19,7 @@ void add_clause(
     Clauses &clauses, 
     VariableLocations *variables) 
     {
+    assert(clause_is_sorted(new_clause));
     int new_clause_id = clauses.num_indexed;
     new_clause.id = new_clause_id;
     int *clause_id_ptr = (int *)malloc(sizeof(int));
@@ -159,6 +160,7 @@ Cnf::Cnf(
         int reduction_method) 
     {
     Cnf::n = n;
+    Cnf::num_conflict_to_hold = n * n * n;
     Deque edit_stack;
     IntDeque edit_counts_stack;
     Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
@@ -203,6 +205,7 @@ Cnf::Cnf(
     Cnf::clauses = input_clauses;
     Cnf::variables = input_variables;
     Cnf::num_variables = num_variables;
+    Cnf::num_conflict_to_hold = 0;
     Deque edit_stack;
     IntDeque edit_counts_stack;
     Cnf::edit_stack = (Deque *)malloc(sizeof(Deque));
@@ -228,6 +231,7 @@ Cnf::Cnf(
 Cnf::Cnf() {
     Cnf::n = 0;
     Cnf::num_variables = 0;
+    Cnf::num_conflict_to_hold = 0;
     Cnf::ints_needed_for_clauses = 0;
     Cnf::ints_needed_for_vars = 0;
     Cnf::work_ints = 0;
@@ -244,7 +248,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
     Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // SLIGHT OVERESTIMATE FOR N=4,9
     // Exact figure
     int num_clauses = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n);
-    Clauses clauses(num_clauses, 0);
+    Clauses clauses(num_clauses, Cnf::num_conflict_to_hold);
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * Cnf::num_variables);
@@ -352,7 +356,7 @@ void Cnf::reduce_puzzle_original(int n, int sqrt_n) {
     Cnf::num_variables = (n * n_squ);
     // Exact figure
     int num_clauses = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
-    Clauses clauses(num_clauses, 0);
+    Clauses clauses(num_clauses, Cnf::num_conflict_to_hold);
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * Cnf::num_variables);
@@ -521,6 +525,24 @@ void Cnf::init_compression() {
         sizeof(bool), Cnf::ints_needed_for_vars * 32);
     Cnf::oldest_compressed = to_int_rep();
     if (PRINT_LEVEL > 2) print_compressed(Cnf::pid, "", "", Cnf::oldest_compressed, Cnf::work_ints);
+}
+
+// Testing method only
+bool Cnf::clauses_equal(Clause a, Clause b) {
+    // Assumes sorted order of variable ids in both clauses
+    if (a.id == b.id) {
+        return true;
+    } else if (a.num_literals != b.num_literals) {
+        return false;
+    }
+    for (int i = 0; i < a.num_literals; i++) {
+        if (a.literal_variable_ids[i] != b.literal_variable_ids[i]) {
+            return false;
+        } else if (a.literal_signs[i] != b.literal_signs[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // Gets string representation of clause
@@ -759,66 +781,72 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
 }
 
 // Adds a new conflict clause to the CNF
-void Cnf::add_conflict_clause(Clause new_clause) {
-    // TODO implement this
+void Cnf::add_conflict_clause(Clause new_clause, int inducing_clause_id) {
+    // Check it is not equal to an existing conflict clause
+    for (int clause_id = Cnf::clauses.max_indexable; clause_id < Cnf::clauses.max_indexable + Cnf::clauses.num_conflict_indexed; clause_id++) {
+        Clause other_clause = Cnf::clauses.get_clause(clause_id);
+        assert(!clauses_equal(new_clause, other_clause));   
+    }
+    // Check it is not equal to an existing clause we've already seen
+    for (int clause_id = 0; clause_id <= inducing_clause_id; clause_id++) {
+        Clause other_clause = Cnf::clauses.get_clause(clause_id);
+        assert(!clauses_equal(new_clause, other_clause));
+    }
+    // Check if it is equal to an existing clause we have seen
+    for (int clause_id = inducing_clause_id + 1; clause_id <= Cnf::clauses.num_indexed; clause_id++) {
+        Clause other_clause = Cnf::clauses.get_clause(clause_id);
+        assert(!clauses_equal(new_clause, other_clause));
+    }
     return;
 }
 
 // Resolves two clauses, returns the resulting clause
 Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
     assert(A.num_literals + B.num_literals >= 3);
-    if (PRINT_LEVEL > 1) printf("PID %d:\t resolving clauses\n\t\t%s\n\t\t\twith %d\n\t\t%s\n", Cnf::pid, clause_to_string_current(A, false).c_str(), variable, clause_to_string_current(B, false).c_str());
-    if (A.num_literals < B.num_literals) {
-        Clause tmp = A;
-        A = B;
-        B = tmp;
-    }
+    if (PRINT_LEVEL > 1) printf("PID %d:\t resolving clauses\n\t\t%s\n\t\t\twith %d\n\t\t%s\n", Cnf::pid, clause_to_string_current(A, false).c_str(), variable, clause_to_string_current(B, false).c_str());  
     Clause result;
     result.id = -1;
     Queue resolved;
-    for (int i = 0; i < A.num_literals; i++) {
-        int var_id_a = A.literal_variable_ids[i];
+    short a_index = 0;
+    short b_index = 0;
+    while (a_index < A.num_literals && b_index < B.num_literals) {
+        int var_id_a = A.literal_variable_ids[a_index];
+        int var_id_b = A.literal_variable_ids[b_index];
         if (var_id_a == variable) {
+            a_index++;
+            continue;
+        } else if (var_id_b == variable) {
+            b_index++;
             continue;
         }
-        bool var_in_b = false;
-        for (int j = 0; j < B.num_literals; j++) {
-            int var_id_b = B.literal_variable_ids[j];
-            if (var_id_b == variable) {
-                continue;
-            }
-            if (var_id_b == var_id_a) {
-                assert(A.literal_signs[i] == B.literal_signs[j]);
-                var_in_b = true;
-                break;
-            }
-        }
-        if (var_in_b) {
-            continue;
-        }
+        bool var_sign_a = A.literal_signs[a_index];
+        bool var_sign_b = B.literal_signs[b_index];
         int *var_id_ptr = (int *)(malloc(sizeof(int)));
         bool *var_sign_ptr = (bool *)(malloc(sizeof(bool)));
-        *var_id_ptr = var_id_a;
-        *var_sign_ptr = A.literal_signs[i];
+        if (var_id_a < var_id_b) {
+            *var_id_ptr = var_id_a;
+            *var_sign_ptr = var_sign_a;
+            a_index++;
+        } else if (var_id_b < var_id_a) {
+            *var_id_ptr = var_id_b;
+            *var_sign_ptr = var_sign_b;
+            b_index++;
+        } else {
+            *var_id_ptr = var_id_a;
+            *var_sign_ptr = var_sign_a;
+            a_index++;
+            b_index++;
+        }
         resolved.add_to_back((void *)var_id_ptr);
         resolved.add_to_back((void *)var_sign_ptr);
     }
-    result.num_literals = (resolved.count / 2) + (B.num_literals - 1);
+    result.num_literals = (resolved.count / 2);
     assert(result.num_literals > 0);
     result.literal_variable_ids = (int *)malloc(
         sizeof(int) * result.num_literals);
     result.literal_signs = (bool *)malloc(
         sizeof(bool) * result.num_literals);
-    int offset = 0;
-    for (int j = 0; j < B.num_literals; j++) {
-        int var_id_b = B.literal_variable_ids[j];
-        if (var_id_b == variable) {
-            continue;
-        }
-        result.literal_variable_ids[offset] = var_id_b;
-        result.literal_signs[offset] = B.literal_signs[j];
-        offset++;
-    }
+    short index = 0;
     while (resolved.count > 0) {
         void *var_id_ptr = resolved.pop_from_front();
         void *var_sign_ptr = resolved.pop_from_front();
@@ -826,11 +854,12 @@ Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
         bool var_sign_a = *((bool *)var_sign_ptr);
         free(var_id_ptr);
         free(var_sign_ptr);
-        result.literal_variable_ids[offset] = var_id_a;
-        result.literal_signs[offset] = var_sign_a;
-        offset++;
+        result.literal_variable_ids[index] = var_id_a;
+        result.literal_signs[index] = var_sign_a;
+        index++;
     }
     if (PRINT_LEVEL > 2) printf("PID %d:\t resolving clauses result = %s\n", Cnf::pid, clause_to_string_current(result, false).c_str());
+    assert(clause_is_sorted(result));
     return result;
 }
 
@@ -912,7 +941,7 @@ bool Cnf::propagate_assignment(int var_id, bool value, int implier) {
                     if (PRINT_LEVEL >= 3) printf("%sPID %d clause %d %s contains conflict\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(clause, false).c_str());
                     Clause conflict_clause;
                     if (conflict_resolution(clause_id, conflict_clause)) {
-                        add_conflict_clause(conflict_clause);
+                        add_conflict_clause(conflict_clause, clause_id);
                     }
                     (*locations.clauses_containing).add_to_back(
                         (void *)current);
