@@ -1,13 +1,13 @@
 #include "state.h"
-#include <cassert>
+#include <list>
+#include <cassert> 
 
 State::State(
-        short pid, 
-        short nprocs, 
-        short branching_factor, 
-        bool pick_greedy,
-        bool use_smart_prop,
-        bool explicit_true) 
+        short pid,
+        short nprocs,
+        short branching_factor,
+        short assignment_method,
+        bool use_smart_prop)
     {
     State::pid = pid;
     State::nprocs = nprocs;
@@ -23,33 +23,39 @@ State::State(
         actual_num_children++;
     }
     State::num_children = actual_num_children;
-    if (PRINT_LEVEL > 0) printf("PID %d has %d children\n", pid, (int)State::num_children);
-    State::cchild_statuses = (char *)malloc(
+    if (PRINT_LEVEL > 0) printf("PID %d: has %d children\n", pid, (int)State::num_children);
+    State::child_statuses = (char *)malloc(
         sizeof(char) * (State::num_children + 1));
     for (short child = 0; child <= State::num_children; child++) {
-        State::cchild_statuses[child] = 'w';
+        State::child_statuses[child] = 'w';
     }
-    State::rrequests_sent = (char *)calloc(
+    State::requests_sent = (char *)calloc(
         sizeof(char), State::num_children + 1);
     for (short child = 0; child < State::num_children; child++) {
-        State::rrequests_sent[child] = 'n';
+        State::requests_sent[child] = 'n';
     }
     if (pid == 0) {
         // Don't want to request the parent that doesn't exist
-        State::rrequests_sent[State::num_children] = 'u';
+        State::requests_sent[State::num_children] = 'u';
     } else {
-        State::rrequests_sent[State::num_children] = 'n';
+        State::requests_sent[State::num_children] = 'n';
     }
-    State::nnum_urgent = 0;
-    State::nnum_requesting = 0;
+    State::num_urgent = 0;
+    State::num_requesting = 0;
     State::num_non_trivial_tasks = 0;
     State::process_finished = false;
     State::was_explicit_abort = false;
     State::calls_to_solve = 0;
-    State::pick_greedy = pick_greedy;
+    State::assignment_method = assignment_method;
     State::use_smart_prop = use_smart_prop;
-    State::explicit_true = explicit_true;
-    State::print_index = 0;
+    State::current_cycle = 0;
+    Deque thieves;
+    State::thieves = (Deque *)malloc(sizeof(Deque));
+    *State::thieves = thieves;
+    GivenTask current_task;
+    current_task.pid = -1;
+    current_task.var_id = -1;
+    State::current_task = current_task;
 }
 
 // Gets child (or parent) pid from child (or parent) index
@@ -81,28 +87,208 @@ void State::print_progress(Cnf &cnf, Deque &task_stack) {
 
 // Returns whether there are any other processes requesting our work
 bool State::workers_requesting() {
-    return State::nnum_requesting > 0;
+    return State::num_requesting > 0;
 }
 
 // Returns whether we should forward an urgent request
 bool State::should_forward_urgent_request() {
     if (State::pid == 0) {
-        return (State::nnum_urgent == State::num_children - 1);
+        return (State::num_urgent == State::num_children - 1);
     }
-    return (State::nnum_urgent == State::num_children);
+    return (State::num_urgent == State::num_children);
 }
 
 // Returns whether we should implicitly abort due to urgent requests
 bool State::should_implicit_abort() {
     if (State::pid == 0) {
-        return (State::nnum_urgent == State::num_children);
+        return (State::num_urgent == State::num_children);
     }
-    return (State::nnum_urgent == State::num_children + 1);
+    return (State::num_urgent == State::num_children + 1);
 }
 
 // Returns whether the state is able to supply work to requesters
 bool State::can_give_work(Deque task_stack, Interconnect interconnect) {
     return ((State::num_non_trivial_tasks + interconnect.num_stashed_work) > 1);
+}
+
+// Ensures the task stack is a valid one
+bool State::task_stack_invariant(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        int supposed_num_tasks) 
+    {
+    assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
+    assert(cnf.local_edit_count <= cnf.edit_stack.count);
+    int num_processed = 0;
+    int num_to_process = task_stack.count;
+    int true_num_tasks = 0;
+    while (num_processed < num_to_process) {
+        void *current_ptr = task_stack.pop_from_front();
+        Task current = *((Task *)current_ptr);
+        if (!current.is_backtrack) {
+            // This is a non-trivial task, increment
+            true_num_tasks++;
+        }
+        task_stack.add_to_back(current_ptr);
+        num_processed++;
+    }
+    assert(task_stack.count == num_to_process);
+    void **task_list = task_stack.as_list();
+    void **thief_list = (*State::thieves).as_list();
+    int num_thieves = (*State::thieves).count;
+    int total_assigned = 0;
+    int num_queued = 0;
+    int num_stolen = 0;
+    int reported_num_local = 0;
+    int reported_num_queued = 0;
+    int reported_num_remote = 0;
+    int reported_num_stolen = 0;
+    for (int i = 0; i < task_stack.count; i++) {
+        void *task_ptr = task_list[i];
+        Task task = *((Task *)task_ptr);
+        if (!task.is_backtrack) {
+            Assignment task_assignment;
+            task_assignment.var_id = task.var_id;
+            task_assignment.value = task.assignment;
+            char task_status = cnf.get_decision_status(task_assignment);
+            assert(task_status == 'q');
+            Assignment opposite_assignment;
+            opposite_assignment.var_id = task.var_id;
+            opposite_assignment.value = !task.assignment;
+            char opposite_status = cnf.get_decision_status(opposite_assignment);
+            if (task.implier == -1) {
+                // Must be a decided (not unit propagated) variable
+                if (!((opposite_status == 'q') 
+                    || (opposite_status == 'l') 
+                    || (opposite_status == 's')
+                    || (opposite_status == 'u'))) {
+                        cnf.print_task_stack("Failed task stack", task_stack, 1000);
+                        printf("Failed, opposite status = %c, id = %d\n", opposite_status, task.var_id);
+                    }
+                assert((opposite_status == 'q') 
+                    || (opposite_status == 'l') 
+                    || (opposite_status == 's')
+                    || (opposite_status == 'u'));
+            } else {
+                // Must be a unit propagated variable
+                assert(opposite_status == 'u');
+            }
+            num_queued++;
+        }
+    }
+    for (int var_id = 0; var_id < cnf.num_variables; var_id++) {
+        if (cnf.assigned_true[var_id]) {
+            if (cnf.assigned_false[var_id]) {
+                printf("Var %d both true and false\n", var_id);
+            }
+            assert(!cnf.assigned_false[var_id]);
+            assert((cnf.true_assignment_statuses[var_id] == 'l')
+                || (cnf.true_assignment_statuses[var_id] == 'r'));
+            assert((cnf.false_assignment_statuses[var_id] == 'u')
+                || (cnf.false_assignment_statuses[var_id] == 'q')
+                || (cnf.false_assignment_statuses[var_id] == 's'));
+            total_assigned++;
+        } else if (cnf.assigned_false[var_id]) {
+            assert(!cnf.assigned_true[var_id]);
+            assert((cnf.false_assignment_statuses[var_id] == 'l')
+                || (cnf.false_assignment_statuses[var_id] == 'r'));
+            assert((cnf.true_assignment_statuses[var_id] == 'u')
+                || (cnf.true_assignment_statuses[var_id] == 'q')
+                || (cnf.true_assignment_statuses[var_id] == 's'));
+            total_assigned++;
+        } else {
+            assert((cnf.false_assignment_statuses[var_id] == 'u')
+                || (cnf.false_assignment_statuses[var_id] == 'q')
+                || (cnf.false_assignment_statuses[var_id] == 's'));
+            assert((cnf.true_assignment_statuses[var_id] == 'u')
+                || (cnf.true_assignment_statuses[var_id] == 'q')
+                || (cnf.true_assignment_statuses[var_id] == 's'));
+        }
+        Assignment left_assignment;
+        left_assignment.var_id = var_id;
+        left_assignment.value = true;
+        char left_status = cnf.get_decision_status(left_assignment);
+        Assignment right_assignment;
+        right_assignment.var_id = var_id;
+        right_assignment.value = false;
+        char right_status = cnf.get_decision_status(right_assignment);
+        std::list<char> statuses = {left_status, right_status};
+        for (char status : statuses) {
+            switch (status) {
+                case 'l': {
+                    reported_num_local++;
+                    break;
+                } case 'q': {
+                    reported_num_queued++;
+                    break;
+                } case 'r': {
+                    reported_num_remote++;
+                    break;
+                } case 's': {
+                    reported_num_stolen++;
+                    break;
+                }
+            }
+        }
+    }
+    for (int i = 0; i < num_thieves; i++) {
+        void *theif_ptr = thief_list[i];
+        GivenTask stolen_task = *((GivenTask *)theif_ptr);
+        Assignment task_assignment;
+        task_assignment.var_id = stolen_task.var_id;
+        task_assignment.value = stolen_task.assignment;
+        char task_status = cnf.get_decision_status(task_assignment);
+        assert(task_status == 'r');
+        Assignment opposite_assignment;
+        opposite_assignment.var_id = stolen_task.var_id;
+        opposite_assignment.value = !stolen_task.assignment;
+        char opposite_status = cnf.get_decision_status(opposite_assignment);
+        assert((opposite_status == 'l') || (opposite_status == 's'));
+        num_stolen++;
+    }
+    assert(num_queued <= reported_num_queued);
+    assert(num_stolen == reported_num_stolen);
+    assert(total_assigned == reported_num_local + reported_num_remote);
+    short *clause_sizes = (short *)calloc(sizeof(short), 
+        cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
+    memset(clause_sizes, -1, 
+        (cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable) 
+        * sizeof(short));
+    void **edit_list = (cnf.edit_stack).as_list();
+    bool found_decided_variable_assignment = false;
+    for (int i = 0; i < cnf.local_edit_count; i++) {
+        void *edit_ptr = edit_list[i];
+        FormulaEdit edit = *((FormulaEdit *)edit_ptr);
+        int clause_id = edit.edit_id;
+        if (edit.edit_type == 'c') { // Clause drop
+            assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
+            // No size changing clauses after dropping them
+            assert(clause_sizes[clause_id] == -1);
+            clause_sizes[clause_id] = 0;
+        } else if (edit.edit_type == 's') { // Size decrease
+            assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
+            // No duplicate size change edits
+            // Size should change always
+            assert(edit.size_before != -1);
+            assert(clause_sizes[clause_id] < edit.size_before);
+            clause_sizes[clause_id] = edit.size_before;
+        } else {
+            if (cnf.variables[edit.edit_id].implying_clause_id == -1) {
+                assert(!found_decided_variable_assignment);
+                found_decided_variable_assignment = true;
+            }
+        }
+    }
+    if (task_stack.count > 0) {
+        free(task_list);
+    }
+    if ((*State::thieves).count > 0) {
+        free(thief_list);
+    }
+    if (cnf.local_edit_count > 0) {
+        free(edit_list);
+    }
+    return true;
 }
 
 // Applies an edit to the given compressed CNF
@@ -141,20 +327,36 @@ void State::apply_edit_to_compressed(
 }
 
 // Grabs work from the top of the task stack, updates Cnf structures
-void *State::grab_work_from_stack(Cnf &cnf, Deque &task_stack) {
-    if (PRINT_LEVEL > 0) printf("PID %d grabbing work from stack\n", State::pid);
+void *State::grab_work_from_stack(
+        Cnf &cnf,
+        Deque &task_stack,
+        short recipient_pid)
+    {
+    if (PRINT_LEVEL > 0) printf("PID %d: grabbing work from stack\n", State::pid);
     assert(State::num_non_trivial_tasks > 1);
     assert(task_stack.count >= State::num_non_trivial_tasks);
     // Get the actual work as a copy
     Task top_task = *((Task *)(task_stack.pop_from_back()));
     void *work = cnf.convert_to_work_message(cnf.oldest_compressed, top_task);
+    if (top_task.assignment) {
+        cnf.true_assignment_statuses[top_task.var_id] = 'g';
+    } else {
+        cnf.false_assignment_statuses[top_task.var_id] = 'g';
+    }
+    GivenTask task_to_give;
+    task_to_give.var_id = top_task.var_id;
+    task_to_give.pid = recipient_pid;
+    task_to_give.assignment = top_task.assignment;
+    GivenTask *task_to_give_ptr = (GivenTask *)malloc(sizeof(GivenTask));
+    *task_to_give_ptr = task_to_give;
+    (*State::thieves).add_to_front((void *)task_to_give_ptr);
     // Prune the top of the tree
     while (backtrack_at_top(task_stack)) {
         // Two deques loose their top element, one looses at least one element
-        int edits_to_apply = (*cnf.edit_counts_stack).pop_from_back();
+        int edits_to_apply = (cnf.edit_counts_stack).pop_from_back();
         assert(edits_to_apply > 0);
         while (edits_to_apply) {
-            FormulaEdit edit = *((FormulaEdit *)((*(cnf.edit_stack)).pop_from_back()));
+            FormulaEdit edit = *((FormulaEdit *)(((cnf.edit_stack)).pop_from_back()));
             apply_edit_to_compressed(cnf, cnf.oldest_compressed, edit);
             edits_to_apply--;
         }
@@ -163,6 +365,7 @@ void *State::grab_work_from_stack(Cnf &cnf, Deque &task_stack) {
     }
     State::num_non_trivial_tasks--;
     assert(State::num_non_trivial_tasks >= 1);
+    if (PRINT_LEVEL > 1) printf("PID %d: grabbing work from stack done\n", State::pid);
     return work;
 }
 
@@ -171,22 +374,22 @@ short State::pick_work_recipient() {
     // P0 has it's Parent urgently requesi
     short recipient_index;
     for (short child = 0; child <= State::num_children; child++) {
-        if (State::nnum_urgent > 0) {
+        if (State::num_urgent > 0) {
             // Urgent requests take precedence
             // Pick an urgently-requesting child (or parent)
-            if (State::cchild_statuses[child] == 'r'
-                || State::cchild_statuses[child] == 'w') {
+            if (State::child_statuses[child] == 'r'
+                || State::child_statuses[child] == 'w') {
                 // Non-urgent
                 continue;
             }
         } else {
             // Pick a requesting child (or parent)
-            if (State::cchild_statuses[child] == 'w') {
+            if (State::child_statuses[child] == 'w') {
                 // Not requesting
                 continue;
             }
         }
-        if (PRINT_LEVEL > 0) printf("PID %d picked work recipient %d\n", State::pid, pid_from_child_index(child));
+        if (PRINT_LEVEL > 0) printf("PID %d: picked work recipient %d\n", State::pid, pid_from_child_index(child));
         return child;
     }
     assert(false);
@@ -201,28 +404,28 @@ short State::pick_request_recipient() {
     // us, with bias for asking our parent (hence reverse direction).
     for (short child = State::num_children; child >= 0; child--) {
         if (make_double_requests) {
-            if (State::rrequests_sent[child] == 'u') {
+            if (State::requests_sent[child] == 'u') {
                 // We've urgently-asked them already
                 continue;
             }
         } else {
-            if (State::rrequests_sent[child] != 'n') {
+            if (State::requests_sent[child] != 'n') {
                 // We've asked them already
                 continue;
             }
         }
-        if (State::cchild_statuses[child] == 'u') {
+        if (State::child_statuses[child] == 'u') {
             // Can't ask them, they're out of work entirely
             continue;
         }
         recipient_index = child;
-        if (State::cchild_statuses[child] == 'w') {
+        if (State::child_statuses[child] == 'w') {
             // They're not asking us for work, stop here
             break;
         }
     }
     assert(recipient_index != -1);
-    if (PRINT_LEVEL > 0) printf("PID %d picked request recipient %d\n", State::pid, pid_from_child_index(recipient_index));
+    if (PRINT_LEVEL > 0) printf("PID %d: picked request recipient %d\n", State::pid, pid_from_child_index(recipient_index));
     return recipient_index;
 }
 
@@ -232,9 +435,9 @@ void State::give_work(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    if (PRINT_LEVEL > 0) printf("PID %d giving work\n", State::pid);
+    if (PRINT_LEVEL > 0) printf("PID %d: giving work\n", State::pid);
     short recipient_index = pick_work_recipient();
-    assert(State::cchild_statuses[recipient_index] != 'w');
+    assert(State::child_statuses[recipient_index] != 'w');
     short recipient_pid = pid_from_child_index(recipient_index);
     void *work;
     // Prefer to give stashed work
@@ -245,13 +448,13 @@ void State::give_work(
             work = (interconnect.get_stashed_work()).data;
         }
     } else {
-        work = grab_work_from_stack(cnf, task_stack);
+        work = grab_work_from_stack(cnf, task_stack, recipient_pid);
     }
-    if (State::cchild_statuses[recipient_index] == 'u') {
-        State::nnum_urgent--;
+    if (State::child_statuses[recipient_index] == 'u') {
+        State::num_urgent--;
     }
-    State::cchild_statuses[recipient_index] = 'w';
-    State::nnum_requesting--;
+    State::child_statuses[recipient_index] = 'w';
+    State::num_requesting--;
     interconnect.send_work(recipient_pid, work);
 }
 
@@ -261,13 +464,13 @@ bool State::get_work_from_interconnect_stash(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    // TODO: Perhaps we get stashed work from a sender who is no longer 
+    // NICE: Perhaps we get stashed work from a sender who is no longer 
     // asking us for work now (if possible)?
     // Preference for children or parents?
     if (!interconnect.have_stashed_work()) {
         return false;
     }
-    if (PRINT_LEVEL > 0) printf("PID %d getting work from interconnect stash\n", State::pid);
+    if (PRINT_LEVEL > 0) printf("PID %d: getting work from interconnect stash\n", State::pid);
     Message work_message = interconnect.get_stashed_work();
     handle_work_message(
         work_message, cnf, task_stack, interconnect);
@@ -282,39 +485,45 @@ bool State::out_of_work() {
 // Asks parent or children for work, called once when we finish our work
 void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
     assert(!interconnect.have_stashed_work());
-    assert(State::nnum_urgent <= State::num_children);
+    assert(State::num_urgent <= State::num_children);
     if (should_implicit_abort()) {
         // Self abort
         abort_others(interconnect);
         abort_process();
     } else if (should_forward_urgent_request()) {
-        if (PRINT_LEVEL > 0) printf("PID %d urgently asking for work\n", State::pid);
+        if (PRINT_LEVEL > 0) printf("PID %d: urgently asking for work\n", State::pid);
         // Send a single urgent work request
         short dest_index = pick_request_recipient();
         short dest_pid = pid_from_child_index(dest_index);
-        if (State::rrequests_sent[dest_index] == 'r') {
+        if (State::requests_sent[dest_index] == 'r') {
             // Send an urgent upgrade
             interconnect.send_work_request(dest_pid, 2);
         } else {
-            assert(State::rrequests_sent[dest_index] == 'n');
+            assert(State::requests_sent[dest_index] == 'n');
             // Send an urgent request
             interconnect.send_work_request(dest_pid, 1);
         }
-        State::rrequests_sent[dest_index] = 'u';
+        State::requests_sent[dest_index] = 'u';
     } else {
-        if (PRINT_LEVEL > 0) printf("PID %d asking for work\n", State::pid);
+        if (PRINT_LEVEL > 0) printf("PID %d: asking for work\n", State::pid);
         // Send a single work request
         short dest_index = pick_request_recipient();
         short dest_pid = pid_from_child_index(dest_index);
-        assert(State::rrequests_sent[dest_index] == 'n');
+        assert(State::requests_sent[dest_index] == 'n');
         interconnect.send_work_request(dest_pid, 0);
-        State::rrequests_sent[dest_index] = 'r';
+        State::requests_sent[dest_index] = 'r';
     }
+}
+
+// Invalidates (erases) ones work
+void State::invalidate_work(Deque &task_stack) {
+    State::num_non_trivial_tasks = 0;
+    task_stack.free_data();
 }
 
 // Empties/frees data structures and immidiately returns
 void State::abort_process(bool explicit_abort) {
-    if (PRINT_LEVEL > 0) printf("PID %d aborting process\n", State::pid);
+    if (PRINT_LEVEL > 0) printf("PID %d: aborting process\n", State::pid);
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
 }
@@ -322,27 +531,27 @@ void State::abort_process(bool explicit_abort) {
 // Sends messages to children to force them to abort
 void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
     if (explicit_abort) {
-        if (PRINT_LEVEL > 0) printf("PID %d explicitly aborting others\n", State::pid);
+        if (PRINT_LEVEL > 0) printf("PID %d: explicitly aborting others\n", State::pid);
         // Success, broadcase explicit abort to every process
         for (short i = 0; i < State::nprocs; i++) {
             interconnect.send_abort_message(i);
         }
     } else {
-        if (PRINT_LEVEL > 0) printf("PID %d aborting others\n", State::pid);
+        if (PRINT_LEVEL > 0) printf("PID %d: aborting others\n", State::pid);
         // Any children who did not receive an urgent request from us should
         assert(should_implicit_abort());
         for (short child = 0; child < State::num_children; child++) {
-            if (State::rrequests_sent[child] != 'u') {
+            if (State::requests_sent[child] != 'u') {
                 // Child needs one
                 short recipient = pid_from_child_index(child);
-                if (State::rrequests_sent[child] == 'n') {
+                if (State::requests_sent[child] == 'n') {
                     // Normal urgent request
                     interconnect.send_work_request(recipient, 1);
                 } else {
                     // Urgent upgrade
                     interconnect.send_work_request(recipient, 2);
                 }
-                State::rrequests_sent[child] = 'u';
+                State::requests_sent[child] = 'u';
             }
         }
     }
@@ -358,28 +567,28 @@ void State::handle_work_request(
     {
     short child_index = child_index_from_pid(sender_pid);
     if (version == 0) { // Normal request
-        if (PRINT_LEVEL > 0) printf("PID %d handling work request from sender %d (child %d)\n", State::pid, sender_pid, child_index);
-        assert(State::cchild_statuses[child_index] == 'w');
+        if (PRINT_LEVEL > 0) printf("PID %d: handling work request from sender %d (child %d)\n", State::pid, sender_pid, child_index);
+        assert(State::child_statuses[child_index] == 'w');
         // Log the request
-        State::cchild_statuses[child_index] = 'r';
-        State::nnum_requesting++;
+        State::child_statuses[child_index] = 'r';
+        State::num_requesting++;
     } else { // Urgent request
         if (version == 1) { // Urgent request
-            if (PRINT_LEVEL > 0) printf("PID %d handling urgent work request from sender %d (child %d)\n", State::pid, sender_pid, child_index);
-            assert(State::cchild_statuses[child_index] == 'w');
-            State::nnum_requesting++;
+            if (PRINT_LEVEL > 0) printf("PID %d: handling urgent work request from sender %d (child %d)\n", State::pid, sender_pid, child_index);
+            assert(State::child_statuses[child_index] == 'w');
+            State::num_requesting++;
         } else { // Urgent upgrade
-            if (PRINT_LEVEL > 0) printf("PID %d handling urgent upgrade from sender %d (child %d)\n", State::pid, sender_pid, child_index);
-            assert(State::cchild_statuses[child_index] != 'u');
-            if (State::cchild_statuses[child_index] == 'w') {
+            if (PRINT_LEVEL > 0) printf("PID %d: handling urgent upgrade from sender %d (child %d)\n", State::pid, sender_pid, child_index);
+            assert(State::child_statuses[child_index] != 'u');
+            if (State::child_statuses[child_index] == 'w') {
                 // Effectively a no-op, we already handled the non-urgent 
                 // request that came before
                 return;
             }
         }
         // Log the request
-        State::cchild_statuses[child_index] = 'u';
-        State::nnum_urgent++;
+        State::child_statuses[child_index] = 'u';
+        State::num_urgent++;
         // Check if we need to forward urgent, or abort
         if (out_of_work()) {        
             if (should_implicit_abort()) {
@@ -390,15 +599,15 @@ void State::handle_work_request(
                 // Send a single urgent work request
                 short dest_index = pick_request_recipient();
                 short dest_pid = pid_from_child_index(dest_index);
-                if (State::rrequests_sent[dest_index] == 'r') {
+                if (State::requests_sent[dest_index] == 'r') {
                     // Send an urgent upgrade
                     interconnect.send_work_request(dest_pid, 2);
                 } else {
-                    assert(State::rrequests_sent[dest_index] == 'n');
+                    assert(State::requests_sent[dest_index] == 'n');
                     // Send an urgent request
                     interconnect.send_work_request(dest_pid, 1);
                 }
-                State::rrequests_sent[dest_index] = 'u';
+                State::requests_sent[dest_index] = 'u';
             }
         }
     }
@@ -411,22 +620,28 @@ void State::handle_work_message(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    if (PRINT_LEVEL > 0) printf("PID %d handling work message\n", State::pid);
+    if (PRINT_LEVEL > 0) printf("PID %d: handling work message\n", State::pid);
     short sender_pid = message.sender;
     short child_index = child_index_from_pid(sender_pid);
     void *work = message.data;
-    assert(State::rrequests_sent[child_index] != 'n');
-    assert(cchild_statuses[child_index] != 'u');
+    assert(State::requests_sent[child_index] != 'n');
+    assert(child_statuses[child_index] != 'u');
     assert(!interconnect.have_stashed_work(sender_pid));
     if (out_of_work()) {
         // Reconstruct state from work
+        Task task = cnf.extract_task_from_work(work);
+        State::current_task.assignment = task.assignment;
+        State::current_task.var_id = task.var_id;
+        // NICE: implement forwarding
+        State::current_task.pid = sender_pid;
         cnf.reconstruct_state(work, task_stack);
+        (*State::thieves).free_data();
         State::num_non_trivial_tasks = 1;
     } else {
         // Add to interconnect work stash
         interconnect.stash_work(message);
     }
-    State::rrequests_sent[child_index] = 'n';
+    State::requests_sent[child_index] = 'n';
 }
 
 // Handles an abort message, possibly forwarding it
@@ -436,10 +651,10 @@ void State::handle_message(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    if (PRINT_LEVEL > 0) printf("PID %d handling message\n", State::pid);
-    assert(0 <= State::nnum_urgent && State::nnum_urgent <= State::num_children);
-    assert(State::nnum_urgent <= State::nnum_requesting);
-    assert(State::nnum_requesting <= State::num_children + 1);
+    if (PRINT_LEVEL > 0) printf("PID %d: handling message\n", State::pid);
+    assert(0 <= State::num_urgent && State::num_urgent <= State::num_children);
+    assert(State::num_urgent <= State::num_requesting);
+    assert(State::num_requesting <= State::num_children + 1);
     assert(0 <= message.type <= 4);
     switch (message.type) {
         case 3: {
@@ -455,14 +670,604 @@ void State::handle_message(
             return;
         }
     }
-    assert(0 <= State::nnum_urgent 
-        && State::nnum_urgent <= State::num_children + 1);
-    assert(State::nnum_urgent <= State::nnum_requesting);
-    assert(State::nnum_requesting <= State::num_children + 1);
+    assert(0 <= State::num_urgent 
+        && State::num_urgent <= State::num_children + 1);
+    assert(State::num_urgent <= State::num_requesting);
+    assert(State::num_requesting <= State::num_children + 1);
+}
+
+// Edits history to make it appear as though the conflict clause is
+// normal.
+void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
+    if (PRINT_LEVEL > 0) printf("%s\tPID %d: inserting conflict clause into history\n", cnf.depth_str.c_str(), State::pid);
+    bool look_for_drop = false;
+    cnf.clause_satisfied(conflict_clause, &look_for_drop);
+    int drop_var_id = -1;
+    IntDeque assigned_literals;
+    for (int i = 0; i < conflict_clause.num_literals; i++) {
+        int var_id = conflict_clause.literal_variable_ids[i];
+        bool literal_sign = conflict_clause.literal_signs[i];
+        if (cnf.assigned_true[var_id] 
+            && (cnf.true_assignment_statuses[var_id] == 'l')) {
+            if (literal_sign) {
+                drop_var_id = var_id;
+            } else {
+                assigned_literals.add_to_front(var_id);
+            }
+        } else if (cnf.assigned_false[var_id]
+            && (cnf.false_assignment_statuses[var_id] == 'l')) {
+            if (!literal_sign) {
+                drop_var_id = var_id;
+            } else {
+                assigned_literals.add_to_front(var_id);
+            }
+        }
+    }
+    int insertions_made = 0;
+    int iterations_checked = 0;
+    printf("%s\tPID %d: need %d inerstions for decrement of clause size\n", cnf.depth_str.c_str(), State::pid, assigned_literals.count);
+    if (look_for_drop) {
+        printf("%s\tPID %d: need drop edit for clause\n", cnf.depth_str.c_str(), State::pid);
+    }
+    // Need to include the current iteration's edits on the edit stack
+    (cnf.edit_counts_stack).add_to_front(cnf.local_edit_count);
+    int iterations_to_check = (cnf.edit_counts_stack).count;
+    DoublyLinkedList *current_edit_ptr = (*(((cnf.edit_stack).head))).next;
+    IntDoublyLinkedList *current_iteration = (*(((cnf.edit_counts_stack).head))).next;
+    if (PRINT_LEVEL > 2) printf("%s\tPID %d: iteration edit counts = %s\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), 10).c_str());
+    int num_unsat = cnf.get_num_unsat(conflict_clause);
+    while ((iterations_checked < iterations_to_check) 
+        && (assigned_literals.count > 0)) {
+        if (PRINT_LEVEL > 3) printf("%s\t\tPID %d: checking iteration (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, assigned_literals.count);
+        int current_count = (*current_iteration).value;
+        int new_count = current_count;
+        int edits_seen = 0;
+        while ((edits_seen < current_count) && (assigned_literals.count > 0)) {
+            if (PRINT_LEVEL > 4) printf("%s\t\t\tPID %d: inspecting edit (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, edits_seen, current_count, assigned_literals.count);
+            FormulaEdit current_edit = *((FormulaEdit *)(
+                (*current_edit_ptr).value));
+            if (current_edit.edit_type == 'v') {
+                int var_id = current_edit.edit_id;
+                if (look_for_drop && var_id == drop_var_id) {
+                    // Add the drop edit
+                    void *drop_edit = clause_edit(conflict_clause.id);
+                    DoublyLinkedList drop_element;
+                    drop_element.value = drop_edit;
+                    drop_element.prev = (*current_edit_ptr).prev;
+                    drop_element.next = current_edit_ptr;
+                    DoublyLinkedList *drop_element_ptr = (
+                        DoublyLinkedList *)malloc(sizeof(DoublyLinkedList));
+                    *drop_element_ptr = drop_element;
+                    DoublyLinkedList *prev = (*current_edit_ptr).prev;
+                    (*prev).next = drop_element_ptr;
+                    (*current_edit_ptr).prev = drop_element_ptr;
+                    new_count++;
+                    look_for_drop = false;
+                    insertions_made++;
+                    if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted drop edit\n", cnf.depth_str.c_str(), State::pid);
+                } else {
+                    int num_to_check = assigned_literals.count;
+                    while (num_to_check > 0) {
+                        int literal_var_id = assigned_literals.pop_from_front();
+                        if (literal_var_id == var_id) {
+                            // Drecrease clause size edit
+                            void *size_change = size_change_edit(
+                                conflict_clause.id, num_unsat + 1, num_unsat);
+                            FormulaEdit edit = *((FormulaEdit *)size_change);
+                            if (edit.edit_id == 688125) {
+                                printf("Inserting edit = %s before variable %d\n", edit_to_string(edit).c_str(), var_id);
+                            }
+                            DoublyLinkedList size_change_element;
+                            size_change_element.value = size_change;
+                            size_change_element.prev = (*current_edit_ptr).prev;
+                            size_change_element.next = current_edit_ptr;
+                            DoublyLinkedList *size_change_element_ptr = (
+                                DoublyLinkedList *)malloc(
+                                    sizeof(DoublyLinkedList));
+                            *size_change_element_ptr = size_change_element;
+                            DoublyLinkedList *prev = (*current_edit_ptr).prev;
+                            (*prev).next = size_change_element_ptr;
+                            (*current_edit_ptr).prev = size_change_element_ptr;
+                            new_count++;
+                            num_unsat++;
+                            insertions_made++;
+                            if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted decrement edit\n", cnf.depth_str.c_str(), State::pid);
+                            break;
+                        } else {
+                            assigned_literals.add_to_back(literal_var_id);
+                            num_to_check--;
+                        }
+                    }
+                }
+            } else {
+                if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: non-variable edit ignored\n", cnf.depth_str.c_str(), State::pid);
+                assert(current_edit.edit_id != conflict_clause.id);
+            }
+            current_edit_ptr = (*current_edit_ptr).next;
+            edits_seen++;
+        }
+        if (new_count != current_count) {
+            (cnf.edit_stack).count += (new_count - current_count);
+            (*current_iteration).value = new_count;
+            if (PRINT_LEVEL > 4) printf("%s\t\tPID %d: checked iteration (%d/%d), %d edits added\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, new_count - current_count);
+        } else {
+            if (PRINT_LEVEL > 4) printf("%s\t\tPID %d: checked iteration (%d/%d), no edits added\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check);
+        }
+        iterations_checked++;
+        current_iteration = (*current_iteration).next;
+    }
+    assert(assigned_literals.count == 0);
+    // Restore the change we made
+    cnf.local_edit_count = (cnf.edit_counts_stack).pop_from_front();
+    if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %d insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, insertions_made);
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.edit_stack));
+    if ((cnf.edit_counts_stack).count > 0) { 
+        if (PRINT_LEVEL > 3) printf("%s\tPID %d: new iteration edit counts = %s\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), 5).c_str());
+    }
+}
+
+// Sends messages to specified theives in light of conflict
+void State::inform_thieves_of_conflict(
+        Deque selected_thieves,
+        Clause conflict_clause,
+        Interconnect &interconnect,
+        bool invalidate)
+    {
+    for (int i = 0; i < selected_thieves.count; i++) {
+        void *thief_ptr = selected_thieves.pop_from_front();
+        GivenTask thief_task = *((GivenTask *)thief_ptr);
+        selected_thieves.add_to_back(thief_ptr);
+        short recipient_pid = thief_task.pid;
+        if (invalidate) {
+            interconnect.send_invalidation(recipient_pid);
+        } else {
+            interconnect.send_conflict_clause(recipient_pid, conflict_clause);
+        }
+    }
+}
+
+// Slits thieves based on midpoint (not included), populates results
+void State::split_thieves(
+        Task midpoint, 
+        Deque &thieves_before, 
+        Deque &thieves_after) 
+    {
+    bool seen_midpoint = false;
+    short num_thieves = (*State::thieves).count;
+    for (int i = 0; i < num_thieves; i++) {
+        void *thief_ptr = (*State::thieves).pop_from_front();
+        GivenTask thief_task = *((GivenTask *)thief_ptr);
+        (*State::thieves).add_to_back(thief_ptr);
+        if ((thief_task.var_id == midpoint.var_id) 
+            && (thief_task.assignment == midpoint.assignment)) {
+            seen_midpoint = true;
+            // Don't include midpoint
+            continue;
+        }
+        if (seen_midpoint) {
+            thieves_after.add_to_back(thief_ptr);
+        } else {
+            thieves_before.add_to_back(thief_ptr);
+        }
+    }
+}
+
+// Simply backtracks once and removes the first decided task(s)
+void State::simple_conflict_backtrack(Cnf &cnf, Deque &task_stack) {
+    // Remove the tasks that implied the conflict
+    if (task_stack.count > 0) {
+        Task top_task = get_task(task_stack);
+        assert(top_task.implier == -1);
+        if (!top_task.is_backtrack) {
+            State::num_non_trivial_tasks--;
+            if (task_stack.count > 0) {
+                Task next_task = get_task(task_stack);
+                assert(next_task.is_backtrack);
+                assert(next_task.var_id == top_task.var_id);
+            }
+            if (top_task.assignment) {
+                cnf.true_assignment_statuses[top_task.var_id] = 'u';
+            } else {
+                cnf.false_assignment_statuses[top_task.var_id] = 'u';
+            }
+        }
+    }
+    cnf.backtrack();
+}
+
+// Moves to lowest point in call stack when conflict clause is useful
+void State::backtrack_to_conflict_head(
+        Cnf &cnf, 
+        Deque &task_stack,
+        Clause conflict_clause,
+        Task lowest_bad_decision) 
+    {
+    if (PRINT_LEVEL > 0) printf("%sPID %d: backtrack to conflict head with lowest decision at var %d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id);
+    if (PRINT_LEVEL > 1) cnf.print_task_stack("Pre conflict backtrack", task_stack);
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack("Pre conflict backtrack", (cnf.edit_stack));
+    if (PRINT_LEVEL > 3) printf("%sPID %d: Pre conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
+    assert(cnf.get_num_unsat(conflict_clause) == 0);
+    int num_backtracks = 0;
+    assert(task_stack.count > 0);
+    Task current_task;
+    bool make_initial_backtrack = false;
+    if (task_stack.count >= 2) {
+        Task first_task = peak_task(task_stack);
+        Task second_task = peak_task(task_stack, 1);
+        Task opposite_first = opposite_task(first_task);
+        if (cnf.get_decision_status(opposite_first) == 'l') {
+            make_initial_backtrack = true;
+        }
+    } else {
+        make_initial_backtrack = true;
+    }
+    if (make_initial_backtrack) {
+        printf("Backtrack initial\n");
+        cnf.backtrack();
+        num_backtracks++;
+    }
+    bool tasks_equal = false;
+    while ((!tasks_equal) && (task_stack.count > 0)) {
+        // Clause is not useful to us, must backtrack more
+        current_task = get_task(task_stack);
+        tasks_equal = (lowest_bad_decision.var_id == current_task.var_id)
+            && (lowest_bad_decision.is_backtrack == current_task.is_backtrack);
+        
+        if (current_task.is_backtrack) {
+            if (!tasks_equal) {
+                printf("Backtrack explicit\n");
+                cnf.backtrack();
+                num_backtracks++;
+            }
+        } else {
+            if (current_task.assignment) {
+                cnf.true_assignment_statuses[current_task.var_id] = 'u';
+                if (PRINT_LEVEL >= 3) printf("%sPID %d: removed pre-conflict task {%d = T}\n", cnf.depth_str.c_str(), State::pid, current_task.var_id);
+            } else {
+                cnf.false_assignment_statuses[current_task.var_id] = 'u';
+                if (PRINT_LEVEL >= 3) printf("%sPID %d: removed pre-conflict task {%d = F}\n", cnf.depth_str.c_str(), State::pid, current_task.var_id);
+            }
+            State::num_non_trivial_tasks--;   
+        } 
+        if (PRINT_LEVEL > 5) cnf.print_task_stack("During backracking", task_stack);
+        if (PRINT_LEVEL > 5) cnf.print_edit_stack("During backracking", (cnf.edit_stack));
+    }
+    if (PRINT_LEVEL > 1) printf("%sPID %d: backtracked %d times\n", cnf.depth_str.c_str(), State::pid, num_backtracks);
+    cnf.print_task_stack("Post conflict backtrack", task_stack);
+    if (PRINT_LEVEL > 3) cnf.print_edit_stack("Post conflict backtrack", (cnf.edit_stack));
+    if (PRINT_LEVEL > 4) printf("%sPID %d: Post conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
+    assert(cnf.get_num_unsat(conflict_clause) >= 1);
+}
+
+// Adds tasks based on what a conflict clause says (always greedy)
+int State::add_tasks_from_conflict_clause(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Clause conflict_clause) 
+    {
+    if (PRINT_LEVEL > 3) printf("%sPID %d: adding tasks from conflict clause\n", cnf.depth_str.c_str(), State::pid);
+    int new_var_id;
+    bool new_var_sign;
+    int num_unsat = cnf.pick_from_clause(
+        conflict_clause, &new_var_id, &new_var_sign);
+    assert(0 < num_unsat);
+    if (PRINT_LEVEL > 1) printf("%sPID %d: picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, conflict_clause.id, cnf.clause_to_string_current(conflict_clause, false).c_str());
+    if (num_unsat == 1) {
+        void *only_task = make_task(new_var_id, conflict_clause.id, new_var_sign);
+        task_stack.add_to_front(only_task);
+        State::num_non_trivial_tasks++;
+        if (new_var_sign) {
+            cnf.true_assignment_statuses[new_var_id] = 'q';
+        } else {
+            cnf.false_assignment_statuses[new_var_id] = 'q';
+        }
+        if (PRINT_LEVEL >= 3) printf("%sPID %d: variable %d unit propped from conflict clause %d\n", cnf.depth_str.c_str(), State::pid, new_var_id, conflict_clause.id);
+        return 1;
+    } else {
+        // Add a backtrack task to do last
+        if (task_stack.count > 0) {
+            void *backtrack_task = make_task(new_var_id, -1, true, true);
+            task_stack.add_to_front(backtrack_task);
+        }
+        bool first_choice = new_var_sign;
+        void *important_task = make_task(new_var_id, -1, first_choice);
+        void *other_task = make_task(new_var_id, -1, !first_choice);
+        task_stack.add_to_front(other_task);
+        task_stack.add_to_front(important_task);
+        State::num_non_trivial_tasks += 2;
+        cnf.true_assignment_statuses[new_var_id] = 'q';
+        cnf.false_assignment_statuses[new_var_id] = 'q';
+        if (PRINT_LEVEL >= 3) printf("%sPID %d: variable %d explicitly decided from conflict clause %d\n", cnf.depth_str.c_str(), State::pid, new_var_id, conflict_clause.id);
+        return 2;
+    }
+}
+
+// Adds a conflict clause to the clause list
+void State::add_conflict_clause(
+        Cnf &cnf, 
+        Clause conflict_clause,
+        Deque &task_stack,
+        bool pick_from_clause) 
+    {
+    if (PRINT_LEVEL > 0) printf("%sPID %d: adding conflict clause\n", cnf.depth_str.c_str(), State::pid);
+    if (PRINT_LEVEL > 1) cnf.print_cnf("Before conflict clause", cnf.depth_str, (PRINT_LEVEL <= 3));
+    if (PRINT_LEVEL > 2) cnf.print_task_stack("Before conflict clause", task_stack);
+    if (PRINT_LEVEL > 2) printf("Conflict clause num unsat = %d\n", cnf.get_num_unsat(conflict_clause));
+    assert(clause_is_sorted(conflict_clause));
+    int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
+    conflict_clause.id = new_clause_id;
+    insert_conflict_clause_history(cnf, conflict_clause);
+    int *clause_id_ptr = (int *)malloc(sizeof(int));
+    *clause_id_ptr = new_clause_id;
+    for (int lit = 0; lit < conflict_clause.num_literals; lit++) {
+        int var_id = conflict_clause.literal_variable_ids[lit];
+        (*(((cnf.variables[var_id])).clauses_containing)).add_to_back(
+            (void *)clause_id_ptr);
+    }
+    // TODO: needs to be the right size
+    cnf.clauses.add_conflict_clause(conflict_clause);
+    int actual_size = cnf.get_num_unsat(conflict_clause);
+    if (actual_size == 0) {
+        cnf.clauses_dropped[new_clause_id] = true;
+        cnf.num_clauses_dropped++;
+        cnf.clauses.strip_clause(new_clause_id);
+    } else if (actual_size != conflict_clause.num_literals) {
+        printf("Changing conflict clause size to %d\n", actual_size);
+        cnf.clauses.change_clause_size(conflict_clause.id, actual_size);
+    }
+    cnf.clauses.reset_iterator();
+    bool conflict_first = (
+            cnf.clauses.get_current_clause().id == new_clause_id);
+    if ((task_stack.count == 0) || pick_from_clause || conflict_first) {
+        // Pick new tasks for next iteration
+        int num_added;
+        if (pick_from_clause || conflict_first) {
+            num_added = add_tasks_from_conflict_clause(
+                cnf, task_stack, conflict_clause);
+        } else {
+            num_added = add_tasks_from_formula(cnf, task_stack);
+        }
+        assert(num_added > 0);
+        if (num_added > 1) {
+            cnf.recurse();
+        }
+    }
+    if (PRINT_LEVEL > 1) printf("%sPID %d: added conflict clause %d\n", cnf.depth_str.c_str(), State::pid, new_clause_id);
+    if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
+    if (PRINT_LEVEL > 3) cnf.print_task_stack("With conflict clause", task_stack);
+}
+
+// Returns who is responsible for making the decision that runs contrary
+// to decided_conflict_literals, one of
+// 'l' (in local), 'r' (in remote), or 's' (in stealers).
+// Also populates the lowest (most-recent) bad decision made.
+char State::blame_decision(
+        Cnf &cnf,
+        Deque &task_stack,
+        Deque decided_conflict_literals, 
+        Task *lowest_bad_decision) 
+    {
+    if (PRINT_LEVEL > 1) printf("%sPID %d: blaming decision\n", cnf.depth_str.c_str(), State::pid);
+    char result = 'r';
+    if (decided_conflict_literals.count == 0) {
+        if (task_stack.count == 0) {
+            return result;
+        } else if (task_stack.count == 1) {
+            Task top_task = peak_task(task_stack);
+            top_task.assignment = !top_task.assignment;
+            *lowest_bad_decision = top_task;
+            return result;
+        }
+        Task top_task = peak_task(task_stack);
+        if (!top_task.is_backtrack) {
+            top_task = peak_task(task_stack, 1);
+        }
+        top_task.assignment = !top_task.assignment;
+        *lowest_bad_decision = top_task;
+        return result;
+    }
+    void **decided_literals_list = decided_conflict_literals.as_list();
+    for (int i = 0; i < decided_conflict_literals.count; i++) {
+        void *decision_ptr = decided_literals_list[i];
+        Assignment good_decision = *((Assignment *)decision_ptr);
+        Assignment bad_decision;
+        bad_decision.var_id = good_decision.var_id;
+        bad_decision.value = !good_decision.value;
+        char good_status = cnf.get_decision_status(good_decision);
+        char bad_status = cnf.get_decision_status(bad_decision);
+        // Then conflict clause is satisfied
+        assert(good_status != 'l');
+        // Ensure the conflict clause is unsatisfiable
+        assert((bad_status == 'l') || (bad_status == 'r'));
+        if (bad_status == 'l') {
+            if (good_status == 'u') {
+                // Should be queued or stolen
+                assert(false);
+            } else if (good_status == 'q') {
+                printf("%sPID %d: Blaming on bad choice of %d = %d locally\n", cnf.depth_str.c_str(), State::pid, bad_decision.var_id, (int)bad_decision.value);
+                result = 'l';
+                if (!DEBUG) {
+                    break;
+                }
+            } else if (good_status == 'r') {
+                // Can't locally assign something contrary to remote assignment
+                assert(false);
+            } else { // 's'
+                if (result == 'r') {
+                    result = 's';
+                }
+            }
+        } else { // 'r'
+            assert(good_status == 'u');
+        }
+    }
+    if (result == 'l') {
+        if (PRINT_LEVEL > 2) printf("%sPID %d: searching for local culprit\n", cnf.depth_str.c_str(), State::pid);
+        cnf.print_task_stack("should be in", task_stack);
+        // Find lowest bad decision locally (good one is queued up)
+        void **tasks = task_stack.as_list();
+        int num_tasks = task_stack.count;
+        // Check each task in order
+        for (int task_num = 0; task_num < num_tasks; task_num++) {
+            void *task_ptr = tasks[task_num];
+            Task task = *((Task *)task_ptr);
+            if (task_num == num_tasks - 1) {
+                // Don't expect it to be a backtrack task
+                if (task.is_backtrack) {
+                    continue;
+                }
+            } else {
+                // Should be a backtrack task
+                if (!task.is_backtrack) {
+                    continue;
+                }
+            }
+            // Check to see if the task is a bad decision
+            for (int i = 0; i < decided_conflict_literals.count; i++) {
+                void *decision_ptr = decided_literals_list[i];
+                Assignment good_decision = *((Assignment *)decision_ptr);
+                if (good_decision.var_id == task.var_id) {
+                    // Found!
+                    Task bad_decision;
+                    bad_decision.var_id = task.var_id;
+                    bad_decision.assignment = !task.assignment;
+                    bad_decision.implier = task.implier;
+                    bad_decision.is_backtrack = task.is_backtrack;
+                    *lowest_bad_decision = bad_decision;
+                    free(decided_literals_list);
+                    return result;
+                }
+            }
+        }
+        assert(false);
+    } else if (result == 's') {
+        if (PRINT_LEVEL > 2) printf("%sPID %d: searching for stolen culprit\n", cnf.depth_str.c_str(), State::pid);
+        // Find lowest bad decision as opposite of lowest stolen good decision 
+        void **stolen_tasks = (*State::thieves).as_list();
+        int num_tasks = (*State::thieves).count;
+        // Check each task in order
+        for (int task_num = 0; task_num < num_tasks; task_num++) {
+            void *task_ptr = stolen_tasks[task_num];
+            GivenTask task = *((GivenTask *)task_ptr);
+            // Check to see if the task is a bad decision
+            for (int i = 0; i < decided_conflict_literals.count; i++) {
+                void *decision_ptr = decided_literals_list[i];
+                Assignment good_decision = *((Assignment *)decision_ptr);
+                if (good_decision.var_id == task.var_id) {
+                    // Found!
+                    Task bad_decision;
+                    bad_decision.var_id = good_decision.var_id;
+                    bad_decision.assignment = !good_decision.value;
+                    bad_decision.is_backtrack = false;
+                    *lowest_bad_decision = bad_decision;
+                    free(decided_literals_list);
+                    return result;
+                }
+            }
+        }
+    }
+    free(decided_literals_list);
+    return result;
+}
+
+// Handles a recieved or locally-generated conflict clause
+void State::handle_conflict_clause(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Clause conflict_clause,
+        Interconnect &interconnect,
+        bool blamed_for_error)
+    {
+    int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
+    printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, false).c_str());
+    printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, true).c_str());
+    bool clause_value;
+    bool clause_satisfied = cnf.clause_satisfied(
+        conflict_clause, &clause_value);
+    // TODO: handle conflict clause reconstruction & message passing
+    if (cnf.clause_exists_already(conflict_clause)) {
+        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause already exists\n", cnf.depth_str.c_str(), State::pid);
+        assert(State::nprocs > 1);
+        if (blamed_for_error || (clause_satisfied && !clause_value)) {
+            // TODO: swap the clause forward
+        }
+        return;
+    } 
+    if (!clause_satisfied) {
+        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause unsatisfied\n", cnf.depth_str.c_str(), State::pid);
+        add_conflict_clause(cnf, conflict_clause, task_stack);
+        return;
+    } else if (clause_value) {
+        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause true already\n", cnf.depth_str.c_str(), State::pid);
+        print_assignment(State::pid, "current assignment: ", cnf.depth_str.c_str(), cnf.get_assignment(), cnf.num_variables, false, false);
+        add_conflict_clause(cnf, conflict_clause, task_stack);
+        return;
+    } else {
+        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause must be dealt with\n", cnf.depth_str.c_str(), State::pid);
+    }
+    // The places to backtrack to are those decided, not unit propagated.
+    // We save these beforehand, as backtacking will change whether
+    // we believe they are decided or unit propagated.
+    Deque decided_conflict_literals = cnf.get_decided_conflict_literals(
+        conflict_clause);
+    Task lowest_bad_decision;
+    char culprit = blame_decision(
+        cnf, task_stack, decided_conflict_literals, &lowest_bad_decision);
+    if (lowest_bad_decision.is_backtrack) {
+        printf("%sPID %d: Lowest bad decision B%d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id);
+    } else {
+        printf("%sPID %d: Lowest bad decision %d = %d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id, lowest_bad_decision.assignment);
+    }
+    assert(cnf.valid_lbd(decided_conflict_literals, lowest_bad_decision));
+    bool blame_remote = false;
+    switch (culprit) {
+        case 'l': {
+            // local is responsible
+            if (PRINT_LEVEL > 1) printf("%s\tPID %d: local is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
+            backtrack_to_conflict_head(
+                cnf, task_stack, conflict_clause, lowest_bad_decision);
+            add_conflict_clause(cnf, conflict_clause, task_stack);
+            inform_thieves_of_conflict(
+                (*State::thieves), conflict_clause, interconnect);
+            break;
+        } case 'r': {
+            assert(State::nprocs > 1);
+            // remote is responsible
+            if (PRINT_LEVEL > 1) printf("%s\tPID %d: remote is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
+            invalidate_work(task_stack);
+            inform_thieves_of_conflict(
+                (*State::thieves), conflict_clause, interconnect, true);
+            blame_remote = true;
+            break;
+        } case 's': {
+            assert(State::nprocs > 1);
+            // thieves are responsible
+            if (PRINT_LEVEL > 1) printf("%s\tPID %d: thieves are responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
+            invalidate_work(task_stack);
+            Deque thieves_to_invalidate;
+            Deque thieves_to_give;
+            split_thieves(
+                lowest_bad_decision, thieves_to_invalidate, thieves_to_give);
+            inform_thieves_of_conflict(
+                thieves_to_invalidate, conflict_clause, interconnect, true);
+            inform_thieves_of_conflict(
+                thieves_to_give, conflict_clause, interconnect);
+            break;
+        }
+    }
+    if (State::current_task.pid != -1) {
+        // Send conflict clause to remote
+        interconnect.send_conflict_clause(
+            State::current_task.pid, conflict_clause, blame_remote);
+    }
+    decided_conflict_literals.free_data();
+    if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
+    if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
 }
 
 // Adds one or two variable assignment tasks to task stack
-int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
+int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
+    if (PRINT_LEVEL > 3) printf("%sPID %d: adding tasks from formula\n", cnf.depth_str.c_str(), State::pid);
     cnf.clauses.reset_iterator();
     Clause current_clause = cnf.clauses.get_current_clause();
     int current_clause_id = current_clause.id;
@@ -470,29 +1275,47 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
     bool new_var_sign;
     int num_unsat = cnf.pick_from_clause(
         current_clause, &new_var_id, &new_var_sign);
-    if (PRINT_LEVEL > 1) printf("%sPID %d picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, false).c_str());
+    assert(0 < num_unsat);
+    if (PRINT_LEVEL > 1) printf("%sPID %d: picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, true).c_str());
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, current_clause_id, new_var_sign);
         task_stack.add_to_front(only_task);
         State::num_non_trivial_tasks++;
+        if (new_var_sign) {
+            cnf.true_assignment_statuses[new_var_id] = 'q';
+        } else {
+            cnf.false_assignment_statuses[new_var_id] = 'q';
+        }
+        if (PRINT_LEVEL >= 3) printf("%sPID %d: variable %d unit propped\n", cnf.depth_str.c_str(), State::pid, new_var_id);
         return 1;
     } else {
-        // Add an undo task to do last
-        if (!skip_undo && (task_stack.count > 0)) {
-            void *undo_task = make_task(-1, -1, true);
-            task_stack.add_to_front(undo_task);
+        // Add a backtrack task to do last
+        if (task_stack.count > 0) {
+            void *backtrack_task = make_task(new_var_id, -1, true, true);
+            task_stack.add_to_front(backtrack_task);
         }
         bool first_choice;
-        if (State::explicit_true) {
+        if (State::assignment_method == 0) {
+            // Pick greedy
+            first_choice = new_var_sign;
+        } else if (State::assignment_method == 1) {
+            // Pick opposite of greedy
+            first_choice = !new_var_sign;
+        } else if (State::assignment_method == 2) {
+            // Always set true
             first_choice = true;
         } else {
-            first_choice = State::pick_greedy ? new_var_sign : !new_var_sign;
+            // Always set fakse
+            first_choice = false;
         }
         void *important_task = make_task(new_var_id, -1, first_choice);
         void *other_task = make_task(new_var_id, -1, !first_choice);
         task_stack.add_to_front(other_task);
         task_stack.add_to_front(important_task);
         State::num_non_trivial_tasks += 2;
+        cnf.true_assignment_statuses[new_var_id] = 'q';
+        cnf.false_assignment_statuses[new_var_id] = 'q';
+        if (PRINT_LEVEL >= 3) printf("%sPID %d: variable %d explicitly decided\n", cnf.depth_str.c_str(), State::pid, new_var_id);
         return 2;
     }
 }
@@ -500,61 +1323,81 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
 // Displays data structure data for debugging purposes
 void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
-    if (PRINT_LEVEL > 3) cnf.print_edit_stack(prefix_str, *(cnf.edit_stack));
-    if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, (PRINT_LEVEL >= 2));
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.edit_stack));
+    if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, true);
     if (PRINT_LEVEL > 4) print_compressed(
         cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
 }
 
 // Runs one iteration of the solver
-bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
+bool State::solve_iteration(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
     unsigned int vars_assigned_at_start = cnf.num_vars_assigned;
     State::calls_to_solve++;
     assert(State::num_non_trivial_tasks > 0);
-    task_stack_invariant(task_stack, State::num_non_trivial_tasks);
-    if (PRINT_LEVEL >= 5) printf("\n");
+    assert(task_stack_invariant(cnf, task_stack, State::num_non_trivial_tasks));
+    if (PRINT_LEVEL >= 3) printf("\n");
+    Clause conflict_clause;
     Task task = get_task(task_stack);
     int var_id = task.var_id;
     int assignment = task.assignment;
     int implier = task.implier;
-    if (var_id == -1) { // Children backtracked, need to backtrack ourselves
+    if (task.is_backtrack) { // Children backtracked, need to backtrack ourselves
         print_data(cnf, task_stack, "Children backtrack");
         cnf.backtrack();
         return false;
     } else {
         State::num_non_trivial_tasks--;
     }
-    if (print_index == 100 && PRINT_PROGRESS) {
+    if ((State::current_cycle % CYCLES_TO_PRINT_PROGRESS == 0) && PRINT_PROGRESS) {
         print_progress(cnf, task_stack);
-        print_index = 0;
+        if (State::current_cycle == std::max(
+            CYCLES_TO_PRINT_PROGRESS, CYCLES_TO_RECEIVE_MESSAGES)) {
+            State::current_cycle = 0;
+        }
     }
-    print_index++;
+    State::current_cycle++;
     while (true) {
-        task_stack_invariant(task_stack, State::num_non_trivial_tasks);
-        if (PRINT_LEVEL > 1) printf("%sPID %d Attempting %d = %d\n", cnf.depth_str.c_str(), State::pid, var_id, assignment);
-        print_data(cnf, task_stack, "Loop start");
-        if (!cnf.propagate_assignment(var_id, assignment, implier)) {
+        if (PRINT_LEVEL > 3) print_data(cnf, task_stack, "Loop start");
+        if (!cnf.propagate_assignment(
+            var_id, assignment, implier, conflict_clause)) {
             // Conflict clause found
             print_data(cnf, task_stack, "Prop fail");
-            cnf.backtrack();
+            if (ENABLE_CONFLICT_RESOLUTION) {
+                handle_conflict_clause(
+                    cnf, task_stack, conflict_clause, interconnect);
+            } else {
+                cnf.backtrack();
+            }
             return false;
         }
         if (State::use_smart_prop) {
-            if (!cnf.smart_propagate_assignment(var_id, assignment, implier)) {
+            if (!cnf.smart_propagate_assignment(
+                var_id, assignment, implier, conflict_clause)) {
                 // Conflict clause found
                 print_data(cnf, task_stack, "Smart prop fail");
-                cnf.backtrack();
+                if (ENABLE_CONFLICT_RESOLUTION) {
+                    handle_conflict_clause(
+                        cnf, task_stack, conflict_clause, interconnect);
+                } else {
+                    cnf.backtrack();
+                }
                 return false;
             }
         }
+        assert(task_stack_invariant(
+            cnf, task_stack, State::num_non_trivial_tasks));
         if (cnf.clauses.get_linked_list_size() == 0) {
             if (PRINT_PROGRESS) print_progress(cnf, task_stack);
             cnf.assign_remaining();
             print_data(cnf, task_stack, "Base case success");
             return true;
         }
-        print_data(cnf, task_stack, "Loop end");
-        int num_added = add_tasks_from_formula(cnf, task_stack, false);
+        if (PRINT_LEVEL > 3) print_data(cnf, task_stack, "Loop end");
+        int num_added = add_tasks_from_formula(cnf, task_stack);
         if (num_added == 1) {
             Task task = get_task(task_stack);
             var_id = task.var_id;
@@ -572,7 +1415,7 @@ bool State::solve_iteration(Cnf &cnf, Deque &task_stack) {
 // the current thread.
 bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
     if (interconnect.pid == 0) {
-        add_tasks_from_formula(cnf, task_stack, true);
+        add_tasks_from_formula(cnf, task_stack);
         assert(task_stack.count > 0);
     }
     while (!State::process_finished) {
@@ -592,21 +1435,27 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             }
         }
         if (State::process_finished) break;
-        bool result = solve_iteration(cnf, task_stack);
-        assert(State::num_non_trivial_tasks >= 0);
+        bool result = solve_iteration(cnf, task_stack, interconnect);
         if (result) {
+            assert(State::num_non_trivial_tasks >= 0);
             abort_others(interconnect, true);
             abort_process(true);
             return true;
         }
-        if (print_index % 10 == 0) {
+        if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {
             while (interconnect.async_receive_message(message) && !State::process_finished) {
                 handle_message(message, cnf, task_stack, interconnect);
-                // TODO: serve work here?
+                // NICE: serve work here?
+            }
+            if (State::current_cycle == std::max(
+                CYCLES_TO_PRINT_PROGRESS, CYCLES_TO_RECEIVE_MESSAGES)) {
+                State::current_cycle = 0;
             }
         }
-        while (workers_requesting() && can_give_work(task_stack, interconnect)) {
-            give_work(cnf, task_stack, interconnect);
+        if (!out_of_work()) { // Serve ourselves before others
+            while (workers_requesting() && can_give_work(task_stack, interconnect)) {
+                give_work(cnf, task_stack, interconnect);
+            }
         }
     }
     return false;

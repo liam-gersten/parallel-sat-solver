@@ -27,11 +27,10 @@ void run_filename(int argc, char *argv[]) {
     // Read command line arguments
     int opt;
     short branching_factor = 2;
-    bool pick_greedy = false;
+    short assignment_method = 1;
     bool use_smart_prop = true;
-    bool explicit_true = false;
     int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "f:b:g:s:e:r:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -39,14 +38,11 @@ void run_filename(int argc, char *argv[]) {
         case 'b':
             branching_factor = (short)atoi(optarg);
             break;
-        case 'g':
-            pick_greedy = (bool)atoi(optarg);
+        case 'm':
+            assignment_method = (short)atoi(optarg);
             break;
         case 's':
             use_smart_prop = (bool)atoi(optarg);
-            break;
-        case 'e':
-            explicit_true = (bool)atoi(optarg);
             break;
         case 'r':
             reduction_method = (int)atoi(optarg);
@@ -64,11 +60,12 @@ void run_filename(int argc, char *argv[]) {
     int **constraints = read_puzzle_file(
         input_filename, &n, &sqrt_n, &num_constraints);
 
-    Cnf cnf(pid, constraints, n, sqrt_n, num_constraints, reduction_method);
+    Cnf cnf(pid, nproc, constraints, n, 
+        sqrt_n, num_constraints, reduction_method);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, use_smart_prop, explicit_true);
+        assignment_method, use_smart_prop);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -91,6 +88,7 @@ void run_filename(int argc, char *argv[]) {
             // somone else has the solution
             return;
         }
+        std::cout << "Solution computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
     } else {
         // No solution was found
         raise_error("No solution was found");
@@ -120,11 +118,10 @@ void run_example_1(int argc, char *argv[]) {
     // Read command line arguments
     int opt;
     short branching_factor = 2;
-    bool pick_greedy = false;
+    short assignment_method = 1;
     bool use_smart_prop = true;
-    bool explicit_true = false;
     int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "f:b:g:s:e:r:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -132,14 +129,11 @@ void run_example_1(int argc, char *argv[]) {
         case 'b':
             branching_factor = (short)atoi(optarg);
             break;
-        case 'g':
-            pick_greedy = (bool)atoi(optarg);
+        case 'm':
+            assignment_method = (short)atoi(optarg);
             break;
         case 's':
             use_smart_prop = (bool)atoi(optarg);
-            break;
-        case 'e':
-            explicit_true = (bool)atoi(optarg);
             break;
         case 'r':
             reduction_method = (int)atoi(optarg);
@@ -154,7 +148,7 @@ void run_example_1(int argc, char *argv[]) {
     int num_variables = 7;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
-    Clauses input_clauses(30, 0);
+    Clauses input_clauses(30, 20);
 
     for (int i = 0; i < num_variables; i++) {
         VariableLocations current;
@@ -170,9 +164,9 @@ void run_example_1(int argc, char *argv[]) {
     }
     Clause C1 = make_small_clause(0, 1, false, true);
     Clause C2 = make_small_clause(2, 3, false, true);
-    Clause C3 = make_triple_clause(5, 4, 1, false, false, false);
-    Clause C4 = make_small_clause(4, 5, false, true);
-    Clause C5 = make_small_clause(4, 6, true, true);
+    Clause C3 = make_small_clause(4, 5, false, true);
+    Clause C4 = make_small_clause(4, 6, true, true);
+    Clause C5 = make_triple_clause(1, 4, 5, false, false, false);
     Clause C6 = make_triple_clause(0, 4, 6, false, true, false);
 
     add_clause(C1, input_clauses, input_variables);
@@ -182,12 +176,12 @@ void run_example_1(int argc, char *argv[]) {
     add_clause(C5, input_clauses, input_variables);
     add_clause(C6, input_clauses, input_variables);
 
-    Cnf cnf(pid, input_clauses, input_variables, num_variables);
+    Cnf cnf(pid, 1, input_clauses, input_variables, num_variables);
 
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, use_smart_prop, explicit_true);
+        assignment_method, use_smart_prop);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -217,7 +211,7 @@ void run_example_1(int argc, char *argv[]) {
     
     bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
-        print_assignment((short)pid, "", "", assignment, cnf.num_variables);
+        print_assignment((short)pid, "", "", assignment, cnf.num_variables, true);
     }
 }
 
@@ -255,8 +249,8 @@ void print_memory_stats() {
         std::string suffix = "";
         truncate_size(max_edit_stack_size, suffix);
         printf("\tedit_stack_size =       %llu %s\n", max_edit_stack_size, suffix.c_str());
-        unsigned long long int work_queue_element_size = 20; // Doubly linked list
-        unsigned long long int max_work_queue_size = (2 * v) * work_queue_element_size;
+        unsigned long long int work_queue_element_size = 16 + 8 + 4 + 4 + 1; // Doubly linked list
+        unsigned long long int max_work_queue_size = (3 * v) * work_queue_element_size;
         suffix = "";
         truncate_size(max_work_queue_size, suffix);
         printf("\twork_queue_size =       %llu %s\n", max_work_queue_size, suffix.c_str());

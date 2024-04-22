@@ -14,32 +14,36 @@ class State {
         short parent_id;
         short num_children;
         short branching_factor;
-        char *cchild_statuses; 
+        char *child_statuses; 
         // 'r' (requesting), 
         // 'u' (urgently requesting), 
         // 'w' (working)
-        char *rrequests_sent; 
+        char *requests_sent; 
         // 'r' (request),
         // 'u' (urgent request),
         // 'n' (none)
-        short nnum_requesting;
-        short nnum_urgent;
+        short num_requesting;
+        short num_urgent;
         int num_non_trivial_tasks;
         bool process_finished;
         bool was_explicit_abort;
         unsigned long long int calls_to_solve;
-        bool pick_greedy;
+        short assignment_method;
+        // 0 greedy
+        // 1 opposite of greedy
+        // 2 always set True
+        // 3 always set False
         bool use_smart_prop;
-        bool explicit_true;
-        short print_index;
+        int current_cycle;
+        Deque *thieves;
+        GivenTask current_task;
 
         State(
             short pid, 
             short nprocs, 
             short branching_factor, 
-            bool pick_greedy,
-            bool use_smart_prop,
-            bool explicit_true);
+            short assignment_method,
+            bool use_smart_prop);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);
@@ -61,6 +65,12 @@ class State {
 
         // Returns whether the state is able to supply work to requesters
         bool can_give_work(Deque task_stack, Interconnect interconnect);
+
+        // Ensures the task stack is a valid one, returns result
+        bool task_stack_invariant(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            int supposed_num_tasks);
         
         // Applies an edit to the given compressed CNF
         void apply_edit_to_compressed(
@@ -69,7 +79,10 @@ class State {
             FormulaEdit edit);
         
         // Grabs work from the top of the task stack, updates Cnf structures
-        void *grab_work_from_stack(Cnf &cnf, Deque &task_stack);
+        void *grab_work_from_stack(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            short recipient_pid);
         
         // Picks recipient index to give work to
         short pick_work_recipient();
@@ -95,6 +108,9 @@ class State {
         // Asks parent or children for work, called once when we finish our work
         void ask_for_work(Cnf &cnf, Interconnect &interconnect);
 
+        // Invalidates (erases) ones work
+        void invalidate_work(Deque &task_stack);
+        
         // Empties/frees data structures and immidiately returns
         void abort_process(bool explicit_abort = false);
 
@@ -125,11 +141,72 @@ class State {
             Deque &task_stack, 
             Interconnect &interconnect);
 
+        // Edits history to make it appear as though the conflict clause is
+        // normal.
+        void insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause);
+
+        // Sends messages to specified theives in light of conflict
+        void inform_thieves_of_conflict(
+            Deque selected_thieves,
+            Clause conflict_clause,
+            Interconnect &interconnect,
+            bool invalidate = false);
+        
+        // Slits thieves based on midpoint (not included), populates results
+        void split_thieves(
+            Task midpoint, 
+            Deque &thieves_before, 
+            Deque &thieves_after);
+        
+        // Simply backtracks once and removes the first decided task(s)
+        void simple_conflict_backtrack(Cnf &cnf, Deque &task_stack);
+        
+        // Moves to lowest point in call stack when conflict clause is useful
+        void backtrack_to_conflict_head(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Clause conflict_clause,
+            Task lowest_bad_decision);
+
+        // Adds tasks based on what a conflict clause says (always greedy)
+        int add_tasks_from_conflict_clause(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Clause conflict_clause);
+        
+        // Adds a conflict clause to the clause list
+        void add_conflict_clause(
+            Cnf &cnf, 
+            Clause conflict_clause,
+            Deque &task_stack,
+            bool pick_from_clause = false);
+        
+        // Returns who is responsible for making the decision that runs contrary
+        // to decided_conflict_literals, one of
+        // 'l' (in local), 'r' (in remote), or 's' (in stealers).
+        // Also populates the lowest (most-recent) bad decision made.
+        char blame_decision(
+            Cnf &cnf,
+            Deque &task_stack,
+            Deque decided_conflict_literals, 
+            Task *lowest_bad_decision);
+        
+        // Handles a recieved or locally-generated conflict clause
+        void handle_conflict_clause(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Clause conflict_clause,
+            Interconnect &interconnect,
+            bool blamed_for_error = true);
+
         // Adds one or two variable assignment tasks to task stack
-        int add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo);
+        int add_tasks_from_formula(Cnf &cnf, Deque &task_stack);
         
         // Runs one iteration of the solver
-        bool solve_iteration(Cnf &cnf, Deque &task_stack);
+        bool solve_iteration(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
 
         // Continues solve operation, returns true iff a solution was found by
         // the current thread.

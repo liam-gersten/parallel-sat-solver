@@ -65,6 +65,19 @@ void Interconnect::send_abort_message(short recipient) {
   if (PRINT_INTERCONNECT) printf(" I(message type 4 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
+// Sends an invalidation message
+void Interconnect::send_invalidation(short recipient) {
+  // TODO: implement this
+}
+
+// Sends a conflict clause to a recipient
+void Interconnect::send_conflict_clause(
+    short recipient, 
+    Clause conflict_clause, 
+    bool blame_recipient) {
+  // TODO: implement this
+}
+
 // Returns whether there is already work stashed from a sender, or
 // from anyone if sender is -1.
 bool Interconnect::have_stashed_work(short sender) {

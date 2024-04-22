@@ -28,10 +28,11 @@ class Cnf {
     public:
         Clauses clauses; // dynamic number
         VariableLocations *variables; // static number
-        Deque *edit_stack;
-        IntDeque *edit_counts_stack;
+        Deque edit_stack;
+        IntDeque edit_counts_stack;
         unsigned int *oldest_compressed;
         short pid;
+        short nprocs;
         int local_edit_count;
         int num_variables;
         int num_conflict_to_hold;
@@ -41,6 +42,16 @@ class Cnf {
         bool *clauses_dropped;
         bool *assigned_true;
         bool *assigned_false;
+        // Used to determine who needs a conflict clause
+        // 'u': unassigned
+        // 'l': assigned locally
+        // 'q': queued locally
+        // 'r': assigned remotely (by parent)
+        // 's': stolen another thread
+        char *true_assignment_statuses;
+        char *false_assignment_statuses;
+        int *assignment_times;
+        int current_time;
         unsigned int num_clauses_dropped;
         unsigned int num_vars_assigned;
         int n;
@@ -50,7 +61,8 @@ class Cnf {
 
         // Makes CNF formula from inputs
         Cnf(
-            short pid, 
+            short pid,
+            short nprocs,
             int **constraints, 
             int n, 
             int sqrt_n, 
@@ -59,6 +71,7 @@ class Cnf {
         // Makes CNF formula from premade data structures
         Cnf(
             short pid,
+            short nprocs,
             Clauses input_clauses, 
             VariableLocations *input_variables, 
             int num_variables);
@@ -79,6 +92,9 @@ class Cnf {
         // Testing method only
         bool clauses_equal(Clause a, Clause b);
 
+        // Returns whethere every variable has at most one truth value
+        bool valid_truth_assignments();
+
         // Gets string representation of edited clause
         std::string clause_to_string_current(Clause clause, bool elimination);
 
@@ -91,35 +107,79 @@ class Cnf {
         // Prints out the task stack
         void print_task_stack(
             std::string prefix_string, 
-            Deque &task_stack);
+            Deque &task_stack,
+            int upto = 20);
 
         // Prints out the task stack
         void print_edit_stack(
             std::string prefix_string, 
-            Deque &edit_stack);
+            Deque &edit_stack,
+            int upto = 20);
 
+        // Returns whether a there is already a decided variable set edit.
+        // Populates passed var_id with the decided one found if so.
+        bool decided_variable_in_local_edits(int *var_id);
+
+        // Adds edit edit to edit stack, checks assertion
+        void add_to_edit_stack(void *raw_edit);
+        
+        // Gets the status of a variable decision (task)
+        char get_decision_status(Assignment decision);
+
+        // Gets the status of a variable decision (task)
+        char get_decision_status(Task decision);
+
+        // Returns whether we have a valid lowest bad decision
+        bool valid_lbd(
+            Deque decided_conflict_literals, 
+            Task lowest_bad_decision);
+        
         // Picks unassigned variable from the clause, returns the number of unsats
         int pick_from_clause(Clause clause, int *var_id, bool *var_sign);
 
+        // Just returns the number of unsatisfied literals in a clause
+        int get_num_unsat(Clause clause);
+
         // Gets the status of a clause, 's', 'u', or 'n'.
         char check_clause(Clause clause, int *num_unsat);
+        
+        // A shortened version of a conflict clause containing only the literals
+        // (Assignment structs) that are decided, not unit propagated.
+        Deque get_decided_conflict_literals(Clause conflict_clause);
+        
+        // Returns whether a clause already exists
+        bool clause_exists_already(Clause new_clause);
 
-        // Adds a new conflict clause to the CNF
-        void add_conflict_clause(Clause new_clause, int inducing_clause_id);
+        // Returns whether a clause is satisfied already, populating the result
+        bool clause_satisfied(Clause clause, bool *result);
 
+        // Returns whether a clause id is for a conflict clause
+        bool is_conflict_clause(int clause_id);
+        
         // Resolves two clauses, returns the resulting clause
         Clause resolve_clauses(Clause A, Clause B, int variable);
         
-        // Performs resoltion, returning true if successful
-        bool conflict_resolution(int conflict_clause_id, Clause &result);
+        // Sorts (in place) the variables by decreasing assignment time
+        void sort_variables_by_assignment_time(int *variables, int num_vars);
+        
+        // Performs resoltion, populating the result clause
+        void conflict_resolution(int culprit_id, Clause &result);
 
         // Updates formula with given assignment.
-        // Returns false on failure and populates conflict id.
-        bool propagate_assignment(int var_id, bool value, int implier);
+        // Returns false on failure and populates Conflict clause.
+        bool propagate_assignment(
+            int var_id,
+            bool value, 
+            int implier, 
+            Clause &conflict_clause);
 
         // Uses Sudoku context with variable indexing to immidiately assign
         // other variables
-        bool smart_propagate_assignment(int var_id, bool value, int implier);
+        bool smart_propagate_assignment(
+            int var_id, 
+            bool value, 
+            int implier,
+            Clause &conflict_clause);
         
         // Returns the assignment of variables
         bool *get_assignment();
@@ -141,7 +201,7 @@ class Cnf {
 
         // Returns the task embedded in the work received
         Task extract_task_from_work(void *work);
-        
+
         // Reconstructs one's own formula (state) from an integer representation
         void reconstruct_state(void *work, Deque &task_stack);
 
