@@ -28,18 +28,20 @@ class State {
         bool process_finished;
         bool was_explicit_abort;
         unsigned long long int calls_to_solve;
-        bool pick_greedy;
+        short assignment_method;
+        // 0 greedy
+        // 1 opposite of greedy
+        // 2 always set True
+        // 3 always set False
         bool use_smart_prop;
-        bool explicit_true;
         short print_index;
 
         State(
             short pid, 
             short nprocs, 
             short branching_factor, 
-            bool pick_greedy,
-            bool use_smart_prop,
-            bool explicit_true);
+            short assignment_method,
+            bool use_smart_prop);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);

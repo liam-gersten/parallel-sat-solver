@@ -27,11 +27,10 @@ void run_filename(int argc, char *argv[]) {
     // Read command line arguments
     int opt;
     short branching_factor = 2;
-    bool pick_greedy = false;
+    short assignment_method = 1;
     bool use_smart_prop = true;
-    bool explicit_true = false;
     int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "f:b:g:s:e:r:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -39,14 +38,11 @@ void run_filename(int argc, char *argv[]) {
         case 'b':
             branching_factor = (short)atoi(optarg);
             break;
-        case 'g':
-            pick_greedy = (bool)atoi(optarg);
+        case 'm':
+            assignment_method = (short)atoi(optarg);
             break;
         case 's':
             use_smart_prop = (bool)atoi(optarg);
-            break;
-        case 'e':
-            explicit_true = (bool)atoi(optarg);
             break;
         case 'r':
             reduction_method = (int)atoi(optarg);
@@ -68,7 +64,7 @@ void run_filename(int argc, char *argv[]) {
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, use_smart_prop, explicit_true);
+        assignment_method, use_smart_prop);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -120,11 +116,10 @@ void run_example_1(int argc, char *argv[]) {
     // Read command line arguments
     int opt;
     short branching_factor = 2;
-    bool pick_greedy = false;
+    short assignment_method = 1;
     bool use_smart_prop = true;
-    bool explicit_true = false;
     int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "f:b:g:s:e:r:")) != -1) {
+    while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
         switch (opt) {
         case 'f':
             input_filename = optarg;
@@ -132,14 +127,11 @@ void run_example_1(int argc, char *argv[]) {
         case 'b':
             branching_factor = (short)atoi(optarg);
             break;
-        case 'g':
-            pick_greedy = (bool)atoi(optarg);
+        case 'm':
+            assignment_method = (short)atoi(optarg);
             break;
         case 's':
             use_smart_prop = (bool)atoi(optarg);
-            break;
-        case 'e':
-            explicit_true = (bool)atoi(optarg);
             break;
         case 'r':
             reduction_method = (int)atoi(optarg);
@@ -187,7 +179,7 @@ void run_example_1(int argc, char *argv[]) {
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        pick_greedy, use_smart_prop, explicit_true);
+        assignment_method, use_smart_prop);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();

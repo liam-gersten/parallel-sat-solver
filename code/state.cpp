@@ -5,9 +5,8 @@ State::State(
         short pid, 
         short nprocs, 
         short branching_factor, 
-        bool pick_greedy,
-        bool use_smart_prop,
-        bool explicit_true) 
+        short assignment_method,
+        bool use_smart_prop) 
     {
     State::pid = pid;
     State::nprocs = nprocs;
@@ -46,9 +45,8 @@ State::State(
     State::process_finished = false;
     State::was_explicit_abort = false;
     State::calls_to_solve = 0;
-    State::pick_greedy = pick_greedy;
+    State::assignment_method = assignment_method;
     State::use_smart_prop = use_smart_prop;
-    State::explicit_true = explicit_true;
     State::print_index = 0;
 }
 
@@ -483,10 +481,18 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack, bool skip_undo) {
             task_stack.add_to_front(undo_task);
         }
         bool first_choice;
-        if (State::explicit_true) {
+        if (State::assignment_method == 0) {
+            // Pick greedy
+            first_choice = new_var_sign;
+        } else if (State::assignment_method == 1) {
+            // Pick opposite of greedy
+            first_choice = !new_var_sign;
+        } else if (State::assignment_method == 2) {
+            // Always set true
             first_choice = true;
         } else {
-            first_choice = State::pick_greedy ? new_var_sign : !new_var_sign;
+            // Always set fakse
+            first_choice = false;
         }
         void *important_task = make_task(new_var_id, -1, first_choice);
         void *other_task = make_task(new_var_id, -1, !first_choice);
