@@ -717,9 +717,8 @@ bool Clauses::working_on_conflict_clauses() {
         return true;
     } else if (normal_size < conflict_size) {
         return false;
-    } else {
-        return true;
     }
+    return true;
 }
 
 // Gets clause at iterator
