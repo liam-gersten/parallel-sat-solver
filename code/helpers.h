@@ -8,29 +8,25 @@
 
 #define PRINT_INTERCONNECT 0
 
-#define PRINT_PROGRESS 0
+#define PRINT_PROGRESS 1
 
 #define PRINT_INDENT 1
 
 #define CONCISE_FORMULA 1
 
-#define ALWAYS_PREFER_CONFLICT_CLAUSES 0
+#define ALWAYS_PREFER_CONFLICT_CLAUSES 1
 
-#define BIAS_CLAUSES_OF_SIZES_CHANGED 1
+#define BIAS_CLAUSES_OF_SIZES_CHANGED 0
 
 #define CYCLES_TO_PRINT_PROGRESS 1
 
 #define CYCLES_TO_RECEIVE_MESSAGES 1
 
-#define ENABLE_CONFLICT_RESOLUTION 1
+#define ENABLE_CONFLICT_RESOLUTION 0
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1
 #define DNDEBUG false
-#endif
-
-#ifndef DEBUG
-#define DEBUG !DNDEBUG
 #endif
 
 // Will have fixed allocation size
@@ -83,12 +79,20 @@ struct Assignment {
     bool value;
 };
 
+struct GridAssignment {
+    int row;
+    int col;
+    int value;
+};
+
 // Reads input puzzle file to arrays
 int **read_puzzle_file(
     std::string input_filename,
     int *n_ptr,
     int *sqrt_n_ptr,
-    int *num_constraints_ptr);
+    int *num_constraints_ptr,
+    int *num_assingments_ptr,
+    GridAssignment *&assignments);
 
 // Makes a task from inputs
 void *make_task(
@@ -291,6 +295,9 @@ class Clauses {
     // Adds clause to conflict clause list, O(1)
     void add_conflict_clause(Clause clause);
 
+    // Returns whether a clause id is for a conflict clause
+    bool is_conflict_clause(int clause_id);
+
     // Removes from the list, pointer saved in index still, easy to re-add
     void strip_clause(int clause_id);
 
@@ -412,6 +419,9 @@ bool backtrack_at_top(Deque task_stack);
 
 // Returns whether the front of the stack says to backtrack
 bool backtrack_at_front(Deque task_stack);
+
+// Returns whether the first task is one requiring a recurse() call
+bool recurse_required(Deque task_stack);
 
 struct IntDoublyLinkedList {
     IntDoublyLinkedList *prev;

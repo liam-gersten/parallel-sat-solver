@@ -67,7 +67,9 @@ class Cnf {
             int n, 
             int sqrt_n, 
             int num_constraints,
-            int reduction_method);
+            int num_assignments,
+            int reduction_method,
+            GridAssignment *assignments);
         // Makes CNF formula from premade data structures
         Cnf(
             short pid,
@@ -84,7 +86,11 @@ class Cnf {
         void reduce_puzzle_clauses_truncated(int n, int sqrt_n);
 
         // Original version with lowest variable count
-        void reduce_puzzle_original(int n, int sqrt_n);
+        void reduce_puzzle_original(
+            int n, 
+            int sqrt_n, 
+            int num_assignments,
+            GridAssignment *assignments);
         
         // Initializes CNF compression
         void init_compression();
@@ -162,8 +168,9 @@ class Cnf {
         // Sorts (in place) the variables by decreasing assignment time
         void sort_variables_by_assignment_time(int *variables, int num_vars);
         
-        // Performs resoltion, populating the result clause
-        void conflict_resolution(int culprit_id, Clause &result);
+        // Performs resoltion, populating the result clause.
+        // Returns whether a result could be generated.
+        bool conflict_resolution(int culprit_id, Clause &result);
 
         // Updates formula with given assignment.
         // Returns false on failure and populates Conflict clause.
@@ -171,7 +178,7 @@ class Cnf {
             int var_id,
             bool value, 
             int implier, 
-            Clause &conflict_clause);
+            int *conflict_id);
 
         // Uses Sudoku context with variable indexing to immidiately assign
         // other variables
@@ -179,7 +186,7 @@ class Cnf {
             int var_id, 
             bool value, 
             int implier,
-            Clause &conflict_clause);
+            int *conflict_id);
         
         // Returns the assignment of variables
         bool *get_assignment();

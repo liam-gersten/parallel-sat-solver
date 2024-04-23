@@ -16,7 +16,9 @@ int **read_puzzle_file(
         std::string input_filename,
         int *n_ptr,
         int *sqrt_n_ptr,
-        int *num_constraints_ptr) 
+        int *num_constraints_ptr,
+        int *num_assingments_ptr,
+        GridAssignment *&assignments) 
     {
     std::ifstream fin(input_filename);
 
@@ -29,28 +31,43 @@ int **read_puzzle_file(
     int n;
     int sqrt_n;
     int num_constraints;
-    fin >> n >> sqrt_n >> num_constraints;
+    int num_assignments;
+    fin >> n >> sqrt_n >> num_constraints >> num_assignments;
     *n_ptr = n;
     *sqrt_n_ptr = sqrt_n;
     *num_constraints_ptr = num_constraints;
+    *num_assingments_ptr = num_assignments;
     int **constraints = (int **)calloc(sizeof(int *), num_constraints);
+    assignments = (GridAssignment *)malloc(
+        sizeof(GridAssignment) * num_assignments);
 
     for (int i = 0; i < num_constraints; i++) {
-    int constraint_sum;
-    int constraint_size;
-    fin >> constraint_sum >> constraint_size;
-    int actual_size = (2 * (constraint_size + 1));
-    int *current_constraint = (int *)calloc(sizeof(int), actual_size);
-    current_constraint[0] = constraint_sum;
-    current_constraint[1] = constraint_size;
-    int row;
-    int col;
-    for (int j = 2; j < actual_size; j += 2) {
-        fin >> row >> col;
-        current_constraint[j] = row;
-        current_constraint[j + 1] = col;
+        int constraint_sum;
+        int constraint_size;
+        fin >> constraint_sum >> constraint_size;
+        int actual_size = (2 * (constraint_size + 1));
+        int *current_constraint = (int *)calloc(sizeof(int), actual_size);
+        current_constraint[0] = constraint_sum;
+        current_constraint[1] = constraint_size;
+        int row;
+        int col;
+        for (int j = 2; j < actual_size; j += 2) {
+            fin >> row >> col;
+            current_constraint[j] = row;
+            current_constraint[j + 1] = col;
+        }
+        constraints[i] = current_constraint;
     }
-    constraints[i] = current_constraint;
+    for (int i = 0; i < num_assignments; i++) {
+        int row;
+        int col;
+        int value;
+        fin >> row >> col >> value;
+        GridAssignment assignment;
+        assignment.row = row;
+        assignment.col = col;
+        assignment.value = value;
+        assignments[i] = assignment;
     }
     return constraints;
 }
@@ -796,7 +813,14 @@ void Clauses::add_conflict_clause(Clause clause) {
     *clause_ptr = clause;
     Clauses::conflict_clauses.add_value(
         (void *)clause_ptr, Clauses::num_conflict_indexed, clause.num_literals);
+    Clauses::conflict_clauses.strip_value(Clauses::num_conflict_indexed);
+    Clauses::conflict_clauses.re_add_value(Clauses::num_conflict_indexed);
     Clauses::num_conflict_indexed++;
+}
+
+// Returns whether a clause id is for a conflict clause
+bool Clauses::is_conflict_clause(int clause_id) {
+    return (Clauses::max_indexable <= clause_id);
 }
 
 // Removes from the list, pointer saved in index still, easy to re-add
@@ -1159,6 +1183,22 @@ bool backtrack_at_front(Deque task_stack) {
     void *task_ptr = task_stack.peak_front();
     Task task = (*((Task *)task_ptr));
     return (task.is_backtrack);
+}
+
+// Returns whether the first task is one requiring a recurse() call
+bool recurse_required(Deque task_stack) {
+    if (task_stack.count == 0) {
+        return false;
+    }
+    Task first_task = peak_task(task_stack);
+    if (first_task.is_backtrack) {
+        return false;
+    }
+    if (task_stack.count == 1) {
+        return true;
+    }
+    Task second_task = peak_task(task_stack, 1);
+    return (second_task.var_id == first_task.var_id);
 }
 
 // Default constructor

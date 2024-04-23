@@ -57,11 +57,15 @@ void run_filename(int argc, char *argv[]) {
     int n;
     int sqrt_n;
     int num_constraints;
+    int num_assignments;
+    GridAssignment *assignments;
     int **constraints = read_puzzle_file(
-        input_filename, &n, &sqrt_n, &num_constraints);
+        input_filename, &n, &sqrt_n, &num_constraints, 
+        &num_assignments, assignments);
 
     Cnf cnf(pid, nproc, constraints, n, 
-        sqrt_n, num_constraints, reduction_method);
+        sqrt_n, num_constraints, num_assignments, 
+        reduction_method, assignments);
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 

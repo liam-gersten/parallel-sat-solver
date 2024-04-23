@@ -117,6 +117,10 @@ bool State::task_stack_invariant(
         Deque &task_stack, 
         int supposed_num_tasks) 
     {
+    // if (cnf.depth < 432) {
+    //     // TODO: remove this
+    //     return true;
+    // }
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     assert(cnf.local_edit_count <= cnf.edit_stack.count);
     int num_processed = 0;
@@ -714,7 +718,7 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     int iterations_to_check = (cnf.edit_counts_stack).count;
     DoublyLinkedList *current_edit_ptr = (*(((cnf.edit_stack).head))).next;
     IntDoublyLinkedList *current_iteration = (*(((cnf.edit_counts_stack).head))).next;
-    if (PRINT_LEVEL > 2) printf("%s\tPID %d: iteration edit counts = %s\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), 10).c_str());
+    if (PRINT_LEVEL > 2) printf("%s\tPID %d: iteration edit counts = %s\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), cnf.edit_counts_stack.count).c_str());
     int num_unsat = cnf.get_num_unsat(conflict_clause);
     while ((iterations_checked < iterations_to_check) 
         && (assigned_literals.count > 0)) {
@@ -802,7 +806,7 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %d insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, insertions_made);
     if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.edit_stack));
     if ((cnf.edit_counts_stack).count > 0) { 
-        if (PRINT_LEVEL > 3) printf("%s\tPID %d: new iteration edit counts = %s\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), 5).c_str());
+        if (PRINT_LEVEL > 3) printf("%s\tPID %d: new iteration edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), cnf.edit_counts_stack.count).c_str(), cnf.local_edit_count);
     }
 }
 
@@ -852,29 +856,6 @@ void State::split_thieves(
     }
 }
 
-// Simply backtracks once and removes the first decided task(s)
-void State::simple_conflict_backtrack(Cnf &cnf, Deque &task_stack) {
-    // Remove the tasks that implied the conflict
-    if (task_stack.count > 0) {
-        Task top_task = get_task(task_stack);
-        assert(top_task.implier == -1);
-        if (!top_task.is_backtrack) {
-            State::num_non_trivial_tasks--;
-            if (task_stack.count > 0) {
-                Task next_task = get_task(task_stack);
-                assert(next_task.is_backtrack);
-                assert(next_task.var_id == top_task.var_id);
-            }
-            if (top_task.assignment) {
-                cnf.true_assignment_statuses[top_task.var_id] = 'u';
-            } else {
-                cnf.false_assignment_statuses[top_task.var_id] = 'u';
-            }
-        }
-    }
-    cnf.backtrack();
-}
-
 // Moves to lowest point in call stack when conflict clause is useful
 void State::backtrack_to_conflict_head(
         Cnf &cnf, 
@@ -912,10 +893,8 @@ void State::backtrack_to_conflict_head(
         current_task = get_task(task_stack);
         tasks_equal = (lowest_bad_decision.var_id == current_task.var_id)
             && (lowest_bad_decision.is_backtrack == current_task.is_backtrack);
-        
         if (current_task.is_backtrack) {
             if (!tasks_equal) {
-                printf("Backtrack explicit\n");
                 cnf.backtrack();
                 num_backtracks++;
             }
@@ -971,12 +950,15 @@ int State::add_tasks_from_conflict_clause(
         }
         bool first_choice = new_var_sign;
         void *important_task = make_task(new_var_id, -1, first_choice);
-        void *other_task = make_task(new_var_id, -1, !first_choice);
-        task_stack.add_to_front(other_task);
         task_stack.add_to_front(important_task);
         State::num_non_trivial_tasks += 2;
-        cnf.true_assignment_statuses[new_var_id] = 'q';
-        cnf.false_assignment_statuses[new_var_id] = 'q';
+        if (first_choice) {
+            cnf.true_assignment_statuses[new_var_id] = 'q';
+            cnf.false_assignment_statuses[new_var_id] = 'u';
+        } else {
+            cnf.true_assignment_statuses[new_var_id] = 'u';
+            cnf.false_assignment_statuses[new_var_id] = 'q';
+        }
         if (PRINT_LEVEL >= 3) printf("%sPID %d: variable %d explicitly decided from conflict clause %d\n", cnf.depth_str.c_str(), State::pid, new_var_id, conflict_clause.id);
         return 2;
     }
@@ -990,8 +972,8 @@ void State::add_conflict_clause(
         bool pick_from_clause) 
     {
     if (PRINT_LEVEL > 0) printf("%sPID %d: adding conflict clause\n", cnf.depth_str.c_str(), State::pid);
-    if (PRINT_LEVEL > 1) cnf.print_cnf("Before conflict clause", cnf.depth_str, (PRINT_LEVEL <= 3));
-    if (PRINT_LEVEL > 2) cnf.print_task_stack("Before conflict clause", task_stack);
+    cnf.print_cnf("Before conflict clause", cnf.depth_str, (PRINT_LEVEL <= 3));
+    cnf.print_task_stack("Before conflict clause", task_stack);
     if (PRINT_LEVEL > 2) printf("Conflict clause num unsat = %d\n", cnf.get_num_unsat(conflict_clause));
     assert(clause_is_sorted(conflict_clause));
     int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
@@ -1028,13 +1010,11 @@ void State::add_conflict_clause(
             num_added = add_tasks_from_formula(cnf, task_stack);
         }
         assert(num_added > 0);
-        if (num_added > 1) {
-            cnf.recurse();
-        }
     }
     if (PRINT_LEVEL > 1) printf("%sPID %d: added conflict clause %d\n", cnf.depth_str.c_str(), State::pid, new_clause_id);
-    if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
-    if (PRINT_LEVEL > 3) cnf.print_task_stack("With conflict clause", task_stack);
+    cnf.print_cnf("With conflict clause", cnf.depth_str, true);
+    cnf.print_task_stack("With conflict clause", task_stack);
+    if (PRINT_LEVEL > 3) printf("%sPID %d: With conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
 }
 
 // Returns who is responsible for making the decision that runs contrary
@@ -1056,7 +1036,7 @@ char State::blame_decision(
             Task top_task = peak_task(task_stack);
             top_task.assignment = !top_task.assignment;
             *lowest_bad_decision = top_task;
-            return result;
+            return 'l';
         }
         Task top_task = peak_task(task_stack);
         if (!top_task.is_backtrack) {
@@ -1064,7 +1044,7 @@ char State::blame_decision(
         }
         top_task.assignment = !top_task.assignment;
         *lowest_bad_decision = top_task;
-        return result;
+        return 'l';
     }
     void **decided_literals_list = decided_conflict_literals.as_list();
     for (int i = 0; i < decided_conflict_literals.count; i++) {
@@ -1084,11 +1064,8 @@ char State::blame_decision(
                 // Should be queued or stolen
                 assert(false);
             } else if (good_status == 'q') {
-                printf("%sPID %d: Blaming on bad choice of %d = %d locally\n", cnf.depth_str.c_str(), State::pid, bad_decision.var_id, (int)bad_decision.value);
                 result = 'l';
-                if (!DEBUG) {
-                    break;
-                }
+                break;
             } else if (good_status == 'r') {
                 // Can't locally assign something contrary to remote assignment
                 assert(false);
@@ -1135,10 +1112,12 @@ char State::blame_decision(
                     bad_decision.is_backtrack = task.is_backtrack;
                     *lowest_bad_decision = bad_decision;
                     free(decided_literals_list);
+                    free(tasks);
                     return result;
                 }
             }
         }
+        free(tasks);
         assert(false);
     } else if (result == 's') {
         if (PRINT_LEVEL > 2) printf("%sPID %d: searching for stolen culprit\n", cnf.depth_str.c_str(), State::pid);
@@ -1170,7 +1149,7 @@ char State::blame_decision(
     return result;
 }
 
-// Handles a recieved or locally-generated conflict clause
+// Handles a recieved conflict clause
 void State::handle_conflict_clause(
         Cnf &cnf, 
         Deque &task_stack, 
@@ -1226,7 +1205,7 @@ void State::handle_conflict_clause(
             if (PRINT_LEVEL > 1) printf("%s\tPID %d: local is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
             backtrack_to_conflict_head(
                 cnf, task_stack, conflict_clause, lowest_bad_decision);
-            add_conflict_clause(cnf, conflict_clause, task_stack);
+            add_conflict_clause(cnf, conflict_clause, task_stack, true);
             inform_thieves_of_conflict(
                 (*State::thieves), conflict_clause, interconnect);
             break;
@@ -1325,7 +1304,8 @@ void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
     if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.edit_stack));
     if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, true);
-    if (PRINT_LEVEL > 4) print_compressed(
+    if (PRINT_LEVEL > 4) printf("%sPID %d: %s edit counts = %s + %d\n", cnf.depth_str.c_str(), cnf.pid, prefix_str.c_str(), int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
+    if (PRINT_LEVEL > 5) print_compressed(
         cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
 }
 
@@ -1340,7 +1320,9 @@ bool State::solve_iteration(
     assert(State::num_non_trivial_tasks > 0);
     assert(task_stack_invariant(cnf, task_stack, State::num_non_trivial_tasks));
     if (PRINT_LEVEL >= 3) printf("\n");
+    bool should_recurse = recurse_required(task_stack);
     Clause conflict_clause;
+    int conflict_id;
     Task task = get_task(task_stack);
     int var_id = task.var_id;
     int assignment = task.assignment;
@@ -1352,6 +1334,9 @@ bool State::solve_iteration(
     } else {
         State::num_non_trivial_tasks--;
     }
+    if (should_recurse) {
+        cnf.recurse();
+    }
     if ((State::current_cycle % CYCLES_TO_PRINT_PROGRESS == 0) && PRINT_PROGRESS) {
         print_progress(cnf, task_stack);
         if (State::current_cycle == std::max(
@@ -1362,32 +1347,28 @@ bool State::solve_iteration(
     State::current_cycle++;
     while (true) {
         if (PRINT_LEVEL > 3) print_data(cnf, task_stack, "Loop start");
-        if (!cnf.propagate_assignment(
-            var_id, assignment, implier, conflict_clause)) {
-            // Conflict clause found
-            print_data(cnf, task_stack, "Prop fail");
-            // if (ENABLE_CONFLICT_RESOLUTION) {
-            //     handle_conflict_clause(
-            //         cnf, task_stack, conflict_clause, interconnect);
-            // } else {
-            //     cnf.backtrack();
-            // }
-            cnf.backtrack();
-            return false;
-        }
+        bool propagate_result = cnf.propagate_assignment(
+            var_id, assignment, implier, &conflict_id);
         if (State::use_smart_prop) {
-            if (!cnf.smart_propagate_assignment(
-                var_id, assignment, implier, conflict_clause)) {
-                // Conflict clause found
-                print_data(cnf, task_stack, "Smart prop fail");
-                if (ENABLE_CONFLICT_RESOLUTION) {
+            propagate_result = propagate_result && cnf.smart_propagate_assignment(
+                var_id, assignment, implier, &conflict_id);
+        }
+        if (!propagate_result) {
+            print_data(cnf, task_stack, "Prop fail");
+            if (ENABLE_CONFLICT_RESOLUTION) {
+                bool resolution_result = cnf.conflict_resolution(
+                    conflict_id, conflict_clause);
+                if (resolution_result) {
+                    // Conflict clause generated
                     handle_conflict_clause(
                         cnf, task_stack, conflict_clause, interconnect);
                 } else {
                     cnf.backtrack();
                 }
-                return false;
+            } else {
+                cnf.backtrack();
             }
+            return false;
         }
         assert(task_stack_invariant(
             cnf, task_stack, State::num_non_trivial_tasks));
@@ -1407,7 +1388,6 @@ bool State::solve_iteration(
             State::num_non_trivial_tasks--;
             continue;
         }
-        cnf.recurse();
         return false;
     }
 }

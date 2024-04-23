@@ -157,8 +157,10 @@ Cnf::Cnf(
         int **constraints, 
         int n, 
         int sqrt_n, 
-        int num_constraint,
-        int reduction_method) 
+        int num_constraints,
+        int num_assignments,
+        int reduction_method,
+        GridAssignment *assignments) 
     {
     Cnf::n = n;
     Cnf::num_conflict_to_hold = n * n * n;
@@ -175,7 +177,7 @@ Cnf::Cnf(
 
     switch (reduction_method) {
         case (0): {
-            reduce_puzzle_original(n, sqrt_n);
+            reduce_puzzle_original(n, sqrt_n, num_assignments, assignments);
             break;
         } case (1): {
             reduce_puzzle_clauses_truncated(n, sqrt_n);
@@ -359,7 +361,12 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
 }
 
 // Original version with lowest variable count
-void Cnf::reduce_puzzle_original(int n, int sqrt_n) {
+void Cnf::reduce_puzzle_original(
+        int n, 
+        int sqrt_n, 
+        int num_assignments,
+        GridAssignment *assignments) 
+    {
     int n_squ = n * n;
     Cnf::num_variables = (n * n_squ);
     Cnf::true_assignment_statuses = (char *)calloc(
@@ -804,18 +811,11 @@ bool Cnf::decided_variable_in_local_edits(int *var_id) {
 
 // Adds edit edit to edit stack, checks assertion
 void Cnf::add_to_edit_stack(void *raw_edit) {
-    if (DEBUG) {
-        FormulaEdit edit = *((FormulaEdit *)raw_edit);
-        if (edit.edit_type == 'v') {
-            if (Cnf::variables[edit.edit_id].implying_clause_id == -1) {
-                int existing_var_id; 
-                bool already_exists = decided_variable_in_local_edits(
-                    &existing_var_id);
-                if (already_exists) {
-                    printf("Var %d already exists\n", existing_var_id);
-                }
-                assert(!already_exists);
-            }
+    FormulaEdit edit = *((FormulaEdit *)raw_edit);
+    if (edit.edit_type == 'v') {
+        if (Cnf::variables[edit.edit_id].implying_clause_id == -1) {
+            int existing_var_id; 
+            assert(!decided_variable_in_local_edits(&existing_var_id));  
         }
     }
     Cnf::edit_stack.add_to_front(raw_edit);
@@ -945,6 +945,7 @@ bool Cnf::clause_exists_already(Clause new_clause) {
         if (clauses_equal(new_clause, other_clause)) {
             // Why would we get the same conflict clause twice?
             printf("Clause equal to %d\n", clause_id);
+            assert(!Cnf::clauses_dropped[clause_id]);
             assert(Cnf::nprocs > 1);
             return true;
         }
@@ -1109,8 +1110,9 @@ void Cnf::sort_variables_by_assignment_time(int *variables, int num_vars) {
     }
 }
 
-// Performs resoltion, populating the result clause
-void Cnf::conflict_resolution(int culprit_id, Clause &result) {
+// Performs resoltion, populating the result clause.
+// Returns whether a result could be generated.
+bool Cnf::conflict_resolution(int culprit_id, Clause &result) {
     Clause conflict_clause = Cnf::clauses.get_clause(culprit_id);
     if (PRINT_LEVEL > 1) { 
         std::string data_string = "(";
@@ -1137,7 +1139,10 @@ void Cnf::conflict_resolution(int culprit_id, Clause &result) {
             num_propagated_variables++;
         }
     }
-    assert(num_propagated_variables > 0);
+    if (num_propagated_variables == 0) {
+        free(propagated_variables);
+        return false;
+    }
     sort_variables_by_assignment_time(
         propagated_variables, num_propagated_variables);
     for (int i = 0; i < num_propagated_variables; i++) {
@@ -1148,13 +1153,8 @@ void Cnf::conflict_resolution(int culprit_id, Clause &result) {
         result = resolve_clauses(result, implying_clause, var_id);
     }
     if (PRINT_LEVEL > 0) printf("%sPID %d: generated conflict clause = %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_to_string_current(result, false).c_str());
-    for (int i = 0; i < result.num_literals; i++) {
-        int var_id = result.literal_variable_ids[i];
-        if (Cnf::variables[var_id].implying_clause_id == -1) {
-            return;
-        }
-    }
-    assert(false);
+    free(propagated_variables);
+    return true;
 }
 
 // Updates formula with given assignment.
@@ -1163,7 +1163,7 @@ bool Cnf::propagate_assignment(
         int var_id, 
         bool value, 
         int implier, 
-        Clause &conflict_clause) 
+        int *conflict_id) 
     {
     if (PRINT_LEVEL > 1) printf("%sPID %d: trying var %d |= %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value);
     VariableLocations locations = (Cnf::variables)[var_id];
@@ -1173,6 +1173,9 @@ bool Cnf::propagate_assignment(
         Cnf::assigned_true[var_id] = true;
         Cnf::true_assignment_statuses[var_id] = 'l';
     } else {
+        if (Cnf::assigned_true[var_id]) {
+            printf("\tFail for %d\n", var_id);
+        }
         assert(!Cnf::assigned_true[var_id]);
         Cnf::assigned_false[var_id] = true;
         Cnf::false_assignment_statuses[var_id] = 'l';
@@ -1204,9 +1207,7 @@ bool Cnf::propagate_assignment(
                     break;
                 } case 'u': {
                     if (PRINT_LEVEL >= 3) printf("%sPID %d: clause %d %s contains conflict (%d local edits)\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(clause, false).c_str(), Cnf::local_edit_count);
-                    if (ENABLE_CONFLICT_RESOLUTION) {
-                        conflict_resolution(clause_id, conflict_clause);
-                    }
+                    *conflict_id = clause_id;
                     (*locations.clauses_containing).add_to_back(
                         (void *)current);
                     if (PRINT_LEVEL > 1) printf("%sPID %d: assignment propagation of var %d = %d failed (conflict = %d)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, clause_id);
@@ -1238,7 +1239,7 @@ bool Cnf::smart_propagate_assignment(
         int var_id, 
         bool value, 
         int implier,
-        Clause &conflict_clause) {
+        int *conflict_id) {
     if (PRINT_LEVEL > 1) printf("%sPID %d: smart propagating var %d |= %d (%d edits)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, (Cnf::edit_stack).count);
     if (!value) {
         // Not very useful to us
@@ -1263,7 +1264,7 @@ bool Cnf::smart_propagate_assignment(
             continue;
         }
         bool iterative_result = propagate_assignment(
-            other_var_id, false, -1, conflict_clause);
+            other_var_id, false, -1, conflict_id);
         extras_assigned++;
         if (!iterative_result) {
             return false;
@@ -1280,7 +1281,7 @@ bool Cnf::smart_propagate_assignment(
             continue;
         }
         bool iterative_result = propagate_assignment(
-            other_var_id, false, -1, conflict_clause);
+            other_var_id, false, -1, conflict_id);
         extras_assigned++;
         if (!iterative_result) {
             return false;
@@ -1297,7 +1298,7 @@ bool Cnf::smart_propagate_assignment(
             continue;
         }
         bool iterative_result = propagate_assignment(
-            other_var_id, false, -1, conflict_clause);
+            other_var_id, false, -1, conflict_id);
         extras_assigned++;
         if (!iterative_result) {
             return false;
@@ -1356,14 +1357,12 @@ void Cnf::undo_local_edits() {
                 Cnf::num_vars_assigned--;
                 if (Cnf::assigned_true[var_id]) {
                     assert(!Cnf::assigned_false[var_id]);
-                    if (var_id == 0) printf("HERE A\n");
                     Cnf::assigned_true[var_id] = false;
                     Cnf::true_assignment_statuses[var_id] = 'u';
                     if (PRINT_LEVEL >= 3) printf("%sPID %d: undoing variable edit %d = T implied by %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, current_implier);
                 } else {
                     assert(Cnf::assigned_false[var_id]);
                     assert(!Cnf::assigned_true[var_id]);
-                    if (var_id == 0) printf("HERE B\n");
                     Cnf::assigned_false[var_id] = false;
                     Cnf::false_assignment_statuses[var_id] = 'u';
                     if (PRINT_LEVEL >= 3) printf("%sPID %d: undoing variable edit %d = F implied by %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, current_implier);
@@ -1419,9 +1418,7 @@ void Cnf::backtrack() {
 void Cnf::recurse() {
     if (PRINT_LEVEL > 1) printf("%s  PID %d: recurse, stashing %d edits\n", Cnf::depth_str.c_str(), Cnf::pid, Cnf::local_edit_count);
     if (Cnf::depth != 0) {
-        assert(Cnf::local_edit_count > 0);
-        int existing_var_id;
-        assert(decided_variable_in_local_edits(&existing_var_id));    
+        assert(Cnf::local_edit_count > 0); 
     }
     (Cnf::edit_counts_stack).add_to_front(Cnf::local_edit_count);
     Cnf::local_edit_count = 0;

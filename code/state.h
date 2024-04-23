@@ -191,7 +191,14 @@ class State {
             Deque decided_conflict_literals, 
             Task *lowest_bad_decision);
         
-        // Handles a recieved or locally-generated conflict clause
+        // Handles a locally-generated conflict clause
+        void handle_local_conflict_clause(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Clause conflict_clause, 
+            Interconnect &interconnect);
+        
+        // Handles a recieved conflict clause
         void handle_conflict_clause(
             Cnf &cnf, 
             Deque &task_stack, 
