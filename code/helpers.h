@@ -14,6 +14,15 @@
 
 #define ALWAYS_PREFER_CONFLICT_CLAUSES 0
 
+#ifndef DNDEBUG
+// Production builds should set NDEBUG=1
+#define DNDEBUG false
+#endif
+
+#ifndef DEBUG
+#define DEBUG !DNDEBUG
+#endif
+
 // Will have fixed allocation size
 struct Clause {
     int *literal_variable_ids; // variable ids for each literal
