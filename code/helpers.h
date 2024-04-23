@@ -4,7 +4,7 @@
 #include <string>
 #include "mpi.h"
 
-#define PRINT_LEVEL 3
+#define PRINT_LEVEL 0
 
 #define PRINT_INTERCONNECT 0
 
@@ -22,7 +22,7 @@
 
 #define CYCLES_TO_RECEIVE_MESSAGES 1
 
-#define ENABLE_CONFLICT_RESOLUTION 0
+#define ENABLE_CONFLICT_RESOLUTION 1
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1

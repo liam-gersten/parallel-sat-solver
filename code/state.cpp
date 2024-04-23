@@ -1366,12 +1366,13 @@ bool State::solve_iteration(
             var_id, assignment, implier, conflict_clause)) {
             // Conflict clause found
             print_data(cnf, task_stack, "Prop fail");
-            if (ENABLE_CONFLICT_RESOLUTION) {
-                handle_conflict_clause(
-                    cnf, task_stack, conflict_clause, interconnect);
-            } else {
-                cnf.backtrack();
-            }
+            // if (ENABLE_CONFLICT_RESOLUTION) {
+            //     handle_conflict_clause(
+            //         cnf, task_stack, conflict_clause, interconnect);
+            // } else {
+            //     cnf.backtrack();
+            // }
+            cnf.backtrack();
             return false;
         }
         if (State::use_smart_prop) {
