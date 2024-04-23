@@ -104,15 +104,6 @@ class Cnf {
         // Gets the status of a clause, 's', 'u', or 'n'.
         char check_clause(Clause clause, int *num_unsat);
 
-        // Adds a new conflict clause to the CNF
-        void add_conflict_clause(Clause new_clause, int inducing_clause_id);
-
-        // Resolves two clauses, returns the resulting clause
-        Clause resolve_clauses(Clause A, Clause B, int variable);
-        
-        // Performs resoltion, returning true if successful
-        bool conflict_resolution(int conflict_clause_id, Clause &result);
-
         // Updates formula with given assignment.
         // Returns false on failure and populates conflict id.
         bool propagate_assignment(int var_id, bool value, int implier);
