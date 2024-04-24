@@ -89,10 +89,11 @@ void run_filename(int argc, char *argv[]) {
     if (state.was_explicit_abort) {
         // A solution was found
         if (!result) {
-            // somone else has the solution
+            // someone else has the solution
             return;
         }
-        std::cout << "Solution computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+        printf("Solution found by PID %d\n", pid);
+        std::cout << "Solution (PID %d) computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
     } else {
         // No solution was found
         raise_error("No solution was found");

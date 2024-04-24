@@ -117,10 +117,6 @@ bool State::task_stack_invariant(
         Deque &task_stack, 
         int supposed_num_tasks) 
     {
-    // if (cnf.depth < 432) {
-    //     // TODO: remove this
-    //     return true;
-    // }
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     assert(cnf.local_edit_count <= cnf.edit_stack.count);
     int num_processed = 0;
@@ -343,9 +339,9 @@ void *State::grab_work_from_stack(
     Task top_task = *((Task *)(task_stack.pop_from_back()));
     void *work = cnf.convert_to_work_message(cnf.oldest_compressed, top_task);
     if (top_task.assignment) {
-        cnf.true_assignment_statuses[top_task.var_id] = 'g';
+        cnf.true_assignment_statuses[top_task.var_id] = 's';
     } else {
-        cnf.false_assignment_statuses[top_task.var_id] = 'g';
+        cnf.false_assignment_statuses[top_task.var_id] = 's';
     }
     GivenTask task_to_give;
     task_to_give.var_id = top_task.var_id;
@@ -758,9 +754,6 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                             void *size_change = size_change_edit(
                                 conflict_clause.id, num_unsat + 1, num_unsat);
                             FormulaEdit edit = *((FormulaEdit *)size_change);
-                            if (edit.edit_id == 688125) {
-                                printf("Inserting edit = %s before variable %d\n", edit_to_string(edit).c_str(), var_id);
-                            }
                             DoublyLinkedList size_change_element;
                             size_change_element.value = size_change;
                             size_change_element.prev = (*current_edit_ptr).prev;
@@ -986,7 +979,6 @@ void State::add_conflict_clause(
         (*(((cnf.variables[var_id])).clauses_containing)).add_to_back(
             (void *)clause_id_ptr);
     }
-    // TODO: needs to be the right size
     cnf.clauses.add_conflict_clause(conflict_clause);
     int actual_size = cnf.get_num_unsat(conflict_clause);
     if (actual_size == 0) {
@@ -1179,6 +1171,7 @@ void State::handle_conflict_clause(
     } else if (clause_value) {
         if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause true already\n", cnf.depth_str.c_str(), State::pid);
         print_assignment(State::pid, "current assignment: ", cnf.depth_str.c_str(), cnf.get_assignment(), cnf.num_variables, false, false);
+        // TODO: add hist edit here
         add_conflict_clause(cnf, conflict_clause, task_stack);
         return;
     } else {
@@ -1315,7 +1308,6 @@ bool State::solve_iteration(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    unsigned int vars_assigned_at_start = cnf.num_vars_assigned;
     State::calls_to_solve++;
     assert(State::num_non_trivial_tasks > 0);
     assert(task_stack_invariant(cnf, task_stack, State::num_non_trivial_tasks));

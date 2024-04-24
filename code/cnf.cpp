@@ -1173,9 +1173,6 @@ bool Cnf::propagate_assignment(
         Cnf::assigned_true[var_id] = true;
         Cnf::true_assignment_statuses[var_id] = 'l';
     } else {
-        if (Cnf::assigned_true[var_id]) {
-            printf("\tFail for %d\n", var_id);
-        }
         assert(!Cnf::assigned_true[var_id]);
         Cnf::assigned_false[var_id] = true;
         Cnf::false_assignment_statuses[var_id] = 'l';
