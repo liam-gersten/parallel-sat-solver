@@ -83,7 +83,7 @@ class Cnf {
         std::tuple<int, bool> oneOfClause(int* vars, int length, int &var_id, bool beginning=true, int newComm=-1, bool newCommSign=false);
 
         // Working version that reduces the number of clauses needed
-        void reduce_puzzle_clauses_truncated(int n, int sqrt_n);
+        void reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments, GridAssignment* assignments);
 
         // Original version with lowest variable count
         void reduce_puzzle_original(
@@ -156,7 +156,7 @@ class Cnf {
         // Returns whether a clause already exists
         bool clause_exists_already(Clause new_clause);
 
-        // Returns whether a clause is satisfied already, populating the result
+        // Returns whether a clause is fully assigned, populates the result w eval
         bool clause_satisfied(Clause clause, bool *result);
 
         // Returns whether a clause id is for a conflict clause

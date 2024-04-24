@@ -66,7 +66,7 @@ int **read_puzzle_file(
         GridAssignment assignment;
         assignment.row = row;
         assignment.col = col;
-        assignment.value = value;
+        assignment.value = value - 1; //needs to be 0-indexed
         assignments[i] = assignment;
     }
     return constraints;
@@ -86,6 +86,10 @@ void *make_task(int var_id, int implier, bool value, bool backtrack) {
 
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2) {
+    if (var1 > var2) {
+        return make_small_clause(var2, var1, sign2, sign1);
+    }
+
     Clause current;
     current.literal_variable_ids = (int *)malloc(sizeof(int) * 2);
     current.literal_signs = (bool *)malloc(sizeof(bool) * 2);
@@ -97,7 +101,7 @@ Clause make_small_clause(int var1, int var2, bool sign1, bool sign2) {
     return current;
 }
 
-// Makes a clause of just two variables
+// Makes a clause of just three variables
 Clause make_triple_clause(
         int var1, 
         int var2, 
@@ -106,6 +110,19 @@ Clause make_triple_clause(
         bool sign2, 
         bool sign3) 
     {
+    if (var1 > var2) {
+        std::swap(var1, var2);
+        std::swap(sign1, sign2);
+    }
+    if (var2 > var3) {
+        std::swap(var3, var2);
+        std::swap(sign3, sign2);
+    }
+    if (var1 > var2) {
+        std::swap(var1, var2);
+        std::swap(sign1, sign2);
+    }
+
     Clause current;
     current.literal_variable_ids = (int *)malloc(sizeof(int) * 3);
     current.literal_signs = (bool *)malloc(sizeof(bool) * 3);

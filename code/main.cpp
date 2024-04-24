@@ -28,7 +28,7 @@ void run_filename(int argc, char *argv[]) {
     int opt;
     short branching_factor = 2;
     short assignment_method = 1;
-    bool use_smart_prop = true;
+    bool use_smart_prop = false;
     int reduction_method = 0;
     while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
         switch (opt) {

@@ -9,6 +9,8 @@
 #include <cstring>
 #include <cmath> 
 
+#include <bits/stdc++.h>
+
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
 //----------------------------------------------------------------
@@ -55,6 +57,8 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
             // comm.variable_row = row;
             // comm.variable_col = col;
             // comm.variable_k = k;
+            Cnf::true_assignment_statuses[var_id] = 'u';
+            Cnf::false_assignment_statuses[var_id] = 'u';
             Queue clauses_containing;
             Queue *clauses_containing_ptr = (Queue *)malloc(sizeof(Queue));
             *clauses_containing_ptr = clauses_containing;
@@ -85,7 +89,15 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
             pos_comm.literal_signs[i] = true;
         }
         pos_comm.literal_variable_ids[length] = comm_id;
-        pos_comm.literal_signs[length] = !comm_sign;
+        pos_comm.literal_signs[length] = true; //should be !comm_sign, but assign after sort
+
+        std::sort(pos_comm.literal_variable_ids, pos_comm.literal_variable_ids + length+1);
+        for (int i = 0; i < length+1; i++) {
+            if (pos_comm.literal_variable_ids[i] == comm_id) {
+                pos_comm.literal_signs[i] = !comm_sign;
+            }
+        }
+
         add_clause(pos_comm, Cnf::clauses, Cnf::variables);
         // not comm => AND not vars
         for (int i = 0; i < length; i++) {
@@ -180,7 +192,7 @@ Cnf::Cnf(
             reduce_puzzle_original(n, sqrt_n, num_assignments, assignments);
             break;
         } case (1): {
-            reduce_puzzle_clauses_truncated(n, sqrt_n);
+            reduce_puzzle_clauses_truncated(n, sqrt_n, num_assignments, assignments);
             break;
         }
     }
@@ -247,15 +259,18 @@ Cnf::Cnf() {
     Task recently_undone_assignment;
 }
 
-void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
+void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments, GridAssignment *assignments) {
     int n_squ = n * n;
     Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // SLIGHT OVERESTIMATE FOR N=4,9
+    if (n==16) {
+        Cnf::num_variables = 9216;
+    }
     Cnf::true_assignment_statuses = (char *)calloc(
         sizeof(char), Cnf::num_variables);
     Cnf::false_assignment_statuses = (char *)calloc(
         sizeof(char), Cnf::num_variables);
     // Exact figure
-    int num_clauses = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n);
+    int num_clauses = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n) + num_assignments;
     Clauses clauses(num_clauses, Cnf::num_conflict_to_hold);
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
@@ -354,6 +369,16 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n) {
             }
         }
     }
+
+    for (int i = 0; i < num_assignments; i++) {
+        Clause c;
+        c.num_literals = 1;
+        c.literal_variable_ids = (int *)malloc(sizeof(int));
+        c.literal_signs = (bool *)malloc(sizeof(int));
+        c.literal_variable_ids[0] = getRegularVariable(assignments[i].row, assignments[i].col, assignments[i].value, n);
+        c.literal_signs[0] = true;
+        add_clause(c, Cnf::clauses, Cnf::variables);
+    }
     // printf("hai\n");
     // int vars[30] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29};
     // Cnf::oneOfClause(vars, 6, variable_id);
@@ -374,7 +399,7 @@ void Cnf::reduce_puzzle_original(
     Cnf::false_assignment_statuses = (char *)calloc(
         sizeof(char), Cnf::num_variables);
     // Exact figure
-    int num_clauses = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
+    int num_clauses = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1)) + num_assignments;
     Clauses clauses(num_clauses, Cnf::num_conflict_to_hold);
     Cnf::clauses = clauses;
     Cnf::variables = (VariableLocations *)malloc(
@@ -492,6 +517,16 @@ void Cnf::reduce_puzzle_original(
                 }
             }
         }
+    }
+
+    for (int i = 0; i < num_assignments; i++) {
+        Clause c;
+        c.num_literals = 1;
+        c.literal_variable_ids = (int *)malloc(sizeof(int));
+        c.literal_signs = (bool *)malloc(sizeof(int));
+        c.literal_variable_ids[0] = getRegularVariable(assignments[i].row, assignments[i].col, assignments[i].value, n);
+        c.literal_signs[0] = true;
+        add_clause(c, Cnf::clauses, Cnf::variables);
     }
 }
 
@@ -960,7 +995,7 @@ bool Cnf::clause_exists_already(Clause new_clause) {
     return false;
 }
 
-// Returns whether a clause is satisfied already, populating the result
+// Returns whether a clause is fully assigned, populates the result w eval
 bool Cnf::clause_satisfied(Clause clause, bool *result) {
     bool running_value = true;
     for (int i = 0; i < clause.num_literals; i++) {
