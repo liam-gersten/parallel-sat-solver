@@ -171,6 +171,9 @@ class Cnf {
         // Performs resoltion, populating the result clause.
         // Returns whether a result could be generated.
         bool conflict_resolution(int culprit_id, Clause &result);
+        // Populates result clause with 1UID conflict clause
+        // Returns whether a result could be generated.
+        bool conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id);
 
         // Updates formula with given assignment.
         // Returns false on failure and populates Conflict clause.

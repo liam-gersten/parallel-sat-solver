@@ -10,6 +10,8 @@
 #include <cmath> 
 
 #include <bits/stdc++.h>
+#include <queue>
+#include <map>
 
 //----------------------------------------------------------------
 // BEGIN IMPLEMENTATION
@@ -1189,6 +1191,75 @@ bool Cnf::conflict_resolution(int culprit_id, Clause &result) {
     }
     if (PRINT_LEVEL > 0) printf("%sPID %d: generated conflict clause = %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_to_string_current(result, false).c_str());
     free(propagated_variables);
+    return true;
+}
+
+// Populates result clause with 1UID conflict clause
+// Returns whether a result could be generated.
+bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id) {
+    Clause conflict_clause = Cnf::clauses.get_clause(culprit_id);
+    if (PRINT_LEVEL > 1) { 
+        std::string data_string = "(";
+        for (int i = 0; i < conflict_clause.num_literals; i++) {
+            int resolve_variable_id = conflict_clause.literal_variable_ids[i];
+            VariableLocations locations = Cnf::variables[resolve_variable_id];
+            if (i > 0) {
+                data_string.append(", ");
+            }
+            data_string.append(std::to_string(locations.implying_clause_id));
+        }
+        data_string.append(")");
+        printf("%sPID %d: resolving conflict clause %d %s, implying = %s\n", Cnf::depth_str.c_str(), Cnf::pid, culprit_id, clause_to_string_current(conflict_clause, false).c_str(), data_string.c_str());
+    }
+
+    struct Assignment2 {
+        int lit;
+        int time;
+    };
+    struct compare {
+        public:
+        bool operator()(Assignment2 a, Assignment2 b) {
+            return a.time < b.time;
+        }
+    };
+    std::map<int, int> lit_to_time; // in descending order of assignment time
+
+    int last_decided_time = Cnf::assignment_times[decided_var_id];
+    int current_cycle_variables = 0;
+    for (int i = 0; i < conflict_clause.num_literals; i++) {
+        int lit = conflict_clause.literal_variable_ids[i];
+        int time = Cnf::assignment_times[lit];
+        lit_to_time.insert({lit, time});
+        if (time >= last_decided_time) {
+            current_cycle_variables++;
+        }
+    }
+
+    result = conflict_clause;
+    assert(current_cycle_variables >= 1);
+    while (current_cycle_variables > 1) {
+        // replace latest u-propped guy with rest of clause [must be u-propped]
+        int u = lit_to_time.rbegin()->first; //take latest guy
+        printf("%d\n", u);
+        lit_to_time.erase(u);
+        current_cycle_variables--;
+        
+        VariableLocations locations = Cnf::variables[u];
+        Clause implying_clause = Cnf::clauses.get_clause(
+            locations.implying_clause_id);
+        result = resolve_clauses(result, implying_clause, u);
+
+        // add relevant vars from implying_clause
+        for (int i = 0; i < implying_clause.num_literals; i++) {
+            if (implying_clause.literal_variable_ids[i] == u) continue;
+            int lit = implying_clause.literal_variable_ids[i];
+            int time = Cnf::assignment_times[lit];
+            
+            auto [_, success] = lit_to_time.insert({lit, time});
+            if (success && time >= last_decided_time) current_cycle_variables++;
+        }
+    }
+    printf("conflict clause: %s\n", clause_to_string_current(result, false).c_str());
     return true;
 }
 

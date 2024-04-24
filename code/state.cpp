@@ -1178,7 +1178,7 @@ void State::handle_conflict_clause(
         if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause must be dealt with\n", cnf.depth_str.c_str(), State::pid);
     }
     // The places to backtrack to are those decided, not unit propagated.
-    // We save these beforehand, as backtacking will change whether
+    // We save these beforehand, as backtracking will change whether
     // we believe they are decided or unit propagated.
     Deque decided_conflict_literals = cnf.get_decided_conflict_literals(
         conflict_clause);
@@ -1317,6 +1317,7 @@ bool State::solve_iteration(
     int conflict_id;
     Task task = get_task(task_stack);
     int var_id = task.var_id;
+    int decided_var_id = var_id;
     int assignment = task.assignment;
     int implier = task.implier;
     if (task.is_backtrack) { // Children backtracked, need to backtrack ourselves
@@ -1348,8 +1349,10 @@ bool State::solve_iteration(
         if (!propagate_result) {
             print_data(cnf, task_stack, "Prop fail");
             if (ENABLE_CONFLICT_RESOLUTION) {
-                bool resolution_result = cnf.conflict_resolution(
-                    conflict_id, conflict_clause);
+                // bool resolution_result = cnf.conflict_resolution(
+                //     conflict_id, conflict_clause);
+                bool resolution_result = cnf.conflict_resolution_uid(
+                    conflict_id, conflict_clause, decided_var_id);
                 if (resolution_result) {
                     // Conflict clause generated
                     handle_conflict_clause(
