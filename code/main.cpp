@@ -11,48 +11,16 @@
 #include <algorithm>
 #include <unistd.h>
 
-void run_filename(int argc, char *argv[]) {
+void run_filename(
+        int pid,
+        int nproc,
+        std::string input_filename, 
+        short branching_factor, 
+        short assignment_method, 
+        bool use_smart_prop, 
+        int reduction_method) 
+    {
     const auto init_start = std::chrono::steady_clock::now();
-    int pid;
-    int nproc;
-
-    // Initialize MPI
-    MPI_Init(&argc, &argv);
-    // Get process rank
-    MPI_Comm_rank(MPI_COMM_WORLD, &pid);
-    // Get total number of processes specificed at start of run
-    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-
-    std::string input_filename;
-    // Read command line arguments
-    int opt;
-    short branching_factor = 2;
-    short assignment_method = 1;
-    bool use_smart_prop = false;
-    int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
-        switch (opt) {
-        case 'f':
-            input_filename = optarg;
-            break;
-        case 'b':
-            branching_factor = (short)atoi(optarg);
-            break;
-        case 'm':
-            assignment_method = (short)atoi(optarg);
-            break;
-        case 's':
-            use_smart_prop = (bool)atoi(optarg);
-            break;
-        case 'r':
-            reduction_method = (int)atoi(optarg);
-            break;
-        default:
-            std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
-            MPI_Finalize();    
-            exit(EXIT_FAILURE);
-        }
-    }
 
     int n;
     int sqrt_n;
@@ -107,50 +75,31 @@ void run_filename(int argc, char *argv[]) {
     print_board(board, cnf.n);
 }
 
-void run_example_1(int argc, char *argv[]) {
+void run_tests(
+        int pid,
+        int nproc,
+        int num_tests,
+        short test_length,
+        short branching_factor, 
+        short assignment_method, 
+        bool use_smart_prop, 
+        int reduction_method) 
+    {
+
+}
+
+void run_example_1(
+        int pid,
+        int nproc,
+        std::string input_filename, 
+        short branching_factor, 
+        short assignment_method, 
+        bool use_smart_prop, 
+        int reduction_method) 
+    {
     const auto init_start = std::chrono::steady_clock::now();
-    int pid;
-    int nproc;
 
-    // Initialize MPI
-    MPI_Init(&argc, &argv);
-    // Get process rank
-    MPI_Comm_rank(MPI_COMM_WORLD, &pid);
-    // Get total number of processes specificed at start of run
-    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-
-    std::string input_filename;
-    // Read command line arguments
-    int opt;
-    short branching_factor = 2;
-    short assignment_method = 1;
-    bool use_smart_prop = false;
-    int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "f:b:m:s:r:")) != -1) {
-        switch (opt) {
-        case 'f':
-            input_filename = optarg;
-            break;
-        case 'b':
-            branching_factor = (short)atoi(optarg);
-            break;
-        case 'm':
-            assignment_method = (short)atoi(optarg);
-            break;
-        case 's':
-            use_smart_prop = (bool)atoi(optarg);
-            break;
-        case 'r':
-            reduction_method = (int)atoi(optarg);
-            break;
-        default:
-            std::cerr << "Usage: " << argv[0] << " -f input_filename\n";  
-            MPI_Finalize();    
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    int num_variables = 13;
+    int num_variables = 7;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
     Clauses input_clauses(30, 20);
@@ -174,24 +123,12 @@ void run_example_1(int argc, char *argv[]) {
     Clause C5 = make_triple_clause(1, 4, 5, false, false, false);
     Clause C6 = make_triple_clause(0, 4, 6, false, true, false);
 
-    
-    // Clause C1 = make_small_clause(1,4, true, true);
-    // Clause C2 = make_triple_clause(1, 3,8, true, false, false);
-    // Clause C3 = make_triple_clause(1,8,12, true, true, true);
-    // Clause C4 = make_small_clause(2,11, true, true);
-    // Clause C5 = make_triple_clause(7,3,9, false, false, true);
-    // Clause C6 = make_triple_clause(7,8,9, false, true, false);
-    // Clause C7 = make_triple_clause(7,8,10, true, true, false);
-    // Clause C8 = make_triple_clause(7,10,12, true, true, false);
-
     add_clause(C1, input_clauses, input_variables);
     add_clause(C2, input_clauses, input_variables);
     add_clause(C3, input_clauses, input_variables);
     add_clause(C4, input_clauses, input_variables);
     add_clause(C5, input_clauses, input_variables);
     add_clause(C6, input_clauses, input_variables);
-    // add_clause(C7, input_clauses, input_variables);
-    // add_clause(C8, input_clauses, input_variables);
 
     Cnf cnf(pid, 1, input_clauses, input_variables, num_variables);
 
@@ -250,8 +187,36 @@ void truncate_size(unsigned long long int &input_size, std::string &suffix) {
     }
 }
 
+int n_choose_2(int n) {
+    return (n * (n - 1)) / 2;
+}
+
+unsigned long long get_literal_count(int n) {
+    unsigned long long count = 0;
+    // For each position, there is at most one k value true
+    // Exactly n^3(1/2)(n-1) clauses
+    count += (n * n * n_choose_2(n) * 2);
+    
+    // For each position, there is at leadt one k value true
+    // Exactly n^2 clauses
+    count += (n * n * n);
+    
+    // For each row and k, there is at most one value with this k
+    // Exactly n^3(1/2)(n - 1) clauses
+    count += (n * n * n_choose_2(n) * 2);
+    
+    // For each col and k, there is at most one value with this k
+    // Exactly n^3(1/2)(n - 1) clauses
+    count += (n * n * n_choose_2(n) * 2);
+
+    // For each chunk and k, there is at most one value with this k
+    // Less than n^3(1/2)(n - 1) clauses
+    count += (n * n * n_choose_2(n) * 2);
+    return count;
+}
+
 void print_memory_stats() {
-    for (int sqrt_n = 2; sqrt_n <= 8; sqrt_n++) {
+    for (int sqrt_n = 2; sqrt_n <= 12; sqrt_n++) {
         int n = sqrt_n * sqrt_n;
         printf("\nn = %d\n", n);
         int n_squ = n * n;
@@ -260,13 +225,13 @@ void print_memory_stats() {
         printf("\tnum_variables =         %llu\n", v);
         printf("\tnum_clauses =           %llu\n", c);
         unsigned long long int max_num_edits = v + c;
-        unsigned long long int edit_stack_count_element_size = 20; // Doubly Linked list
-        unsigned long long int edit_stack_element_size = 20; // Doubly Linked list
+        unsigned long long int edit_stack_count_element_size = sizeof(IntDoublyLinkedList); // Doubly Linked list
+        unsigned long long int edit_stack_element_size = sizeof(DoublyLinkedList) + sizeof(FormulaEdit); // Doubly Linked list
         unsigned long long int max_edit_stack_size = (edit_stack_element_size * (v + c)) + (edit_stack_count_element_size * v);
         std::string suffix = "";
         truncate_size(max_edit_stack_size, suffix);
         printf("\tedit_stack_size =       %llu %s\n", max_edit_stack_size, suffix.c_str());
-        unsigned long long int work_queue_element_size = 16 + 8 + 4 + 4 + 1; // Doubly linked list
+        unsigned long long int work_queue_element_size = sizeof(DoublyLinkedList) + sizeof(Task); // Doubly linked list
         unsigned long long int max_work_queue_size = (3 * v) * work_queue_element_size;
         suffix = "";
         truncate_size(max_work_queue_size, suffix);
@@ -285,12 +250,104 @@ void print_memory_stats() {
         suffix = "";
         truncate_size(max_compressed_stack_size, suffix);
         printf("\tcompressed_stack_size = %llu %s\n", max_compressed_stack_size, suffix.c_str());
+        unsigned long long num_literals = get_literal_count(n);
+        unsigned long long literal_cost = 5 * num_literals;
+        unsigned long long clauses_cost = (sizeof(Clause) + sizeof(DoublyLinkedList)) * c;
+        unsigned long long formula_cost = literal_cost + clauses_cost;
+        suffix = "";
+        truncate_size(literal_cost, suffix);
+        printf("\tcost of literals =      %llu %s\n", literal_cost, suffix.c_str());
+        suffix = "";
+        truncate_size(clauses_cost, suffix);
+        printf("\tcost of clauses =       %llu %s\n", clauses_cost, suffix.c_str());
+        suffix = "";
+        truncate_size(formula_cost, suffix);
+        printf("\tcost of formula =       %llu %s\n", formula_cost, suffix.c_str());
     }
     printf("\n");
 }
 
 int main(int argc, char *argv[]) {
-    run_filename(argc, argv);
-    // run_example_1(argc, argv);
-    // print_memory_stats();
+    int pid;
+    int nproc;
+    MPI_Init(&argc, &argv); // Initialize MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &pid); // Get process rank
+    MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+
+    // Read command line arguments
+    std::string command = "runfile";
+    std::string input_filename;
+    int num_tests = 1;
+    short test_length;
+    int opt;
+    short branching_factor = 2;
+    short assignment_method = 1;
+    bool use_smart_prop = false;
+    int reduction_method = 0;
+    while ((opt = getopt(argc, argv, "c:f:t:l:b:m:s:r:")) != -1) {
+        switch (opt) {
+            case 'c':
+                command = optarg;
+                break;
+            case 'f':
+                input_filename = optarg;
+                break;
+            case 't':
+                num_tests = (int)atoi(optarg);
+                break;
+            case 'l':
+                test_length = (int)atoi(optarg);
+                break;
+            case 'b':
+                branching_factor = (short)atoi(optarg);
+                break;
+            case 'm':
+                assignment_method = (short)atoi(optarg);
+                break;
+            case 's':
+                use_smart_prop = (bool)atoi(optarg);
+                break;
+            case 'r':
+                reduction_method = (int)atoi(optarg);
+                break;
+            default:
+                std::cerr << "Incorrect command line arguments\n";  
+                MPI_Finalize();    
+                exit(EXIT_FAILURE);
+        }
+    }
+    if (command == "runfile") {
+        run_filename(
+            pid,
+            nproc,
+            input_filename, 
+            branching_factor, 
+            assignment_method, 
+            use_smart_prop, 
+            reduction_method);
+    } else if (command == "runtests") {
+        run_tests(
+            pid,
+            nproc,
+            num_tests,
+            test_length,
+            branching_factor, 
+            assignment_method, 
+            use_smart_prop, 
+            reduction_method);
+    } else if (command == "example1") {
+        run_example_1(
+            pid,
+            nproc,
+            input_filename, 
+            branching_factor, 
+            assignment_method, 
+            use_smart_prop, 
+            reduction_method);
+    } else {
+        if (pid == 0) {
+            print_memory_stats();
+        }
+        MPI_Finalize();
+    }
 }
