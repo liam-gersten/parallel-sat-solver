@@ -150,7 +150,7 @@ void run_example_1(int argc, char *argv[]) {
         }
     }
 
-    int num_variables = 7;
+    int num_variables = 13;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
     Clauses input_clauses(30, 20);
@@ -174,12 +174,24 @@ void run_example_1(int argc, char *argv[]) {
     Clause C5 = make_triple_clause(1, 4, 5, false, false, false);
     Clause C6 = make_triple_clause(0, 4, 6, false, true, false);
 
+    
+    // Clause C1 = make_small_clause(1,4, true, true);
+    // Clause C2 = make_triple_clause(1, 3,8, true, false, false);
+    // Clause C3 = make_triple_clause(1,8,12, true, true, true);
+    // Clause C4 = make_small_clause(2,11, true, true);
+    // Clause C5 = make_triple_clause(7,3,9, false, false, true);
+    // Clause C6 = make_triple_clause(7,8,9, false, true, false);
+    // Clause C7 = make_triple_clause(7,8,10, true, true, false);
+    // Clause C8 = make_triple_clause(7,10,12, true, true, false);
+
     add_clause(C1, input_clauses, input_variables);
     add_clause(C2, input_clauses, input_variables);
     add_clause(C3, input_clauses, input_variables);
     add_clause(C4, input_clauses, input_variables);
     add_clause(C5, input_clauses, input_variables);
     add_clause(C6, input_clauses, input_variables);
+    // add_clause(C7, input_clauses, input_variables);
+    // add_clause(C8, input_clauses, input_variables);
 
     Cnf cnf(pid, 1, input_clauses, input_variables, num_variables);
 

@@ -177,7 +177,7 @@ Cnf::Cnf(
         GridAssignment *assignments) 
     {
     Cnf::n = n;
-    Cnf::num_conflict_to_hold = n * n * n;
+    Cnf::num_conflict_to_hold = n * n * n * n;
     Deque edit_stack;
     IntDeque edit_counts_stack;
     Cnf::edit_stack = edit_stack;
@@ -263,9 +263,11 @@ Cnf::Cnf() {
 
 void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments, GridAssignment *assignments) {
     int n_squ = n * n;
-    Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // SLIGHT OVERESTIMATE FOR N=4,9
+    Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // WRONG
     if (n==16) {
         Cnf::num_variables = 9216;
+    } else if (n==25) {
+        Cnf::num_variables = 36875;
     }
     Cnf::true_assignment_statuses = (char *)calloc(
         sizeof(char), Cnf::num_variables);
@@ -304,13 +306,16 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
     int variable_num = 0;
 
     //HACK - WILL CALC LATER
+    // int subcol_id_spacing = floor(sqrt_n / 2.);
+    // int start;
+    // if (sqrt_n == 3) {
+    //     start = 729;
+    // } else if (sqrt_n == 4) {
+    //     start = 4097;
+    // }
+
     int subcol_id_spacing = floor(sqrt_n / 2.);
-    int start;
-    if (sqrt_n == 3) {
-        start = 729;
-    } else if (sqrt_n == 4) {
-        start = 4097;
-    }
+    int start = n*n*n + subcol_id_spacing - 1;
 
     // subcols
     for (int k = 0; k < n; k++) { 
@@ -583,6 +588,7 @@ void Cnf::init_compression() {
     Cnf::assigned_false = (bool *)calloc(
         sizeof(bool), Cnf::num_variables);
     Cnf::assignment_times = (int *)calloc(sizeof(int), Cnf::num_variables);
+    Cnf::assignment_depths = (int *)calloc(sizeof(int), Cnf::num_variables);
     Cnf::current_time = 0;
     Cnf::oldest_compressed = to_int_rep();
     if (PRINT_LEVEL > 2) print_compressed(Cnf::pid, "", "", Cnf::oldest_compressed, Cnf::work_ints);
@@ -1072,6 +1078,10 @@ Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
     }
     while (a_index < A.num_literals) {
         int var_id_a = A.literal_variable_ids[a_index];
+        if (var_id_a == variable) {
+            a_index++;
+            continue;
+        }
         bool var_sign_a = A.literal_signs[a_index];
         int *var_id_ptr = (int *)(malloc(sizeof(int)));
         bool *var_sign_ptr = (bool *)(malloc(sizeof(bool)));
@@ -1083,6 +1093,10 @@ Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
     }
     while (b_index < B.num_literals) {
         int var_id_b = B.literal_variable_ids[b_index];
+        if (var_id_b == variable) {
+            b_index++;
+            continue;
+        }
         bool var_sign_b = B.literal_signs[b_index];
         int *var_id_ptr = (int *)(malloc(sizeof(int)));
         bool *var_sign_ptr = (bool *)(malloc(sizeof(bool)));
@@ -1212,54 +1226,66 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         printf("%sPID %d: resolving conflict clause %d %s, implying = %s\n", Cnf::depth_str.c_str(), Cnf::pid, culprit_id, clause_to_string_current(conflict_clause, false).c_str(), data_string.c_str());
     }
 
-    struct Assignment2 {
-        int lit;
-        int time;
-    };
-    struct compare {
-        public:
-        bool operator()(Assignment2 a, Assignment2 b) {
-            return a.time < b.time;
-        }
-    };
-    std::map<int, int> lit_to_time; // in descending order of assignment time
+    std::map<int, int> lit_to_time; // in ascending order of assignment time
 
-    int last_decided_time = Cnf::assignment_times[decided_var_id];
+    int last_decided_depth = Cnf::assignment_depths[decided_var_id];
     int current_cycle_variables = 0;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         int lit = conflict_clause.literal_variable_ids[i];
         int time = Cnf::assignment_times[lit];
-        lit_to_time.insert({lit, time});
-        if (time >= last_decided_time) {
+        int depth = Cnf::assignment_depths[lit];
+        lit_to_time.insert({time, lit});
+        if (depth >= last_decided_depth) {
             current_cycle_variables++;
+            // printf("ccv: %d\n", lit);
         }
     }
 
     result = conflict_clause;
+    if (current_cycle_variables < 1) {
+        printf("bad cl: %s", clause_to_string_current(result, false).c_str());
+        printf("depths: %d, %d:: %d\n", Cnf::assignment_depths[451], Cnf::assignment_depths[7794], last_decided_depth);
+        printf("\n");
+    }
     assert(current_cycle_variables >= 1);
     while (current_cycle_variables > 1) {
         // replace latest u-propped guy with rest of clause [must be u-propped]
-        int u = lit_to_time.rbegin()->first; //take latest guy
-        printf("%d\n", u);
-        lit_to_time.erase(u);
+        auto iter = lit_to_time.rbegin();
+        int u = iter->second; //take latest literal
+        int u_time = iter->first;
+        // printf("%d\n", u);
+        // printf("result: %s\n", clause_to_string_current(result, false).c_str());
+        lit_to_time.erase(u_time);
+        assert(Cnf::assignment_depths[u] == last_decided_depth);
         current_cycle_variables--;
         
         VariableLocations locations = Cnf::variables[u];
         Clause implying_clause = Cnf::clauses.get_clause(
             locations.implying_clause_id);
+        // printf("imply: %s\n", clause_to_string_current(implying_clause, false).c_str());
         result = resolve_clauses(result, implying_clause, u);
 
         // add relevant vars from implying_clause
         for (int i = 0; i < implying_clause.num_literals; i++) {
             if (implying_clause.literal_variable_ids[i] == u) continue;
             int lit = implying_clause.literal_variable_ids[i];
+            int depth = Cnf::assignment_depths[lit];
             int time = Cnf::assignment_times[lit];
             
-            auto [_, success] = lit_to_time.insert({lit, time});
-            if (success && time >= last_decided_time) current_cycle_variables++;
+            auto [_, success] = lit_to_time.insert({time, lit});
+            if (success && depth >= last_decided_depth) {
+                current_cycle_variables++;
+                // printf("ccv: %d\n", lit);
+            }
         }
     }
-    printf("conflict clause: %s\n", clause_to_string_current(result, false).c_str());
+    // printf("conflict clause: %s\n", clause_to_string_current(result, false).c_str());
+
+    // TODO: when should we keep/discard conflict clause?
+    // printf("%d, ", conflict_clause.num_literals);
+    if (conflict_clause.num_literals > Cnf::n) {
+        return false;
+    }
     return true;
 }
 
@@ -1285,6 +1311,7 @@ bool Cnf::propagate_assignment(
     }
     Cnf::current_time++;
     Cnf::assignment_times[var_id] = Cnf::current_time;
+    Cnf::assignment_depths[var_id] = Cnf::depth;
     Cnf::variables[var_id].implying_clause_id = implier;
     add_to_edit_stack(variable_edit(var_id, old_implier));
     Cnf::num_vars_assigned++;

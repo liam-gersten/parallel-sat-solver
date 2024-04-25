@@ -51,6 +51,7 @@ class Cnf {
         char *true_assignment_statuses;
         char *false_assignment_statuses;
         int *assignment_times;
+        int *assignment_depths;
         int current_time;
         unsigned int num_clauses_dropped;
         unsigned int num_vars_assigned;
