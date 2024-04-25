@@ -1333,7 +1333,8 @@ void State::handle_local_conflict_clause(
     
     // local is responsible
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: local is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
-    // TODO: when to actually add conflict clause?
+
+    // TODO: where to add conflict clause?
     add_conflict_clause(cnf, conflict_clause, task_stack, false);
     inform_thieves_of_conflict(
         (*State::thieves), conflict_clause, interconnect);
@@ -1472,6 +1473,7 @@ bool State::solve_iteration(
                     print_data(cnf, task_stack, "Post-handle local conflict clause");
 
                     // a unit prop is forced
+                    // TODO: remove or only run in debug mode
                     int ct = 0;
                     for (int i = 0; i < conflict_clause.num_literals; i++) {
                         if (!(cnf.assigned_true[conflict_clause.literal_variable_ids[i]] || cnf.assigned_false[conflict_clause.literal_variable_ids[i]])) {

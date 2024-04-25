@@ -159,9 +159,9 @@ int comm_num_clauses(int n) {
     if (n == 2) {return 1;}
     return ceil(7*(n/2)-1);
 }
-int comm_num_vars(int n) {
-    int ans = std::ceil(n/2) - 2;
-    return std::max(1, ans);
+int comm_num_vars(int n, bool begin=true) {
+    int ans = begin ? std::ceil(n/2.) - 2 : std::floor(n/2.);
+    return ans;
 }
 
 // Makes CNF formula from inputs
@@ -263,12 +263,7 @@ Cnf::Cnf() {
 
 void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments, GridAssignment *assignments) {
     int n_squ = n * n;
-    Cnf::num_variables = n_squ*sqrt_n * ceil(n/2) + 2*n_squ*comm_num_vars(n) + 2*n_squ*comm_num_vars(sqrt_n); // WRONG
-    if (n==16) {
-        Cnf::num_variables = 9216;
-    } else if (n==25) {
-        Cnf::num_variables = 36875;
-    }
+    Cnf::num_variables = std::pow(n,3) + n*n*sqrt_n*comm_num_vars(sqrt_n, false) + 2*n*n*(comm_num_vars(sqrt_n) + comm_num_vars(n));
     Cnf::true_assignment_statuses = (char *)calloc(
         sizeof(char), Cnf::num_variables);
     Cnf::false_assignment_statuses = (char *)calloc(
@@ -305,15 +300,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
     int vars[n];
     int variable_num = 0;
 
-    //HACK - WILL CALC LATER
-    // int subcol_id_spacing = floor(sqrt_n / 2.);
-    // int start;
-    // if (sqrt_n == 3) {
-    //     start = 729;
-    // } else if (sqrt_n == 4) {
-    //     start = 4097;
-    // }
-
+    //probably works: tested for n<=5
     int subcol_id_spacing = floor(sqrt_n / 2.);
     int start = n*n*n + subcol_id_spacing - 1;
 
@@ -332,7 +319,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             }
         }
     }
-    printf("done w subcols\n");
+    printf("done w subcols, %d\n", variable_id);
     // Each cell has one digit
     for (int row = 0; row < n; row++) {
         for (int col = 0; col < n; col++) {
@@ -342,7 +329,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             oneOfClause(vars, n, variable_id);
         }
     }
-    printf("cell uniq\n");
+    printf("cell uniq, %d\n", variable_id);
     // Each row has exactly one of each digit
     for (int k = 0; k < n; k++) {
         for (int row = 0; row < n; row++) {
@@ -352,7 +339,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             oneOfClause(vars, n, variable_id);
         }
     }
-    printf("row uniq\n");
+    printf("row uniq, %d\n", variable_id);
     // cols
     for (int k = 0; k < n; k++) {
         for (int col = 0; col < sqrt_n; col++) {
@@ -364,7 +351,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             }
         }
     }
-    printf("col uniq\n");
+    printf("col uniq, %d\n", variable_id);
     // For each chunk and k, there is at most one value with this k
     for (int k = 0; k < n; k++) {
         for (int xbox = 0; xbox < sqrt_n; xbox++) {
@@ -376,6 +363,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             }
         }
     }
+    printf("done, %d\n", variable_id);
 
     for (int i = 0; i < num_assignments; i++) {
         Clause c;
@@ -1283,7 +1271,8 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
 
     // TODO: when should we keep/discard conflict clause?
     // printf("%d, ", conflict_clause.num_literals);
-    if (conflict_clause.num_literals > Cnf::n) {
+    if (conflict_clause.num_literals > Cnf::n 
+    || Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
         return false;
     }
     return true;
