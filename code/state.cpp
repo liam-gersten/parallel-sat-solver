@@ -672,8 +672,9 @@ void State::handle_message(
             invalidate_work(task_stack);
             return;
         } case 6: {
-            // TODO: handle remote conflict clause here
             assert(false); // unfinished
+            Clause conflict_clause = message_to_clause(message);
+            // TODO: handle remote conflict clause here
             return;
         } default: {
             // 0, 1, or 2

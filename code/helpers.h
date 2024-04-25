@@ -127,6 +127,9 @@ bool clause_is_sorted(Clause clause);
 // Returns whether a clause contains a variable, populating the sign if so
 bool variable_in_clause(Clause clause, int var_id, bool *sign);
 
+// Converts a message received to a clause
+Clause message_to_clause(Message message);
+
 // Makes an assignment ready for a data structure from arguments
 void *make_assignment(int var_id, bool value);
 
