@@ -36,7 +36,8 @@ class Interconnect {
         // Sends a conflict clause to a recipient
         void send_conflict_clause(
             short recipient, 
-            Clause conflict_clause);
+            Clause conflict_clause,
+            bool broadcast = false);
 
         // Returns whether there is already work stashed from a sender, or
         // from anyone if sender is -1.

@@ -67,13 +67,27 @@ void Interconnect::send_abort_message(short recipient) {
 
 // Sends an invalidation message
 void Interconnect::send_invalidation(short recipient) {
-  // TODO: implement this
+  MPI_Request request;
+  void *data = (void *)malloc(sizeof(char));
+  MPI_Isend(data, 1, MPI_CHAR, recipient, 5, MPI_COMM_WORLD, &request);
+  Interconnect::dead_message_queue.add_to_queue(data, request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 5 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Sends a conflict clause to a recipient
 void Interconnect::send_conflict_clause(
     short recipient, 
-    Clause conflict_clause) {
+    Clause conflict_clause,
+    bool broadcast) {
+  if (broadcast) {
+    for (short i = 0; i < Interconnect::nproc; i++) {
+      if (i == Interconnect::pid) {
+        continue;
+      }
+      send_conflict_clause(i, conflict_clause);
+    }
+    return;
+  }
   size_t buffer_size = (sizeof(bool) + sizeof(int)) * conflict_clause.num_literals;
   void *data = (void *)malloc(buffer_size);
   bool *sign_ptr = (bool *)data;
