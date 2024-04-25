@@ -56,6 +56,8 @@ struct Message {
     // 2 = urgent upgrade, 
     // 3 = work, 
     // 4 = explicit abort
+    // 5 = invalidation
+    // 6 = conflict clause
     void *data;
 };
 

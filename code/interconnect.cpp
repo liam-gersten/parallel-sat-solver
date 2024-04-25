@@ -73,8 +73,7 @@ void Interconnect::send_invalidation(short recipient) {
 // Sends a conflict clause to a recipient
 void Interconnect::send_conflict_clause(
     short recipient, 
-    Clause conflict_clause, 
-    bool blame_recipient) {
+    Clause conflict_clause) {
   // TODO: implement this
 }
 
