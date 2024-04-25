@@ -178,6 +178,13 @@ bool variable_in_clause(Clause clause, int var_id, bool *sign) {
     return false;
 }
 
+// Converts a message received to a clause
+Clause message_to_clause(Message message) {
+    // TODO: implement this
+    Clause result;
+    return result;
+}
+
 // Makes an assignment ready for a data structure from arguments
 void *make_assignment(int var_id, bool value) {
     Assignment assignment;

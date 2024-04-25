@@ -519,6 +519,8 @@ void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
 
 // Invalidates (erases) ones work
 void State::invalidate_work(Deque &task_stack) {
+    assert(false); // unfinished
+    // TODO: undo all local edits as well
     State::num_non_trivial_tasks = 0;
     task_stack.free_data();
 }
@@ -666,7 +668,16 @@ void State::handle_message(
         } case 4: {
             abort_process(true);
             return;
+        } case 5: {
+            invalidate_work(task_stack);
+            return;
+        } case 6: {
+            assert(false); // unfinished
+            Clause conflict_clause = message_to_clause(message);
+            // TODO: handle remote conflict clause here
+            return;
         } default: {
+            // 0, 1, or 2
             handle_work_request(
                 message.sender, message.type, cnf, task_stack, interconnect);
             return;
@@ -1233,7 +1244,7 @@ void State::handle_conflict_clause(
     if (State::current_task.pid != -1) {
         // Send conflict clause to remote
         interconnect.send_conflict_clause(
-            State::current_task.pid, conflict_clause, blame_remote);
+            State::current_task.pid, conflict_clause);
     }
     decided_conflict_literals.free_data();
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
@@ -1342,7 +1353,7 @@ void State::handle_local_conflict_clause(
     // Send conflict clause to remote
     if (State::current_task.pid != -1) {
         interconnect.send_conflict_clause(
-            State::current_task.pid, conflict_clause, false);
+            State::current_task.pid, conflict_clause);
     }
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);

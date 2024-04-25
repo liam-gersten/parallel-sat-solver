@@ -73,9 +73,20 @@ void Interconnect::send_invalidation(short recipient) {
 // Sends a conflict clause to a recipient
 void Interconnect::send_conflict_clause(
     short recipient, 
-    Clause conflict_clause, 
-    bool blame_recipient) {
-  // TODO: implement this
+    Clause conflict_clause) {
+  size_t buffer_size = (sizeof(bool) + sizeof(int)) * conflict_clause.num_literals;
+  void *data = (void *)malloc(buffer_size);
+  bool *sign_ptr = (bool *)data;
+  int *var_ptr = (int *)(sign_ptr + conflict_clause.num_literals);
+  for (int i = 0; i < conflict_clause.num_literals; i++) {
+    sign_ptr[i] = conflict_clause.literal_signs[i];
+    var_ptr[i] = conflict_clause.literal_variable_ids[i];
+  }
+  MPI_Request request;
+  MPI_Isend(data, buffer_size, MPI_CHAR, recipient, 6, 
+    MPI_COMM_WORLD, &request);
+  Interconnect::dead_message_queue.add_to_queue(data, request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 6 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Returns whether there is already work stashed from a sender, or
