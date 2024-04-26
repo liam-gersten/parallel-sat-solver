@@ -1233,7 +1233,6 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         lit_to_time.insert({time, lit});
         if (depth >= last_decided_depth) {
             current_cycle_variables++;
-            // printf("ccv: %d\n", lit);
         }
     }
 
@@ -1250,8 +1249,6 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         auto iter = lit_to_time.rbegin();
         int u = iter->second; //take latest literal
         int u_time = iter->first;
-        // printf("%d\n", u);
-        // printf("result: %s\n", clause_to_string_current(result, false).c_str());
         lit_to_time.erase(u_time);
         assert(Cnf::assignment_depths[u] == last_decided_depth);
         current_cycle_variables--;
@@ -1261,7 +1258,6 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
             locations.implying_clause_id);
         assert(clause_is_sorted(implying_clause));
         assert(clause_is_sorted(result));
-        // printf("imply: %s\n", clause_to_string_current(implying_clause, false).c_str());
         Clause new_result = resolve_clauses(result, implying_clause, u);
         free_clause(result);
         result = new_result;
@@ -1276,19 +1272,15 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
             auto [_, success] = lit_to_time.insert({time, lit});
             if (success && depth >= last_decided_depth) {
                 current_cycle_variables++;
-                // printf("ccv: %d\n", lit);
             }
         }
     }
-    // printf("conflict clause: %s\n", clause_to_string_current(result, false).c_str());
-
     // TODO: when should we keep/discard conflict clause?
     if (result.num_literals > CONFLICT_CLAUSE_SIZE*Cnf::n 
     || Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
         free_clause(result);
         return false;
     }
-    // printf("%d, ", result.num_literals);
     return true;
 }
 
