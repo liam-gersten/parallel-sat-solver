@@ -6,7 +6,7 @@ avg_time() {
     n=$1; shift
     (($# > 0)) || return                   # bail if no command given
     for ((i = 1; i <= n; i++)); do
-        { time -p mpirun -n 1 ./main -f 'inputs/25_blank.txt' -r 1 -c runtests -l $i &>/dev/null; } 2>&1 # ignore the output of the command
+        { time -p mpirun -n 4 ./main -f 'inputs/25_blank.txt' -r 1 -c runtests -l $i &>/dev/null; } 2>&1 # ignore the output of the command
                                            # but collect time's output in stdout
     done | awk '
         /real/ { real = real + $2; nr++ }
@@ -20,4 +20,4 @@ avg_time() {
 }
 
 make fast;
-avg_time 5 absurd # first arg = number of puzzles we test
+avg_time 10 absurd # first arg = number of puzzles we test

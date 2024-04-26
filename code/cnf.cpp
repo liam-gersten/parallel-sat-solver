@@ -273,8 +273,8 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
     
     int variable_id = 0;
     for (int k = 0; k < n; k++) {
-        for (int row = 0; row < n; row++) {
-            for (int col = 0; col < n; col++) {
+        for (int col = 0; col < n; col++) {
+            for (int row = 0; row < n; row++) {
                 VariableLocations current_variable;
                 current_variable.variable_id = variable_id;
                 current_variable.variable_row = row;
@@ -1274,12 +1274,12 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
     // printf("conflict clause: %s\n", clause_to_string_current(result, false).c_str());
 
     // TODO: when should we keep/discard conflict clause?
-    // printf("%d, ", conflict_clause.num_literals);
-    if (conflict_clause.num_literals > Cnf::n 
+    if (result.num_literals > CONFLICT_CLAUSE_SIZE*Cnf::n 
     || Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
         free_clause(result);
         return false;
     }
+    // printf("%d, ", result.num_literals);
     return true;
 }
 

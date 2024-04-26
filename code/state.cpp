@@ -1283,12 +1283,7 @@ void State::handle_local_conflict_clause(
     if (PRINT_LEVEL > 2) printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, true).c_str());
 
     // TODO: does this ever happen locally?
-    if (cnf.clause_exists_already(conflict_clause)) {
-        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause already exists\n", cnf.depth_str.c_str(), State::pid);
-        assert(false);
-        // TODO: swap the clause forward
-        return;
-    } 
+    assert(!cnf.clause_exists_already(conflict_clause));
     
     // Backtrack to just when the clause would've become unit [or restart if conflict clause is unit]
     if (conflict_clause.num_literals == 1) {
@@ -1388,14 +1383,13 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
     bool new_var_sign;
     int num_unsat = 2;
 
-    // OPT 1: only pick directly related variables - 2x faster
     while (true) {
         current_clause = cnf.clauses.get_current_clause();
         current_clause_id = current_clause.id;
         num_unsat = cnf.pick_from_clause(
             current_clause, &new_var_id, &new_var_sign);
         assert(0 < num_unsat);
-        if (new_var_id < cnf.n*cnf.n*cnf.n || num_unsat == 1) break;
+        if (new_var_id < cnf.n*cnf.n*cnf.n || num_unsat == 1 || !ALWAYS_PREFER_NORMAL_VARS) break;
         cnf.clauses.advance_iterator();
     }
 
@@ -1513,14 +1507,13 @@ bool State::solve_iteration(
                     print_data(cnf, task_stack, "Post-handle local conflict clause");
 
                     // a unit prop is forced
-                    // TODO: remove or only run in debug mode
-                    int ct = 0;
-                    for (int i = 0; i < conflict_clause.num_literals; i++) {
-                        if (!(cnf.assigned_true[conflict_clause.literal_variable_ids[i]] || cnf.assigned_false[conflict_clause.literal_variable_ids[i]])) {
-                            ct++;
-                        }
-                    }
-                    assert(ct == 1);
+                    // int ct = 0;
+                    // for (int i = 0; i < conflict_clause.num_literals; i++) {
+                    //     if (!(cnf.assigned_true[conflict_clause.literal_variable_ids[i]] || cnf.assigned_false[conflict_clause.literal_variable_ids[i]])) {
+                    //         ct++;
+                    //     }
+                    // }
+                    // assert(ct == 1);
                     // don't return false - continue to unit prop code later on
 
                     // backtracking has perhaps invalidated decided_var_id
