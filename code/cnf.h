@@ -37,6 +37,7 @@ class Cnf {
         int num_variables;
         int num_conflict_to_hold;
         int ints_needed_for_clauses;
+        int ints_needed_for_conflict_clauses;
         int ints_needed_for_vars;
         int work_ints;
         bool *clauses_dropped;

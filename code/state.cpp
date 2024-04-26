@@ -485,13 +485,17 @@ bool State::out_of_work() {
 }
 
 // Asks parent or children for work, called once when we finish our work
-void State::ask_for_work(Cnf &cnf, Interconnect &interconnect) {
+void State::ask_for_work(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect) 
+    {
     assert(!interconnect.have_stashed_work());
     assert(State::num_urgent <= State::num_children);
     if (should_implicit_abort()) {
         // Self abort
         abort_others(interconnect);
-        abort_process();
+        abort_process(cnf, task_stack, interconnect);
     } else if (should_forward_urgent_request()) {
         if (PRINT_LEVEL > 0) printf("PID %d: urgently asking for work\n", State::pid);
         // Send a single urgent work request
@@ -526,10 +530,22 @@ void State::invalidate_work(Deque &task_stack) {
 }
 
 // Empties/frees data structures and immidiately returns
-void State::abort_process(bool explicit_abort) {
+void State::abort_process(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Interconnect &interconnect,
+        bool explicit_abort) 
+    {
     if (PRINT_LEVEL > 0) printf("PID %d: aborting process\n", State::pid);
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
+    cnf.free_cnf();
+    interconnect.free_interconnect();
+    free(State::child_statuses);
+    free(State::requests_sent);
+    (*State::thieves).free_deque();
+    free(State::thieves);
+    task_stack.free_deque();
 }
 
 // Sends messages to children to force them to abort
@@ -538,6 +554,9 @@ void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
         if (PRINT_LEVEL > 0) printf("PID %d: explicitly aborting others\n", State::pid);
         // Success, broadcase explicit abort to every process
         for (short i = 0; i < State::nprocs; i++) {
+            if (i == State::pid) {
+                continue;
+            }
             interconnect.send_abort_message(i);
         }
     } else {
@@ -598,7 +617,7 @@ void State::handle_work_request(
             if (should_implicit_abort()) {
                 // Self-abort
                 abort_others(interconnect);
-                abort_process();
+                abort_process(cnf, task_stack, interconnect);
             } else if (should_forward_urgent_request()) {
                 // Send a single urgent work request
                 short dest_index = pick_request_recipient();
@@ -666,7 +685,7 @@ void State::handle_message(
                 message, cnf, task_stack, interconnect);
             return;
         } case 4: {
-            abort_process(true);
+            abort_process(cnf, task_stack, interconnect, true);
             return;
         } case 5: {
             invalidate_work(task_stack);
@@ -814,6 +833,7 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     if ((cnf.edit_counts_stack).count > 0) { 
         if (PRINT_LEVEL > 3) printf("%s\tPID %d: new iteration edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), cnf.edit_counts_stack.count).c_str(), cnf.local_edit_count);
     }
+    assigned_literals.free_deque();
 }
 
 // Sends messages to specified theives in light of conflict
@@ -1550,7 +1570,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             bool found_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
             if (!found_work) {
-                ask_for_work(cnf, interconnect);
+                ask_for_work(cnf, task_stack, interconnect);
             }
         }
         Message message;
@@ -1565,7 +1585,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         if (result) {
             assert(State::num_non_trivial_tasks >= 0);
             abort_others(interconnect, true);
-            abort_process(true);
+            abort_process(cnf, task_stack, interconnect, true);
             return true;
         }
         if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {

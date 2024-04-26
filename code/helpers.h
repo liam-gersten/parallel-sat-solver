@@ -8,7 +8,7 @@
 
 #define PRINT_INTERCONNECT 0
 
-#define PRINT_PROGRESS 1
+#define PRINT_PROGRESS 0
 
 #define PRINT_INDENT 1
 
@@ -388,8 +388,6 @@ class Queue {
         LinkedList *head;
         LinkedList *tail;
         int count = 0;
-
-        // Queue(int count);
 
         // Adds value to back of queue
         void add_to_back(void *value);

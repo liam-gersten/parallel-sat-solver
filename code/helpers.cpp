@@ -798,6 +798,31 @@ void IndexableDLL::reset_ll_bins() {
 // Frees data structures used
 void IndexableDLL::free_data() {
     // TODO: implement this
+    for (int i = 0; i < IndexableDLL::num_indexed; i++) {
+        DoublyLinkedList *element_ptr = IndexableDLL::element_ptrs[i];
+        DoublyLinkedList element = *element_ptr;
+        free(element_ptr);
+        Clause *clause_ptr = (Clause *)element.value;
+        Clause clause = *clause_ptr;
+        free(clause_ptr);
+        free(clause.literal_variable_ids);
+        free(clause.literal_signs);
+    }
+    free(IndexableDLL::element_ptrs);
+    free(IndexableDLL::element_counts);
+    free(IndexableDLL::original_element_counts);
+    free(IndexableDLL::one_head);
+    free(IndexableDLL::one_tail);
+    free(IndexableDLL::one_big_head);
+    free(IndexableDLL::one_big_tail);
+    free(IndexableDLL::one_small_head);
+    free(IndexableDLL::one_small_tail);
+    free(IndexableDLL::two_big_head);
+    free(IndexableDLL::two_big_tail);
+    free(IndexableDLL::two_head);
+    free(IndexableDLL::two_tail);
+    free(IndexableDLL::big_head);
+    free(IndexableDLL::big_tail);
     return;
 }
 
@@ -958,6 +983,7 @@ void Clauses::reset_ll_bins() {
 
 // Frees data structures used
 void Clauses::free_data() {
+    // TODO: implement this
     Clauses::normal_clauses.free_data();
     Clauses::conflict_clauses.free_data();
 }
@@ -1072,7 +1098,8 @@ void **Deque::as_list() {
 // Frees all data in the deque
 void Deque::free_data() {
     while (Deque::count > 0) {
-        pop_from_front();
+        void *value = pop_from_front();
+        free(value);
     }
 }
 

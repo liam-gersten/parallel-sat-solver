@@ -106,13 +106,20 @@ class State {
         bool out_of_work();
 
         // Asks parent or children for work, called once when we finish our work
-        void ask_for_work(Cnf &cnf, Interconnect &interconnect);
+        void ask_for_work(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect);
 
         // Invalidates (erases) ones work
         void invalidate_work(Deque &task_stack);
         
         // Empties/frees data structures and immidiately returns
-        void abort_process(bool explicit_abort = false);
+        void abort_process(
+            Cnf &cnf, 
+            Deque &task_stack, 
+            Interconnect &interconnect,
+            bool explicit_abort = false);
 
         // Sends urgent requests to children to force them to abort
         void abort_others(

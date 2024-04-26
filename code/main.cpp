@@ -73,6 +73,10 @@ void run_filename(
     }
     short **board = cnf.get_sudoku_board();
     print_board(board, cnf.n);
+    for (int i = 0; i < n; i++) {
+        free(board[i]);
+    }
+    free(board);
 }
 
 void run_tests(
