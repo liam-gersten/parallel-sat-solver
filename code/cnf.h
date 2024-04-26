@@ -180,6 +180,7 @@ class Cnf {
         // Returns whether a clause id is for a conflict clause
         bool is_conflict_clause(int clause_id);
         
+        Clause resolve_clauses_old(Clause A, Clause B, int variable);
         // Resolves two clauses, returns the resulting clause
         Clause resolve_clauses(Clause A, Clause B, int variable);
         

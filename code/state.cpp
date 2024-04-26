@@ -1303,7 +1303,6 @@ void State::handle_local_conflict_clause(
                 State::num_non_trivial_tasks--;   
             }
         }
-        printf("d\n");
         cnf.backtrack(); //one more since original task has no backtrack task
     } else {
         // what is second-last variable

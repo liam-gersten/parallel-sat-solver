@@ -1023,7 +1023,7 @@ bool Cnf::is_conflict_clause(int clause_id) {
 }
 
 // Resolves two clauses, returns the resulting clause
-Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
+Clause Cnf::resolve_clauses_old(Clause A, Clause B, int variable) {
     assert(clause_is_sorted(A));
     assert(clause_is_sorted(B));
     assert(A.num_literals + B.num_literals >= 3);
@@ -1119,6 +1119,108 @@ Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
     if (PRINT_LEVEL > 2) printf("\t%sPID %d: resolved clause = %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_to_string_current(result, false).c_str());
     assert(clause_is_sorted(result));
     resolved.free_data();
+    return result;
+}
+
+// Resolves two clauses, returns the resulting clause
+Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
+    assert(clause_is_sorted(A));
+    assert(clause_is_sorted(B));
+    assert(A.num_literals + B.num_literals >= 3);
+    if (PRINT_LEVEL > 1) printf("%s\tPID %d: resolving clauses\n\t\t%sC%d %s\n%s\t\t\twith %d\n\t\t%sC%d %s\n", Cnf::depth_str.c_str(), Cnf::pid, Cnf::depth_str.c_str(), A.id, clause_to_string_current(A, false).c_str(), Cnf::depth_str.c_str(), variable, Cnf::depth_str.c_str(), B.id, clause_to_string_current(B, false).c_str());  
+
+    int num = A.num_literals + B.num_literals - 2;
+    int *ids = (int *)malloc(sizeof(int) * num);
+    bool *signs = (bool *)malloc(sizeof(bool) * num);
+    short i = 0;
+        
+    short a_index = 0;
+    short b_index = 0;
+    while (a_index < A.num_literals && b_index < B.num_literals) {
+        int var_id_a = A.literal_variable_ids[a_index];
+        int var_id_b = B.literal_variable_ids[b_index];
+        if (var_id_a == variable && var_id_b == variable) {
+            a_index++;
+            b_index++;
+            continue;
+        } else if (var_id_a == variable) {
+            a_index++;
+            continue;
+        } else if (var_id_b == variable) {
+            b_index++;
+            continue;
+        }
+        bool var_sign_a = A.literal_signs[a_index];
+        bool var_sign_b = B.literal_signs[b_index];
+        int var_id;
+        bool var_sign;
+        if (var_id_a < var_id_b) {
+            var_id = var_id_a;
+            var_sign = var_sign_a;
+            a_index++;
+        } else if (var_id_b < var_id_a) {
+            var_id = var_id_b;
+            var_sign = var_sign_b;
+            b_index++;
+        } else {
+            var_id = var_id_a;
+            var_sign = var_sign_a;
+            a_index++;
+            b_index++;
+        }
+        ids[i] = var_id;
+        signs[i] = var_sign;
+        i++;
+    }
+    while (a_index < A.num_literals) {
+        int var_id_a = A.literal_variable_ids[a_index];
+        if (var_id_a == variable) {
+            a_index++;
+            continue;
+        }
+        bool var_sign_a = A.literal_signs[a_index];
+        ids[i] = var_id_a;
+        signs[i] = var_sign_a;
+        a_index++;
+        i++;
+    }
+    while (b_index < B.num_literals) {
+        int var_id_b = B.literal_variable_ids[b_index];
+        if (var_id_b == variable) {
+            b_index++;
+            continue;
+        }
+        bool var_sign_b = B.literal_signs[b_index];
+        ids[i] = var_id_b;
+        signs[i] = var_sign_b;
+        b_index++;
+        i++;
+    }
+
+    Clause result;
+    result.id = -1;
+    // resize if necessary
+    if (i != num) {
+        assert(i < num);
+
+        result.num_literals = i;
+        result.literal_variable_ids = (int *)malloc(sizeof(int) * i);
+        result.literal_signs = (bool *)malloc(sizeof(bool) * i);
+        for (int j = 0; j < i; j++) {
+            result.literal_variable_ids[j] = ids[j];
+            result.literal_signs[j] = signs[j];
+        }
+        free(ids);
+        free(signs);
+    } else {
+        result.num_literals = num;
+        result.literal_variable_ids = ids;
+        result.literal_signs = signs;
+    }
+
+    if (PRINT_LEVEL > 2) printf("\t%sPID %d: resolved clause = %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_to_string_current(result, false).c_str());
+    assert(clause_is_sorted(result));
+    assert(clauses_equal(result, resolve_clauses_old(A, B, variable)));
     return result;
 }
 

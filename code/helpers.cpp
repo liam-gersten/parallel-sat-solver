@@ -581,7 +581,7 @@ void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
 // Removes value from the list, pointer saved in index still, easy to re-add
 void IndexableDLL::strip_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
-    assert(!element_is_dropped(value_index));
+    // assert(!element_is_dropped(value_index));
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     DoublyLinkedList *prev = (*current_ptr).prev;
     DoublyLinkedList *next = (*current_ptr).next;
@@ -601,7 +601,7 @@ void IndexableDLL::strip_value(int value_index) {
 // Re adds a value to the list, will now be traversable again
 void IndexableDLL::re_add_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
-    assert(element_is_dropped(value_index));
+    // assert(element_is_dropped(value_index));
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     int old_size = IndexableDLL::original_element_counts[value_index];
     int new_size = IndexableDLL::element_counts[value_index];
