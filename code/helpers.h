@@ -204,6 +204,7 @@ class IndexableDLL {
         DoublyLinkedList **element_ptrs; // Nothing is removed from here.
         int *element_counts; // Nothing is removed from here.
         int *original_element_counts; // Nothing is removed from here.
+        bool *elements_dropped;
         // "Bins" defined in order of higherst to lowest priority.
         // Easy to reset these in O(1).
         DoublyLinkedList *one_head; // Size = 1, original size = 1 
@@ -243,6 +244,9 @@ class IndexableDLL {
 
     // Moves element to a new bin based on a new size
     void change_size_of_value(int value_index, int new_size);
+
+    // Returns whether an element is dropped
+    bool element_is_dropped(int value_index);
 
     // Returns saved value at index
     void *get_value(int value_index);
@@ -312,6 +316,9 @@ class Clauses {
     // Moves clause element to a new bin based on a new size
     void change_clause_size(int clause_id, int new_size);
 
+    // Returns whether a clause is dropped
+    bool clause_is_dropped(int clause_id);
+    
     // Returns saved clause at index
     Clause get_clause(int clause_id);
 

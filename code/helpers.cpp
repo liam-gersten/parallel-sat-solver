@@ -441,6 +441,8 @@ IndexableDLL::IndexableDLL(int num_to_index) {
     IndexableDLL::element_counts = (int *)calloc(sizeof(int), num_to_index);
     IndexableDLL::original_element_counts = (int *)calloc(
         sizeof(int), num_to_index);
+    IndexableDLL::elements_dropped = (bool *)calloc(
+        sizeof(bool), num_to_index);
     
     DoublyLinkedList bookend_value;
 
@@ -558,7 +560,10 @@ void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
     IndexableDLL::original_element_counts[value_index] = num_elements;
     IndexableDLL::num_indexed += 1;
     DoublyLinkedList *tail_of_interest;
-    if (num_elements == 1) {
+    if (num_elements == 0) {
+        IndexableDLL::elements_dropped[value_index] = true;
+        return;
+    } else if (num_elements == 1) {
         tail_of_interest = IndexableDLL::one_tail;
     } else if (num_elements == 2) {
         tail_of_interest = IndexableDLL::two_tail;
@@ -576,6 +581,7 @@ void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
 // Removes value from the list, pointer saved in index still, easy to re-add
 void IndexableDLL::strip_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    assert(!element_is_dropped(value_index));
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     DoublyLinkedList *prev = (*current_ptr).prev;
     DoublyLinkedList *next = (*current_ptr).next;
@@ -589,11 +595,13 @@ void IndexableDLL::strip_value(int value_index) {
     if (IndexableDLL::linked_list_count == 0) {
         IndexableDLL::iterator_size = -1;
     }
+    IndexableDLL::elements_dropped[value_index] = true;
 }
 
 // Re adds a value to the list, will now be traversable again
 void IndexableDLL::re_add_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    assert(element_is_dropped(value_index));
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     int old_size = IndexableDLL::original_element_counts[value_index];
     int new_size = IndexableDLL::element_counts[value_index];
@@ -606,6 +614,7 @@ void IndexableDLL::re_add_value(int value_index) {
     (*(current_ptr)).next = first_element;
     (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
+    IndexableDLL::elements_dropped[value_index] = false;
 }
 
 // Returns the head an element should be added to given the size change
@@ -653,6 +662,12 @@ void IndexableDLL::change_size_of_value(int value_index, int new_size) {
     (*(current_ptr)).next = first_element;
     (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
+}
+
+// Returns whether an element is dropped
+bool IndexableDLL::element_is_dropped(int value_index) {
+    assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    return IndexableDLL::elements_dropped[value_index];
 }
 
 // Returns saved value at index
@@ -814,6 +829,7 @@ void IndexableDLL::free_data() {
     }
     free(IndexableDLL::element_ptrs);
     free(IndexableDLL::element_counts);
+    free(IndexableDLL::elements_dropped);
     free(IndexableDLL::original_element_counts);
     free(IndexableDLL::one_head);
     free(IndexableDLL::one_tail);
@@ -904,6 +920,15 @@ void Clauses::change_clause_size(int clause_id, int new_size) {
     } else {
         Clauses::normal_clauses.change_size_of_value(clause_id, new_size);
     }
+}
+
+// Returns whether a clause is dropped
+bool Clauses::clause_is_dropped(int clause_id) {
+    if (clause_id >= Clauses::max_indexable) {
+        return Clauses::conflict_clauses.element_is_dropped(
+            clause_id - Clauses::max_indexable);
+    }
+    return Clauses::normal_clauses.element_is_dropped(clause_id);
 }
 
 // Returns saved clause at index
