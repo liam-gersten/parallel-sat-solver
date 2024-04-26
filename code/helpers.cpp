@@ -144,6 +144,10 @@ Clause copy_clause(Clause clause) {
         sizeof(int) * clause.num_literals);
     result.literal_signs = (bool *)malloc(
         sizeof(bool) * clause.num_literals);
+    memcpy(result.literal_variable_ids, clause.literal_variable_ids, 
+        sizeof(int) * clause.num_literals);
+    memcpy(result.literal_signs, clause.literal_signs, 
+        sizeof(bool) * clause.num_literals);
     result.num_literals = clause.num_literals;
     result.clause_addition = clause.clause_addition;
     result.clause_addition_index = clause.clause_addition_index;
@@ -1183,10 +1187,12 @@ void **Queue::get_list() {
 }
 
 // Frees all data in the queue
-void Queue::free_data() {
+void Queue::free_data(bool keep_values) {
     while (Queue::count > 0) {
         void *current = pop_from_front();
-        free(current);
+        if (!keep_values) {
+            free(current);
+        }
     }
 }
 

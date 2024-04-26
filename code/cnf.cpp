@@ -26,12 +26,10 @@ void add_clause(
     assert(clause_is_sorted(new_clause));
     int new_clause_id = clauses.num_indexed;
     new_clause.id = new_clause_id;
-    int *clause_id_ptr = (int *)malloc(sizeof(int));
-    *clause_id_ptr = new_clause_id;
     for (int lit = 0; lit < new_clause.num_literals; lit++) {
         int variable_id = new_clause.literal_variable_ids[lit];
-        (*(((variables[variable_id])).clauses_containing)).add_to_back(
-            (void *)clause_id_ptr);
+        (((variables[variable_id])).clauses_containing).add_to_back(
+            new_clause_id);
     }
     clauses.add_regular_clause(new_clause);
 }
@@ -61,10 +59,7 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
             // comm.variable_k = k;
             Cnf::true_assignment_statuses[var_id] = 'u';
             Cnf::false_assignment_statuses[var_id] = 'u';
-            Queue clauses_containing;
-            Queue *clauses_containing_ptr = (Queue *)malloc(sizeof(Queue));
-            *clauses_containing_ptr = clauses_containing;
-            comm.clauses_containing = clauses_containing_ptr;
+            comm.clauses_containing;
             Cnf::variables[var_id] = comm;
             var_id++;
         } else {
@@ -209,6 +204,7 @@ Cnf::Cnf(
         free(constraints[i]);
     }
     free(constraints);
+    free(assignments);
 }
 
 // Makes CNF formula from premade data structures
@@ -286,10 +282,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
                 current_variable.variable_k = k;
                 Cnf::true_assignment_statuses[variable_id] = 'u';
                 Cnf::false_assignment_statuses[variable_id] = 'u';
-                Queue clauses_containing;
-                Queue *clauses_containing_ptr = (Queue *)malloc(sizeof(Queue));
-                *clauses_containing_ptr = clauses_containing;
-                current_variable.clauses_containing = clauses_containing_ptr;
+                current_variable.clauses_containing;
                 Cnf::variables[variable_id] = current_variable;
                 variable_id++;
             }
@@ -411,10 +404,7 @@ void Cnf::reduce_puzzle_original(
                 current_variable.variable_k = k;
                 Cnf::true_assignment_statuses[variable_id] = 'u';
                 Cnf::false_assignment_statuses[variable_id] = 'u';
-                Queue clauses_containing;
-                Queue *clauses_containing_ptr = (Queue *)malloc(sizeof(Queue));
-                *clauses_containing_ptr = clauses_containing;
-                current_variable.clauses_containing = clauses_containing_ptr;
+                current_variable.clauses_containing;
                 Cnf::variables[variable_id] = current_variable;
                 variable_id++;
             }
@@ -701,12 +691,11 @@ void Cnf::print_cnf(
             data_string.append(std::to_string(var_id));
             data_string.append(": contained in {");
             VariableLocations current_location = Cnf::variables[var_id];
-            Queue tmp_stack;
-            Queue containment_queue = *(current_location.clauses_containing);
+            IntDeque tmp_stack;
+            IntDeque containment_queue = current_location.clauses_containing;
             while (containment_queue.count > 0) {
-                void *clause_ptr = containment_queue.pop_from_front();
-                tmp_stack.add_to_front(clause_ptr);
-                int clause_id = (*((int *)clause_ptr));
+                int clause_id = containment_queue.pop_from_front();
+                tmp_stack.add_to_front(clause_id);
                 if (Cnf::clauses_dropped[clause_id] && elimination) {
                     continue;
                 }
@@ -720,6 +709,7 @@ void Cnf::print_cnf(
             while (tmp_stack.count > 0) {
                 containment_queue.add_to_front(tmp_stack.pop_from_front());
             }
+            tmp_stack.free_deque();
         }
     }
     if (PRINT_LEVEL >= 6) {
@@ -1025,6 +1015,8 @@ bool Cnf::is_conflict_clause(int clause_id) {
 
 // Resolves two clauses, returns the resulting clause
 Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
+    assert(clause_is_sorted(A));
+    assert(clause_is_sorted(B));
     assert(A.num_literals + B.num_literals >= 3);
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: resolving clauses\n\t\t%sC%d %s\n%s\t\t\twith %d\n\t\t%sC%d %s\n", Cnf::depth_str.c_str(), Cnf::pid, Cnf::depth_str.c_str(), A.id, clause_to_string_current(A, false).c_str(), Cnf::depth_str.c_str(), variable, Cnf::depth_str.c_str(), B.id, clause_to_string_current(B, false).c_str());  
     Clause result;
@@ -1206,6 +1198,7 @@ bool Cnf::conflict_resolution(int culprit_id, Clause &result) {
 // Returns whether a result could be generated.
 bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id) {
     Clause conflict_clause = Cnf::clauses.get_clause(culprit_id);
+    assert(clause_is_sorted(conflict_clause));
     if (PRINT_LEVEL > 1) { 
         std::string data_string = "(";
         for (int i = 0; i < conflict_clause.num_literals; i++) {
@@ -1236,6 +1229,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
     }
 
     result = copy_clause(conflict_clause);
+    assert(clause_is_sorted(result));
     if (current_cycle_variables < 1) {
         printf("bad cl: %s", clause_to_string_current(result, false).c_str());
         printf("depths: %d, %d:: %d\n", Cnf::assignment_depths[451], Cnf::assignment_depths[7794], last_decided_depth);
@@ -1256,6 +1250,8 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         VariableLocations locations = Cnf::variables[u];
         Clause implying_clause = Cnf::clauses.get_clause(
             locations.implying_clause_id);
+        assert(clause_is_sorted(implying_clause));
+        assert(clause_is_sorted(result));
         // printf("imply: %s\n", clause_to_string_current(implying_clause, false).c_str());
         Clause new_result = resolve_clauses(result, implying_clause, u);
         free_clause(result);
@@ -1281,6 +1277,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
     // printf("%d, ", conflict_clause.num_literals);
     if (conflict_clause.num_literals > Cnf::n 
     || Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
+        free_clause(result);
         return false;
     }
     return true;
@@ -1312,11 +1309,11 @@ bool Cnf::propagate_assignment(
     Cnf::variables[var_id].implying_clause_id = implier;
     add_to_edit_stack(variable_edit(var_id, old_implier));
     Cnf::num_vars_assigned++;
-    int clauses_to_check = (*(locations.clauses_containing)).count;
-    if (PRINT_LEVEL > 3) printf("%sPID %d: assigned var %d |= %d (edits = %d), checking %d clauses\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, (Cnf::edit_stack).count, clauses_to_check);    
-    while (clauses_to_check > 0) {
-        int *current = (int *)((*locations.clauses_containing).pop_from_front());
-        int clause_id = *current;
+    int num_to_check = locations.clauses_containing.count;
+    int *clauses_to_check = locations.clauses_containing.as_list();
+    if (PRINT_LEVEL > 3) printf("%sPID %d: assigned var %d |= %d (edits = %d), checking %d clauses\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, (Cnf::edit_stack).count, num_to_check);    
+    for (int i = 0; i < num_to_check; i++) {
+        int clause_id = clauses_to_check[i];
         // Try to drop it
         if (!Cnf::clauses_dropped[clause_id]) {
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
@@ -1335,8 +1332,7 @@ bool Cnf::propagate_assignment(
                 } case 'u': {
                     if (PRINT_LEVEL >= 3) printf("%sPID %d: clause %d %s contains conflict (%d local edits)\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(clause, false).c_str(), Cnf::local_edit_count);
                     *conflict_id = clause_id;
-                    (*locations.clauses_containing).add_to_back(
-                        (void *)current);
+                    free(clauses_to_check);
                     if (PRINT_LEVEL > 1) printf("%sPID %d: assignment propagation of var %d = %d failed (conflict = %d)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, clause_id);
                     return false;
                 } default: {
@@ -1352,9 +1348,8 @@ bool Cnf::propagate_assignment(
                 }
             }
         }
-        (*locations.clauses_containing).add_to_back((void *)current);
-        clauses_to_check--;
     }
+    free(clauses_to_check);
     if (PRINT_LEVEL >= 3) printf("%sPID %d: propagated var %d |= %d (%d local edits)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, Cnf::local_edit_count);
     if (PRINT_LEVEL > 3) print_cnf("Post prop CNF", Cnf::depth_str, (PRINT_LEVEL >= 2));
     return true;
@@ -1688,8 +1683,7 @@ void Cnf::free_cnf() {
     Cnf::clauses.free_data();
     for (int var_id = 0; var_id < Cnf::num_variables; var_id++) {
         VariableLocations locations = Cnf::variables[var_id];
-        (*locations.clauses_containing).free_data();
-        free(locations.clauses_containing);
+        locations.clauses_containing.free_deque();
     }
     free(Cnf::variables);
     Cnf::edit_stack.free_deque();

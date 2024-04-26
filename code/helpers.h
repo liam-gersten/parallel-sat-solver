@@ -8,7 +8,7 @@
 
 #define PRINT_INTERCONNECT 0
 
-#define PRINT_PROGRESS 0
+#define PRINT_PROGRESS 1
 
 #define PRINT_INDENT 1
 
@@ -405,7 +405,7 @@ class Queue {
         void **get_list();
 
         // Frees all data in the queue
-        void free_data();
+        void free_data(bool keep_values = false);
 };
 
 // Gets first task from stack, frees pointer

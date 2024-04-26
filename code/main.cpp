@@ -71,7 +71,7 @@ void run_filename(
     if (PRINT_LEVEL > 0) {
         print_assignment((short)pid, "", "", assignment, cnf.num_variables);
     }
-    short **board = cnf.get_sudoku_board();
+    short **board = cnf.sudoku_board;
     print_board(board, cnf.n);
     for (int i = 0; i < n; i++) {
         free(board[i]);
@@ -161,11 +161,14 @@ void run_tests(
     if (PRINT_LEVEL > 0) {
         print_assignment((short)pid, "", "", assignment, cnf.num_variables);
     }
-    short **board = cnf.get_sudoku_board();
+    short **board = cnf.sudoku_board;
     print_board(board, cnf.n);
 
     MPI_Finalize();
-
+    for (int i = 0; i < n; i++) {
+        free(board[i]);
+    }
+    free(board);
     fin.close();
 }
 
@@ -191,10 +194,7 @@ void run_example_1(
         current.variable_row = i;
         current.variable_col = i;
         current.variable_k = i;
-        Queue variable_clauses;
-        Queue *variable_clauses_ptr = (Queue *)malloc(sizeof(Queue));
-        *variable_clauses_ptr = variable_clauses;
-        current.clauses_containing = variable_clauses_ptr;
+        current.clauses_containing;
         input_variables[i] = current;
     }
     Clause C1 = make_small_clause(0, 1, false, true);

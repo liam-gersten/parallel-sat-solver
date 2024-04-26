@@ -15,7 +15,7 @@ struct VariableLocations {
     // Used to determine who caused a conflict
     int implying_clause_id;
     // Will have dynamic allocation size
-    Queue *clauses_containing; // LL saving pointers to clause structures
+    IntDeque clauses_containing; // LL of clause ids
 };
 
 // Adds a clause to data structures
@@ -60,6 +60,7 @@ class Cnf {
         int depth;
         int reduction_method;
         std::string depth_str;
+        short **sudoku_board;
 
         // Makes CNF formula from inputs
         Cnf(

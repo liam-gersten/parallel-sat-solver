@@ -539,6 +539,7 @@ void State::abort_process(
     if (PRINT_LEVEL > 0) printf("PID %d: aborting process\n", State::pid);
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
+    cnf.sudoku_board = cnf.get_sudoku_board();
     cnf.free_cnf();
     interconnect.free_interconnect();
     free(State::child_statuses);
@@ -1006,12 +1007,10 @@ void State::add_conflict_clause(
     int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
     conflict_clause.id = new_clause_id;
     insert_conflict_clause_history(cnf, conflict_clause);
-    int *clause_id_ptr = (int *)malloc(sizeof(int));
-    *clause_id_ptr = new_clause_id;
     for (int lit = 0; lit < conflict_clause.num_literals; lit++) {
         int var_id = conflict_clause.literal_variable_ids[lit];
-        (*(((cnf.variables[var_id])).clauses_containing)).add_to_back(
-            (void *)clause_id_ptr);
+        (cnf.variables[var_id]).clauses_containing.add_to_back(
+            new_clause_id);
     }
     cnf.clauses.add_conflict_clause(conflict_clause);
     int actual_size = cnf.get_num_unsat(conflict_clause);
