@@ -89,7 +89,84 @@ void run_tests(
         bool use_smart_prop, 
         int reduction_method) 
     {
+    //uses hard_16s.txt
+    int n = 16;
+    int sqrt_n = 4;
+    int num_constraints = 0;
 
+    std::ifstream fin("inputs/16_hards.txt");
+
+    if (!fin) {
+    std::cerr << "Unable to open inputs/16_hards.txt\n";
+    exit(EXIT_FAILURE);
+    }
+
+    std::string str;
+    for (int i = 0; i < test_length; i++) {
+        std::getline(fin, str);
+    }
+        
+    int num_assignments = 0;
+    for (int k =0;k<256;k++) {
+        if (str[k] != '.') num_assignments++;
+    }
+
+    int **constraints = (int **)calloc(sizeof(int *), 0);
+    GridAssignment* assignments = (GridAssignment *)malloc(
+        sizeof(GridAssignment) * num_assignments); 
+
+    int j = 0;
+    for (int k = 0; k < 256; k++) {
+        if (str[k] == '.') continue;
+        GridAssignment assignment;
+        assignment.row = k % 16;
+        assignment.col = k / 16;
+        int value = (str[k] >= 'A') ? (str[k] - 'A' + 10) : (str[k] - '0');
+        assignment.value = value - 1; //needs to be 0-indexed
+        assignments[j] = assignment;
+        j++;
+    }
+
+    Cnf cnf(pid, nproc, constraints, n, 
+        sqrt_n, num_constraints, num_assignments, 
+        reduction_method, assignments);
+    Deque task_stack;
+    Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
+    State state(pid, nproc, branching_factor, 
+        assignment_method, use_smart_prop);
+
+    const auto compute_start = std::chrono::steady_clock::now();
+
+    bool result = state.solve(cnf, task_stack, interconnect);
+
+    printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
+    
+    const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
+    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+
+    if (state.was_explicit_abort) {
+        // A solution was found
+        if (!result) {
+            // someone else has the solution
+            return;
+        }
+        printf("Solution found by PID %d\n", pid);
+        std::cout << "Solution (PID %d) computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+    } else {
+        // No solution was found
+        raise_error("No solution was found");
+    }
+
+    bool *assignment = cnf.get_assignment();
+    if (PRINT_LEVEL > 0) {
+        print_assignment((short)pid, "", "", assignment, cnf.num_variables);
+    }
+    short **board = cnf.get_sudoku_board();
+    print_board(board, cnf.n);
+
+    MPI_Finalize();
+
+    fin.close();
 }
 
 void run_example_1(

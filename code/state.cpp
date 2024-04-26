@@ -692,7 +692,7 @@ void State::handle_message(
             return;
         } case 6: {
             assert(false); // unfinished
-            Clause conflict_clause = message_to_clause(message);
+            // Clause conflict_clause = message_to_clause(message);
             // TODO: handle remote conflict clause here
             return;
         } default: {
@@ -1383,13 +1383,23 @@ void State::handle_local_conflict_clause(
 int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
     if (PRINT_LEVEL > 3) printf("%sPID %d: adding tasks from formula\n", cnf.depth_str.c_str(), State::pid);
     cnf.clauses.reset_iterator();
-    Clause current_clause = cnf.clauses.get_current_clause();
-    int current_clause_id = current_clause.id;
+    Clause current_clause;
+    int current_clause_id;
     int new_var_id;
     bool new_var_sign;
-    int num_unsat = cnf.pick_from_clause(
-        current_clause, &new_var_id, &new_var_sign);
-    assert(0 < num_unsat);
+    int num_unsat = 2;
+
+    // OPT 1: only pick directly related variables - 2x faster
+    while (true) {
+        current_clause = cnf.clauses.get_current_clause();
+        current_clause_id = current_clause.id;
+        num_unsat = cnf.pick_from_clause(
+            current_clause, &new_var_id, &new_var_sign);
+        assert(0 < num_unsat);
+        if (new_var_id < cnf.n*cnf.n*cnf.n || num_unsat == 1) break;
+        cnf.clauses.advance_iterator();
+    }
+
     if (PRINT_LEVEL > 1) printf("%sPID %d: picked new var %d from clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_var_id, current_clause_id, cnf.clause_to_string_current(current_clause, true).c_str());
     if (num_unsat == 1) {
         void *only_task = make_task(new_var_id, current_clause_id, new_var_sign);
