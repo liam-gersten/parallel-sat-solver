@@ -10,6 +10,7 @@
 #include <chrono>
 #include <algorithm>
 #include <unistd.h>
+#include <cmath> 
 
 void run_filename(
         int pid,
@@ -301,8 +302,8 @@ void print_memory_stats() {
         int n = sqrt_n * sqrt_n;
         printf("\nn = %d\n", n);
         int n_squ = n * n;
-        unsigned long long int v = (n * n_squ) + (2 * n_squ);
-        unsigned long long int c = (2 * n_squ * n_squ) - (2 * n_squ * n) + n_squ - ((n_squ * n) * (sqrt_n - 1));
+        unsigned long long int v = std::pow(n,3) + n*n*sqrt_n*comm_num_vars(sqrt_n, false) + 2*n*n*(comm_num_vars(sqrt_n) + comm_num_vars(n));
+        unsigned long long int c = n_squ*sqrt_n * comm_num_clauses(sqrt_n+1) + 2*n_squ*comm_num_clauses(n) + 2*n_squ*comm_num_clauses(sqrt_n) ;
         printf("\tnum_variables =         %llu\n", v);
         printf("\tnum_clauses =           %llu\n", c);
         unsigned long long int max_num_edits = v + c;

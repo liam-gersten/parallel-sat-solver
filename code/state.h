@@ -204,9 +204,16 @@ class State {
                 Deque &task_stack, 
                 Clause conflict_clause,
                 Interconnect &interconnect);
+
+        // Handles the current REMOTE conflict clause
+        void handle_remote_conflict_clause(
+                Cnf &cnf, 
+                Deque &task_stack, 
+                Clause conflict_clause,
+                Interconnect &interconnect);
         
         // Handles a recieved conflict clause
-        void handle_conflict_clause(
+        void handle_conflict_clause_old(
             Cnf &cnf, 
             Deque &task_stack, 
             Clause conflict_clause,

@@ -145,7 +145,15 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
 int getRegularVariable(int i, int j, int k, int n) {
     return k*n*n + i*n + j;
 }
-int getSubcolID(int col, int xbox, int ybox, int k, int sqrt_n, int start, int spacing) {
+
+int getSubcolID(
+        int col, 
+        int xbox, 
+        int ybox, 
+        int k, 
+        int sqrt_n, 
+        int start, 
+        int spacing) {
     int raw = k*(sqrt_n*sqrt_n*sqrt_n) + col * sqrt_n*sqrt_n + xbox * sqrt_n + ybox;
     return start + spacing*raw;
 }
@@ -154,7 +162,8 @@ int comm_num_clauses(int n) {
     if (n == 2) {return 1;}
     return ceil(7*(n/2)-1);
 }
-int comm_num_vars(int n, bool begin=true) {
+
+int comm_num_vars(int n, bool begin) {
     int ans = begin ? std::ceil(n/2.) - 2 : std::floor(n/2.);
     return ans;
 }

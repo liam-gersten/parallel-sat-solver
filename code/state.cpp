@@ -692,9 +692,13 @@ void State::handle_message(
             invalidate_work(task_stack);
             return;
         } case 6: {
-            assert(false); // unfinished
-            // Clause conflict_clause = message_to_clause(message);
-            // TODO: handle remote conflict clause here
+            assert(SEND_CONFLICT_CLAUSES);
+            Clause conflict_clause = message_to_clause(message);
+            handle_remote_conflict_clause(
+                cnf, 
+                task_stack, 
+                conflict_clause, 
+                interconnect);
             return;
         } default: {
             // 0, 1, or 2
@@ -1022,21 +1026,6 @@ void State::add_conflict_clause(
         if (PRINT_LEVEL > 2) printf("Changing conflict clause size to %d\n", actual_size);
         cnf.clauses.change_clause_size(conflict_clause.id, actual_size);
     }
-    // cnf.clauses.reset_iterator();
-    // bool conflict_first = (
-    //         cnf.clauses.get_current_clause().id == new_clause_id);
-    // if ((task_stack.count == 0) || pick_from_clause || conflict_first) {
-    //     // Pick new tasks for next iteration
-    //     int num_added;
-    //     if (pick_from_clause || conflict_first) {
-    //         num_added = add_tasks_from_conflict_clause(
-    //             cnf, task_stack, conflict_clause);
-    //     } else {
-    //         num_added = add_tasks_from_formula(cnf, task_stack);
-    //     }
-    //     assert(num_added > 0);
-    // }
-    // if (PRINT_LEVEL > 1) printf("%sPID %d: added conflict clause %d\n", cnf.depth_str.c_str(), State::pid, new_clause_id);
     if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("With conflict clause", task_stack);
     if (PRINT_LEVEL > 3) printf("%sPID %d: With conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
@@ -1174,8 +1163,18 @@ char State::blame_decision(
     return result;
 }
 
+// Handles the current REMOTE conflict clause
+void State::handle_remote_conflict_clause(
+        Cnf &cnf, 
+        Deque &task_stack, 
+        Clause conflict_clause,
+        Interconnect &interconnect) 
+    {
+    // TODO: implement this
+}
+
 // Handles a recieved conflict clause
-void State::handle_conflict_clause(
+void State::handle_conflict_clause_old(
         Cnf &cnf, 
         Deque &task_stack, 
         Clause conflict_clause,
@@ -1331,14 +1330,7 @@ void State::handle_local_conflict_clause(
             Task current_task = get_task(task_stack);
 
             if (current_task.is_backtrack) {
-                // printf("b\n");
                 cnf.backtrack();
-                // break from while loop
-            //     printf("%d\n", cnf.depth);
-            //     cnf.print_task_stack("after bt:", task_stack);
-            //     printf("%sPID %d: %s edit counts = %s + %d\n", cnf.depth_str.c_str(), cnf.pid, "debug", int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
-            //     printf("\n");
-            // printf("tsc2: %d\n", task_stack.count);
                 if (cnf.depth == second_last_d) {
                     break;
                 }
@@ -1371,6 +1363,9 @@ void State::handle_local_conflict_clause(
     }
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
+    if (SEND_CONFLICT_CLAUSES) {
+        interconnect.send_conflict_clause(-1, conflict_clause, true);
+    }
 }
 
 // Adds one or two variable assignment tasks to task stack
@@ -1494,14 +1489,9 @@ bool State::solve_iteration(
         if (!propagate_result) {
             print_data(cnf, task_stack, "Prop fail");
             if (ENABLE_CONFLICT_RESOLUTION) {
-                // bool resolution_result = cnf.conflict_resolution(
-                //     conflict_id, conflict_clause);
                 bool resolution_result = cnf.conflict_resolution_uid(
                     conflict_id, conflict_clause, decided_var_id);
                 if (resolution_result) {
-                    // Conflict clause generated
-                    // handle_conflict_clause(
-                    //     cnf, task_stack, conflict_clause, interconnect);
                     handle_local_conflict_clause(
                         cnf, task_stack, conflict_clause, interconnect);
                     print_data(cnf, task_stack, "Post-handle local conflict clause");
@@ -1524,7 +1514,6 @@ bool State::solve_iteration(
                         } else {
                             decided_var_id = -1; // calc should begin with unit prop
                         }
-                        // printf("task stack empty case\n");
                     } else {
                         decided_var_id = peak_task(task_stack).var_id;
                     }

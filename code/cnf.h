@@ -24,6 +24,21 @@ void add_clause(
     Clauses &clauses, 
     VariableLocations *variables);
 
+int getRegularVariable(int i, int j, int k, int n);
+
+int getSubcolID(
+    int col, 
+    int xbox, 
+    int ybox, 
+    int k, 
+    int sqrt_n, 
+    int start, 
+    int spacing);
+
+int comm_num_clauses(int n);
+
+int comm_num_vars(int n, bool begin=true);
+
 class Cnf {
     public:
         Clauses clauses; // dynamic number
