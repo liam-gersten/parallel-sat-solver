@@ -378,6 +378,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
     // int vars[30] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29};
     // Cnf::oneOfClause(vars, 6, variable_id);
     // print_cnf("4: ", "", false);
+    printf("done assignments\n");
 }
 
 // Original version with lowest variable count
