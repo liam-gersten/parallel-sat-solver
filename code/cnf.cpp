@@ -187,7 +187,6 @@ Cnf::Cnf(
     Cnf::pid = pid;
     Cnf::nprocs = nprocs;
     Cnf::local_edit_count = 0;
-    Cnf::num_clauses_dropped = 0;
     Cnf::num_vars_assigned = 0;
     Cnf::reduction_method = reduction_method;
 
@@ -236,7 +235,6 @@ Cnf::Cnf(
     Cnf::local_edit_count = 0;
     Cnf::depth = 0;
     Cnf::depth_str = "";
-    Cnf::num_clauses_dropped = 0;
     Cnf::num_vars_assigned = 0;
     Cnf::reduction_method = 0;
     Task recently_undone_assignment;
@@ -260,7 +258,6 @@ Cnf::Cnf() {
     Cnf::local_edit_count = 0;
     Cnf::depth = 0;
     Cnf::depth_str = "";
-    Cnf::num_clauses_dropped = 0;
     Cnf::num_vars_assigned = 0;
     Cnf::reduction_method = 0;
     Task recently_undone_assignment;
@@ -321,7 +318,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             }
         }
     }
-    printf("done w subcols, %d\n", variable_id);
+    if (PRINT_LEVEL > 4) printf("done w subcols, %d\n", variable_id);
     // Each cell has one digit
     for (int row = 0; row < n; row++) {
         for (int col = 0; col < n; col++) {
@@ -331,7 +328,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             oneOfClause(vars, n, variable_id);
         }
     }
-    printf("cell uniq, %d\n", variable_id);
+    if (PRINT_LEVEL > 4) printf("cell uniq, %d\n", variable_id);
     // Each row has exactly one of each digit
     for (int k = 0; k < n; k++) {
         for (int row = 0; row < n; row++) {
@@ -341,7 +338,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             oneOfClause(vars, n, variable_id);
         }
     }
-    printf("row uniq, %d\n", variable_id);
+    if (PRINT_LEVEL > 4) printf("row uniq, %d\n", variable_id);
     // cols
     for (int k = 0; k < n; k++) {
         for (int col = 0; col < sqrt_n; col++) {
@@ -353,7 +350,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             }
         }
     }
-    printf("col uniq, %d\n", variable_id);
+    if (PRINT_LEVEL > 4) printf("col uniq, %d\n", variable_id);
     // For each chunk and k, there is at most one value with this k
     for (int k = 0; k < n; k++) {
         for (int xbox = 0; xbox < sqrt_n; xbox++) {
@@ -365,7 +362,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
             }
         }
     }
-    printf("done, %d\n", variable_id);
+    if (PRINT_LEVEL > 4) printf("done, %d\n", variable_id);
 
     for (int i = 0; i < num_assignments; i++) {
         Clause c;
@@ -376,11 +373,7 @@ void Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments
         c.literal_signs[0] = true;
         add_clause(c, Cnf::clauses, Cnf::variables);
     }
-    // printf("hai\n");
-    // int vars[30] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29};
-    // Cnf::oneOfClause(vars, 6, variable_id);
-    // print_cnf("4: ", "", false);
-    printf("done assignments\n");
+    if (PRINT_LEVEL > 4) printf("done assignments\n");
 }
 
 // Original version with lowest variable count
@@ -570,9 +563,6 @@ void Cnf::init_compression() {
         }
         start_variable_id += 32;
     }
-    Cnf::clauses_dropped = (bool *)calloc(
-        sizeof(int), 
-        8 * (Cnf::ints_needed_for_clauses + Cnf::ints_needed_for_conflict_clauses));
     Cnf::assigned_true = (bool *)calloc(
         sizeof(int), Cnf::ints_needed_for_vars * 8);
     Cnf::assigned_false = (bool *)calloc(
@@ -657,7 +647,7 @@ void Cnf::print_cnf(
         Cnf::clauses.get_linked_list_size()));
     data_string.append(" clauses: ");
 
-    if (!CONCISE_FORMULA) data_string.append("\n");
+    if (!PRINT_CONCISE_FORMULA) data_string.append("\n");
 
     int num_seen = 0;
     if (Cnf::clauses.iterator_is_finished()) {
@@ -671,7 +661,7 @@ void Cnf::print_cnf(
         Clause clause = Cnf::clauses.get_current_clause();
         int clause_id = clause.id;
         Cnf::clauses.advance_iterator();
-        if (CONCISE_FORMULA) {
+        if (PRINT_CONCISE_FORMULA) {
             if (num_seen > 0) {
                 data_string.append(" /\\ ");
             }
@@ -686,7 +676,7 @@ void Cnf::print_cnf(
         data_string.append(clause_to_string_current(clause, elimination));
         data_string.append("\n");
     }
-    if (!CONCISE_FORMULA) {
+    if (!PRINT_CONCISE_FORMULA) {
         data_string.append("  ");
         data_string.append(std::to_string(Cnf::num_variables));
         data_string.append(" variables:\n");
@@ -705,7 +695,7 @@ void Cnf::print_cnf(
             while (containment_queue.count > 0) {
                 int clause_id = containment_queue.pop_from_front();
                 tmp_stack.add_to_front(clause_id);
-                if (Cnf::clauses_dropped[clause_id] && elimination) {
+                if (Cnf::clauses.clause_is_dropped(clause_id) && elimination) {
                     continue;
                 }
                 data_string.append("C");
@@ -726,7 +716,7 @@ void Cnf::print_cnf(
         data_string.append(tab_string);
         data_string.append(std::to_string(Cnf::clauses.num_indexed));
         data_string.append(" indexed clauses: ");
-        if (!CONCISE_FORMULA) data_string.append("\n");
+        if (!PRINT_CONCISE_FORMULA) data_string.append("\n");
         for (int clause_id = 0; clause_id < Cnf::clauses.num_indexed; clause_id++) {
             Clause clause = Cnf::clauses.get_clause(clause_id);
             if (clause_id > 0) {
@@ -978,7 +968,7 @@ bool Cnf::clause_exists_already(Clause new_clause) {
         if (clauses_equal(new_clause, other_clause)) {
             // Why would we get the same conflict clause twice?
             printf("Clause equal to %d\n", clause_id);
-            assert(!Cnf::clauses_dropped[clause_id]);
+            assert(!Cnf::clauses.clause_is_dropped(clause_id));
             assert(Cnf::nprocs > 1);
             return true;
         }
@@ -1415,7 +1405,7 @@ bool Cnf::propagate_assignment(
     for (int i = 0; i < num_to_check; i++) {
         int clause_id = clauses_to_check[i];
         // Try to drop it
-        if (!Cnf::clauses_dropped[clause_id]) {
+        if (!Cnf::clauses.clause_is_dropped(clause_id)) {
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
             Clause clause = Cnf::clauses.get_clause(clause_id);
             int num_unsat;
@@ -1424,9 +1414,7 @@ bool Cnf::propagate_assignment(
                 case 's': {
                     // Satisfied, can now drop
                     if (PRINT_LEVEL > 3) printf("%sPID %d: dropping clause %d %s (%d edits)\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(clause, false).c_str(), (Cnf::edit_stack).count);
-                    Cnf::clauses_dropped[clause_id] = true;
-                    Cnf::num_clauses_dropped++;
-                    Cnf::clauses.strip_clause(clause_id);
+                    Cnf::clauses.drop_clause(clause_id);
                     add_to_edit_stack(clause_edit(clause_id));
                     break;
                 } case 'u': {
@@ -1600,8 +1588,6 @@ void Cnf::undo_local_edits() {
             } case 'c': {
                 int clause_id = recent.edit_id;
                 Cnf::clauses.re_add_clause(clause_id);
-                Cnf::clauses_dropped[clause_id] = false;
-                Cnf::num_clauses_dropped--;
                 break;
             } default: {
                 assert(recent.edit_type == 's');
@@ -1663,35 +1649,26 @@ Task Cnf::extract_task_from_work(void *work) {
 
 // Reconstructs one's own formula (state) from an integer representation
 void Cnf::reconstruct_state(void *work, Deque &task_stack) {
-    // TODO: re add conflict clauses
+    Cnf::clauses.reset();
     unsigned int *compressed = (unsigned int *)work;
     Cnf::oldest_compressed = compressed;
     int clause_group_offset = 0;
-    Cnf::clauses.reset_ll_bins();
-    Cnf::num_clauses_dropped = 0;
+    // Drop normal clauses
     for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
         unsigned int compressed_group = compressed[clause_group];
         bool *clause_bits = int_to_bits(compressed_group);
         for (int bit = 0; bit < 32; bit++) {
             int clause_id = bit + clause_group_offset;
             if (clause_id >= Cnf::clauses.num_indexed) break;
-            bool is_dropped = Cnf::clauses_dropped[clause_id];
             bool should_be_dropped = clause_bits[bit];
-            if (is_dropped) {
-                Cnf::num_clauses_dropped++;
+            if (should_be_dropped) {
+                Cnf::clauses.drop_clause(clause_id);
             }
-            if (is_dropped == should_be_dropped) {
-                continue;
-            } else if (is_dropped) {
-                Cnf::clauses.re_add_clause(clause_id);
-            } else {
-                Cnf::clauses.strip_clause(clause_id);
-            }
-            Cnf::clauses_dropped[clause_id] = should_be_dropped;
         }
         free(clause_bits);
         clause_group_offset += 32;
     }
+    // Set values
     int value_group_offset = 0;
     for (int value_group = 0; value_group < Cnf::ints_needed_for_vars; value_group++) {
         unsigned int compressed_group_true = compressed[
@@ -1720,13 +1697,30 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         free(value_bits_true);
         free(value_bits_false);
     }
+    // Re-evaluate conflict clauses
+    for (int i = 0; i < Cnf::clauses.num_conflict_indexed; i++) {
+        int conflict_id = Cnf::clauses.max_indexable + i;
+        Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
+        int num_unsat;
+        char clause_status = check_clause(conflict_clause, &num_unsat);
+        // Should never be given a false formula
+        assert(clause_status != 'u');
+        if (clause_status == 's') {
+            Cnf::clauses.drop_clause(conflict_id);
+        } else {
+            if (num_unsat != conflict_clause.num_literals) {
+                Cnf::clauses.change_clause_size(conflict_id, num_unsat);
+            }
+        }
+    }
+    memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));
+    memset(Cnf::assignment_depths, -1, Cnf::num_variables * sizeof(int));
     task_stack.free_data();
     (Cnf::edit_stack).free_data();
     (Cnf::edit_counts_stack).free_data();
     Task first_task = extract_task_from_work(work);
     task_stack.add_to_front(
         make_task(first_task.var_id, first_task.implier, first_task.assignment));
-    (Cnf::edit_stack).free_data();
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::local_edit_count = 0;
@@ -1753,7 +1747,7 @@ void *Cnf::convert_to_work_message(unsigned int *compressed, Task task) {
 unsigned int *Cnf::to_int_rep() {
     unsigned int *compressed = (unsigned *)calloc(
         sizeof(unsigned int), work_ints);
-    bool *bit_addr = Cnf::clauses_dropped;
+    bool *bit_addr = Cnf::clauses.normal_clauses.elements_dropped;
     for (int i = 0; i < Cnf::ints_needed_for_clauses; i++) {
         unsigned int current = bits_to_int(bit_addr);
         // printf("current = %u\n", current);
@@ -1789,7 +1783,6 @@ void Cnf::free_cnf() {
     Cnf::edit_stack.free_deque();
     Cnf::edit_counts_stack.free_deque();
     free(Cnf::oldest_compressed);
-    free(Cnf::clauses_dropped);
     free(Cnf::assigned_true);
     free(Cnf::assigned_false);
     free(Cnf::true_assignment_statuses);

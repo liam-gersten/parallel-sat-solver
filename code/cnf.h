@@ -55,7 +55,6 @@ class Cnf {
         int ints_needed_for_conflict_clauses;
         int ints_needed_for_vars;
         int work_ints;
-        bool *clauses_dropped;
         bool *assigned_true;
         bool *assigned_false;
         // Used to determine who needs a conflict clause
@@ -69,7 +68,6 @@ class Cnf {
         int *assignment_times;
         int *assignment_depths;
         int current_time;
-        unsigned int num_clauses_dropped;
         unsigned int num_vars_assigned;
         int n;
         int depth;
