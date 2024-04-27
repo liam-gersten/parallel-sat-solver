@@ -1663,6 +1663,14 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
             bool should_be_dropped = clause_bits[bit];
             if (should_be_dropped) {
                 Cnf::clauses.drop_clause(clause_id);
+            } else {
+                Clause conflict_clause = Cnf::clauses.get_clause(clause_id);
+                int num_unsat;
+                char clause_status = check_clause(conflict_clause, &num_unsat);
+                assert(clause_status == 'n');
+                if (num_unsat != conflict_clause.num_literals) {
+                    Cnf::clauses.change_clause_size(clause_id, num_unsat);
+                }
             }
         }
         free(clause_bits);
