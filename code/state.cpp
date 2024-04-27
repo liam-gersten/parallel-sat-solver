@@ -83,7 +83,7 @@ short State::child_index_from_pid(short child_pid) {
 void State::print_progress(Cnf &cnf, Deque &task_stack) {
     unsigned int assigned_variables = cnf.num_vars_assigned;
     unsigned int unassigned_variables = cnf.num_variables - assigned_variables;
-    unsigned int remaining_clauses = cnf.clauses.num_indexed - cnf.num_clauses_dropped;
+    unsigned int remaining_clauses = cnf.clauses.num_indexed - cnf.clauses.num_clauses_dropped;
     printf("PID %d: [ depth %d || %d unassigned variables || %d remaining clauses || %d size work stack ]\n", State::pid, cnf.depth, unassigned_variables, remaining_clauses, task_stack.count);
 }
 
@@ -1019,9 +1019,7 @@ void State::add_conflict_clause(
     cnf.clauses.add_conflict_clause(conflict_clause);
     int actual_size = cnf.get_num_unsat(conflict_clause);
     if (actual_size == 0) {
-        cnf.clauses_dropped[new_clause_id] = true;
-        cnf.num_clauses_dropped++;
-        cnf.clauses.strip_clause(new_clause_id);
+        cnf.clauses.drop_clause(new_clause_id);
     } else if (actual_size != conflict_clause.num_literals) {
         if (PRINT_LEVEL > 2) printf("Changing conflict clause size to %d\n", actual_size);
         cnf.clauses.change_clause_size(conflict_clause.id, actual_size);

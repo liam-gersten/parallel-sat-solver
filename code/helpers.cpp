@@ -441,8 +441,10 @@ IndexableDLL::IndexableDLL(int num_to_index) {
     IndexableDLL::element_counts = (int *)calloc(sizeof(int), num_to_index);
     IndexableDLL::original_element_counts = (int *)calloc(
         sizeof(int), num_to_index);
+    int ints_to_index = ceil_div(
+        num_to_index, (sizeof(int) * 8));
     IndexableDLL::elements_dropped = (bool *)calloc(
-        sizeof(bool), num_to_index);
+        sizeof(int), ints_to_index * 8);
     
     DoublyLinkedList bookend_value;
 
@@ -581,7 +583,7 @@ void IndexableDLL::add_value(void *value, int value_index, int num_elements) {
 // Removes value from the list, pointer saved in index still, easy to re-add
 void IndexableDLL::strip_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
-    // assert(!element_is_dropped(value_index));
+    assert(!element_is_dropped(value_index));
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     DoublyLinkedList *prev = (*current_ptr).prev;
     DoublyLinkedList *next = (*current_ptr).next;
@@ -601,7 +603,7 @@ void IndexableDLL::strip_value(int value_index) {
 // Re adds a value to the list, will now be traversable again
 void IndexableDLL::re_add_value(int value_index) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
-    // assert(element_is_dropped(value_index));
+    assert(element_is_dropped(value_index));
     DoublyLinkedList *current_ptr = IndexableDLL::element_ptrs[value_index];
     int old_size = IndexableDLL::original_element_counts[value_index];
     int new_size = IndexableDLL::element_counts[value_index];
@@ -662,6 +664,7 @@ void IndexableDLL::change_size_of_value(int value_index, int new_size) {
     (*(current_ptr)).next = first_element;
     (*first_element).prev = current_ptr;
     IndexableDLL::linked_list_count++;
+    IndexableDLL::elements_dropped[value_index] = false;
 }
 
 // Returns whether an element is dropped
@@ -814,6 +817,18 @@ void IndexableDLL::reset_ll_bins() {
         IndexableDLL::two_head, IndexableDLL::two_tail);
 }
 
+// Resets the ordering and drops
+void IndexableDLL::reset() {
+    memcpy(IndexableDLL::element_counts, IndexableDLL::original_element_counts, 
+        sizeof(int) * num_indexed);
+    for (int id = 0; id < IndexableDLL::num_indexed; id++) {
+        if (element_is_dropped(id)) {
+            re_add_value(id);
+        }
+    }
+    reset_ll_bins();
+}
+
 // Frees data structures used
 void IndexableDLL::free_data() {
     // TODO: implement this
@@ -853,6 +868,7 @@ Clauses::Clauses(int num_regular_to_index, int num_conflict_to_index) {
     Clauses::num_indexed = 0;
     Clauses::max_conflict_indexable = num_conflict_to_index;
     Clauses::num_conflict_indexed = 0;
+    Clauses::num_clauses_dropped = 0;
     IndexableDLL normal_clauses(num_regular_to_index);
     IndexableDLL conflict_clauses(num_conflict_to_index);
     Clauses::normal_clauses = normal_clauses;
@@ -869,6 +885,7 @@ Clauses::Clauses() {
 
 // Adds clause to regular clause list, O(1)
 void Clauses::add_regular_clause(Clause clause) {
+    assert(clause.num_literals > 0);
     Clause *clause_ptr = (Clause *)malloc(sizeof(Clause));
     *clause_ptr = clause;
     Clauses::normal_clauses.add_value(
@@ -878,6 +895,7 @@ void Clauses::add_regular_clause(Clause clause) {
 
 // Adds clause to conflict clause list, O(1)
 void Clauses::add_conflict_clause(Clause clause) {
+    assert(clause.num_literals > 0);
     Clause *clause_ptr = (Clause *)malloc(sizeof(Clause));
     *clause_ptr = clause;
     Clauses::conflict_clauses.add_value(
@@ -893,7 +911,8 @@ bool Clauses::is_conflict_clause(int clause_id) {
 }
 
 // Removes from the list, pointer saved in index still, easy to re-add
-void Clauses::strip_clause(int clause_id) {
+void Clauses::drop_clause(int clause_id) {
+    Clauses::num_clauses_dropped++;
     if (clause_id >= Clauses::max_indexable) {
         Clauses::conflict_clauses.strip_value(
             clause_id - Clauses::max_indexable);
@@ -904,6 +923,7 @@ void Clauses::strip_clause(int clause_id) {
 
 // Re adds to the list, will now be traversable again
 void Clauses::re_add_clause(int clause_id) {
+    Clauses::num_clauses_dropped--;
     if (clause_id >= Clauses::max_indexable) {
         Clauses::conflict_clauses.re_add_value(
             clause_id - Clauses::max_indexable);
@@ -1008,6 +1028,13 @@ bool Clauses::iterator_is_finished() {
 void Clauses::reset_ll_bins() {
     Clauses::normal_clauses.reset_ll_bins();
     Clauses::conflict_clauses.reset_ll_bins();
+}
+
+// Resets the ordering and drops
+void Clauses::reset() {
+    Clauses::num_clauses_dropped = 0;
+    Clauses::normal_clauses.reset();
+    Clauses::conflict_clauses.reset();
 }
 
 // Frees data structures used

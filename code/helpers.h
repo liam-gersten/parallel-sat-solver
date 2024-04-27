@@ -4,6 +4,8 @@
 #include <string>
 #include "mpi.h"
 
+// Print control variables
+
 #define PRINT_LEVEL 0
 
 #define PRINT_INTERCONNECT 0
@@ -12,19 +14,23 @@
 
 #define PRINT_INDENT 1
 
-#define CONCISE_FORMULA 1
+#define PRINT_CONCISE_FORMULA 1
 
-#define ALWAYS_PREFER_CONFLICT_CLAUSES 0
+#define CYCLES_TO_PRINT_PROGRESS 100
+
+// Decision order control variables
 
 #define BIAS_CLAUSES_OF_SIZES_CHANGED 1
 
 #define ALWAYS_PREFER_NORMAL_VARS 0
 
-#define CONFLICT_CLAUSE_SIZE 3
-
-#define CYCLES_TO_PRINT_PROGRESS 100
-
 #define CYCLES_TO_RECEIVE_MESSAGES 1
+
+// Conflict resolution control variables
+
+#define ALWAYS_PREFER_CONFLICT_CLAUSES 0
+
+#define CONFLICT_CLAUSE_SIZE 3
 
 #define ENABLE_CONFLICT_RESOLUTION 1
 
@@ -285,6 +291,9 @@ class IndexableDLL {
     // Moves all ll items to their original bins.
     void reset_ll_bins();
 
+    // Resets the ordering and drops
+    void reset();
+
     // Frees data structures used
     void free_data();
 };
@@ -297,6 +306,7 @@ class Clauses {
         int num_indexed; // Number of normal clauses we're storing
         int max_conflict_indexable; // Same but for conflict clauses
         int num_conflict_indexed; // Same but for conflict clauses
+        int num_clauses_dropped;
         IndexableDLL normal_clauses;
         IndexableDLL conflict_clauses;
 
@@ -314,7 +324,7 @@ class Clauses {
     bool is_conflict_clause(int clause_id);
 
     // Removes from the list, pointer saved in index still, easy to re-add
-    void strip_clause(int clause_id);
+    void drop_clause(int clause_id);
 
     // Re adds to the list, will now be traversable again
     void re_add_clause(int clause_id);
@@ -351,6 +361,9 @@ class Clauses {
 
     // Moves all ll items to their original bins.
     void reset_ll_bins();
+
+    // Resets the ordering and drops
+    void reset();
 
     // Frees data structures used
     void free_data();
