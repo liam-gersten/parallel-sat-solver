@@ -1170,7 +1170,66 @@ void State::handle_remote_conflict_clause(
         Clause conflict_clause,
         Interconnect &interconnect) 
     {
-    // TODO: implement this
+    // test using original valuation
+    bool false_so_far = true;
+    bool none_from_local = true;
+    for (int i = 0; i < conflict_clause.num_literals; i++) {
+        int lit = conflict_clause.literal_variable_ids[i];
+        if (cnf.assignment_times[i] == -1) {
+            // unassigned -> backtrack to the highest depth-1
+            false_so_far = false;
+        } else if (cnf.assigned_true[i] && conflict_clause.literal_signs[i]
+                  || cnf.assigned_false[i] && !conflict_clause.literal_signs[i]) {
+            // is true, can add (or ignore?)
+            add_conflict_clause(cnf, conflict_clause, task_stack);
+            break;
+        }
+    }
+
+    if (false_so_far) {
+        // unsat -> backtrack
+        // what is second-last variable
+        std::map<int, int> lit_to_depth;
+        for (int i = 0; i < conflict_clause.num_literals; i++) {
+            int lit = conflict_clause.literal_variable_ids[i];
+            int depth = cnf.assignment_depths[lit];
+            lit_to_depth.insert({depth, lit});
+        }
+        auto iter = lit_to_depth.rbegin();
+        int last_d = iter->first;
+
+        // backtrack until I see the first depth
+        // TODO: perhaps resolve until it would be unit?
+        while (true) {
+            if (task_stack.count == 0) {
+                // still need to backtrack, but on "bad" choice of first variable
+                cnf.backtrack();
+                break;
+            }
+
+            Task current_task = get_task(task_stack);
+
+            if (current_task.is_backtrack) {
+                cnf.backtrack();
+                if (cnf.depth == last_d) {
+                    // need to backtrack once more
+                    cnf.backtrack(); // could be bug??
+                    break;
+                }
+            } else {
+                if (current_task.assignment) {
+                    cnf.true_assignment_statuses[current_task.var_id] = 'u';
+                    if (PRINT_LEVEL >= 3) printf("%sPID %d: removed pre-conflict task {%d = T}\n", cnf.depth_str.c_str(), State::pid, current_task.var_id);
+                } else {
+                    cnf.false_assignment_statuses[current_task.var_id] = 'u';
+                    if (PRINT_LEVEL >= 3) printf("%sPID %d: removed pre-conflict task {%d = F}\n", cnf.depth_str.c_str(), State::pid, current_task.var_id);
+                }
+                State::num_non_trivial_tasks--;   
+            }
+        }
+    } else {
+        // unassigned, do nothing
+    }
 }
 
 // Handles a recieved conflict clause

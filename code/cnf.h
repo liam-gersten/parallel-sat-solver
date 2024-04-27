@@ -180,7 +180,6 @@ class Cnf {
         // Returns whether a clause id is for a conflict clause
         bool is_conflict_clause(int clause_id);
         
-        Clause resolve_clauses_old(Clause A, Clause B, int variable);
         // Resolves two clauses, returns the resulting clause
         Clause resolve_clauses(Clause A, Clause B, int variable);
         
@@ -193,6 +192,7 @@ class Cnf {
         // Populates result clause with 1UID conflict clause
         // Returns whether a result could be generated.
         bool conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id);
+        bool conflict_resolution_uid_old(int culprit_id, Clause &result, int decided_var_id);
 
         // Updates formula with given assignment.
         // Returns false on failure and populates Conflict clause.
