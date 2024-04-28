@@ -1,5 +1,5 @@
 debug:
-	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -pg -g
+	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -g
 
 fast:
 	mpic++ -O3 -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG

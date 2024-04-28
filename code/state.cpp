@@ -245,7 +245,7 @@ bool State::task_stack_invariant(
         opposite_assignment.var_id = stolen_task.var_id;
         opposite_assignment.value = !stolen_task.assignment;
         char opposite_status = cnf.get_decision_status(opposite_assignment);
-        assert((opposite_status == 'l') || (opposite_status == 's'));
+        assert(((opposite_status == 'l') || (opposite_status == 's') || (opposite_status == 'q')));
         num_stolen++;
     }
     assert(num_queued <= reported_num_queued);
@@ -456,6 +456,8 @@ void State::give_work(
         work = grab_work_from_stack(cnf, task_stack, recipient_pid);
     }
     if (State::child_statuses[recipient_index] == 'u') {
+        printf("PID %d recieved by %d, num urgent is %d\n", pid, (int)recipient_pid, num_urgent);
+        printf("\n");
         State::num_urgent--;
     }
     State::child_statuses[recipient_index] = 'w';
@@ -661,6 +663,7 @@ void State::handle_work_message(
         State::current_task.var_id = task.var_id;
         // NICE: implement forwarding
         State::current_task.pid = sender_pid;
+        printf("sender pid: %d\n", State::pid);
         cnf.reconstruct_state(work, task_stack);
         (*State::thieves).free_data();
         State::num_non_trivial_tasks = 1;
@@ -1418,14 +1421,7 @@ void State::handle_local_conflict_clause(
 
     // TODO: where to add conflict clause?
     add_conflict_clause(cnf, conflict_clause, task_stack, false);
-    inform_thieves_of_conflict(
-        (*State::thieves), conflict_clause, interconnect);
     
-    // Send conflict clause to remote
-    if (State::current_task.pid != -1) {
-        interconnect.send_conflict_clause(
-            State::current_task.pid, conflict_clause);
-    }
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
     if (SEND_CONFLICT_CLAUSES) {

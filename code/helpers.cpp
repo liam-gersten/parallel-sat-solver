@@ -648,7 +648,9 @@ void IndexableDLL::change_size_of_value(int value_index, int new_size) {
     int old_size = IndexableDLL::element_counts[value_index];
     int original_size = IndexableDLL::original_element_counts[value_index];
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
-    assert(0 < old_size && 0 < new_size && new_size != old_size);
+    assert(0 < old_size);
+    assert(0 < new_size);
+    assert(new_size != old_size);
     IndexableDLL::element_counts[value_index] = new_size;
     if ((new_size > 2) && (old_size > 2)) {
         // No re-ordering to do
@@ -873,6 +875,8 @@ Clauses::Clauses(int num_regular_to_index, int num_conflict_to_index) {
     IndexableDLL conflict_clauses(num_conflict_to_index);
     Clauses::normal_clauses = normal_clauses;
     Clauses::conflict_clauses = conflict_clauses;
+
+    reset_iterator();
 }
 
 // default constructor
