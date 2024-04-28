@@ -5,17 +5,18 @@
 
 struct VariableLocations {
     int variable_id; // id of variable
-    int variable_row;
-    int variable_col;
-    int variable_k;
+    // Used to determine who caused a conflict
+    int implying_clause_id;
     // Used to quickly updates the compressed version of the CNF
     unsigned int variable_addition;
     unsigned int variable_true_addition_index;
     unsigned int variable_false_addition_index;
-    // Used to determine who caused a conflict
-    int implying_clause_id;
     // Will have dynamic allocation size
     IntDeque clauses_containing; // LL of clause ids
+
+    int variable_row;
+    int variable_col;
+    int variable_k;
 };
 
 // Adds a clause to data structures

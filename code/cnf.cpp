@@ -1345,6 +1345,11 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
                 current_cycle_variables++;
             }
         }
+
+        // TODO: optimization if it gets too big
+        if (lit_to_time.size() > CONFLICT_CLAUSE_SIZE*Cnf::n) {
+            return false;
+        }
     }
     result.id = -1;
     result.num_literals = lit_to_time.size();
