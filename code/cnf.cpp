@@ -919,8 +919,18 @@ int Cnf::get_num_unsat(Clause clause) {
 }
 
 // Gets the status of a clause, 's', 'u', or 'n'.
-char Cnf::check_clause(Clause clause, int *num_unsat) {
-    int unsat_count = 0;
+char Cnf::check_clause(Clause clause, int *num_unsat, bool from_propagate) {
+    // if from_propagate, how many relevant variables are we expecting?
+    int cid = clause.id;
+    int old_num_unsat;
+    if (cid < Cnf::clauses.num_indexed) {
+        old_num_unsat = Cnf::clauses.normal_clauses.element_counts[cid];
+    } else {
+        cid -= Cnf::clauses.num_indexed;
+        old_num_unsat = Cnf::clauses.conflict_clauses.element_counts[cid];
+    }
+
+    int unsat_count = 0; //0 if clause is true; otherwise, number of undetermined
     for (int i = 0; i < clause.num_literals; i++) {
         int var_id = clause.literal_variable_ids[i];
         if (Cnf::assigned_true[var_id]) {
@@ -938,6 +948,9 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
         }
     }
     *num_unsat = unsat_count;
+    if (!(unsat_count <= old_num_unsat || old_num_unsat == 0)) {
+        printf("AAH: %d, %d\n", unsat_count, old_num_unsat);
+    }
     if (unsat_count == 0) {
         return 'u';
     }
@@ -1414,7 +1427,7 @@ bool Cnf::propagate_assignment(
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
             Clause clause = Cnf::clauses.get_clause(clause_id);
             int num_unsat;
-            char new_clause_status = check_clause(clause, &num_unsat);            
+            char new_clause_status = check_clause(clause, &num_unsat, true);            
             switch (new_clause_status) {
                 case 's': {
                     // Satisfied, can now drop
