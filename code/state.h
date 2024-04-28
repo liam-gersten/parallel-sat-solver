@@ -223,6 +223,9 @@ class State {
         // Adds one or two variable assignment tasks to task stack
         int add_tasks_from_formula(Cnf &cnf, Deque &task_stack);
         
+        // Displays data structure data for debugging purposes
+        void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str);
+        
         // Runs one iteration of the solver
         bool solve_iteration(
             Cnf &cnf, 
