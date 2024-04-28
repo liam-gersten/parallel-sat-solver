@@ -59,6 +59,7 @@ void run_filename(
         // A solution was found
         if (!result) {
             // someone else has the solution
+            free(cnf.assigned_true);
             return;
         }
         printf("Solution found by PID %d\n", pid);
@@ -78,6 +79,7 @@ void run_filename(
         free(board[i]);
     }
     free(board);
+    free(cnf.assigned_true);
 }
 
 void run_tests(
@@ -149,6 +151,7 @@ void run_tests(
         // A solution was found
         if (!result) {
             // someone else has the solution
+            free(cnf.assigned_true);
             return;
         }
         printf("Solution found by PID %d\n", pid);
@@ -170,6 +173,7 @@ void run_tests(
         free(board[i]);
     }
     free(board);
+    free(cnf.assigned_true);
     fin.close();
 }
 
@@ -238,6 +242,7 @@ void run_example_1(
         // A solution was found
         if (!result) {
             // somone else has the solution
+            free(cnf.assigned_true);
             return;
         }
     } else {
@@ -249,6 +254,7 @@ void run_example_1(
     if (PRINT_LEVEL > 0) {
         print_assignment((short)pid, "", "", assignment, cnf.num_variables, true);
     }
+    free(cnf.assigned_true);
 }
 
 void truncate_size(unsigned long long int &input_size, std::string &suffix) {

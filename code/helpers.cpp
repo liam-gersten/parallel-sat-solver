@@ -343,7 +343,7 @@ void print_compressed(
         int n) 
     {
     std::string data_string = "compressed: [";
-    for (int i = 2; i < n; i++) {
+    for (int i = 0; i < n; i++) {
         data_string.append(std::to_string(compressed[i]));
         if (i != n - 1) {
             data_string.append(" ");
@@ -669,7 +669,8 @@ void IndexableDLL::change_size_of_value(int value_index, int new_size) {
 
 // Returns whether an element is dropped
 bool IndexableDLL::element_is_dropped(int value_index) {
-    assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
+    assert(0 <= value_index);
+    assert(value_index <= IndexableDLL::num_indexed);
     return IndexableDLL::elements_dropped[value_index];
 }
 

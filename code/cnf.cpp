@@ -527,7 +527,7 @@ void Cnf::init_compression() {
     Cnf::ints_needed_for_vars = ceil_div(
         Cnf::num_variables, (sizeof(int) * 8));
     int ints_per_state = (2 * Cnf::ints_needed_for_vars) + Cnf::ints_needed_for_clauses;
-    Cnf::work_ints = 2 + ints_per_state;
+    Cnf::work_ints = 3 + ints_per_state;
     int start_clause_id = 0;
     for (int comp_index = 0; comp_index < Cnf::ints_needed_for_clauses; comp_index++) {
         unsigned int running_addition = 1;
@@ -717,12 +717,18 @@ void Cnf::print_cnf(
         data_string.append(std::to_string(Cnf::clauses.num_indexed));
         data_string.append(" indexed clauses: ");
         if (!PRINT_CONCISE_FORMULA) data_string.append("\n");
+        int num_seen = 0;
         for (int clause_id = 0; clause_id < Cnf::clauses.num_indexed; clause_id++) {
+            if (num_seen > 10) {
+                data_string.append(" ... ");
+                break;
+            }
             Clause clause = Cnf::clauses.get_clause(clause_id);
             if (clause_id > 0) {
                 data_string.append(" /\\ ");
             }
             data_string.append(clause_to_string_current(clause, elimination));
+            num_seen++;
         }
     }
     printf("%sPID %d: %s %s\n", tab_string.c_str(), Cnf::pid, prefix_string.c_str(), data_string.c_str());
@@ -1647,9 +1653,9 @@ void Cnf::recurse() {
 Task Cnf::extract_task_from_work(void *work) {
     Task task;
     int offset = Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars);
-    task.var_id = ((unsigned int *)work)[offset] & ((unsigned int)(1 << 31) - 1);
-    task.implier = (int)(((unsigned int *)work)[offset + 1]);
-    task.assignment = (bool)(((unsigned int *)work)[offset] & ((unsigned int)(1 << 31)));
+    task.var_id = ((unsigned int *)work)[offset];
+    task.assignment = (bool)(((unsigned int *)work)[offset + 1]);
+    task.implier = (int)(((unsigned int *)work)[offset + 2]);
     task.is_backtrack = false;
     return task;
 }
@@ -1659,6 +1665,12 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     Cnf::clauses.reset();
     unsigned int *compressed = (unsigned int *)work;
     Cnf::oldest_compressed = compressed;
+    print_compressed(
+        Cnf::pid,
+        "new oldest compressed", 
+        Cnf::depth_str,
+        oldest_compressed,
+        Cnf::work_ints);
     int clause_group_offset = 0;
     // Drop normal clauses
     for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
@@ -1666,16 +1678,20 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         bool *clause_bits = int_to_bits(compressed_group);
         for (int bit = 0; bit < 32; bit++) {
             int clause_id = bit + clause_group_offset;
+            assert(!Cnf::clauses.clause_is_dropped(clause_id));
             if (clause_id >= Cnf::clauses.num_indexed) break;
             bool should_be_dropped = clause_bits[bit];
             if (should_be_dropped) {
                 Cnf::clauses.drop_clause(clause_id);
             } else {
-                Clause conflict_clause = Cnf::clauses.get_clause(clause_id);
+                Clause clause = Cnf::clauses.get_clause(clause_id);
                 int num_unsat;
-                char clause_status = check_clause(conflict_clause, &num_unsat);
-                assert(clause_status == 'n');
-                if (num_unsat != conflict_clause.num_literals) {
+                char clause_status = check_clause(clause, &num_unsat);
+                if (num_unsat == 0) {
+                    printf("\n\nPID %d: bad clause = %d\n\n", Cnf::pid, clause_id);
+                }
+                assert(num_unsat > 0);
+                if (num_unsat != clause.num_literals) {
                     Cnf::clauses.change_clause_size(clause_id, num_unsat);
                 }
             }
@@ -1772,21 +1788,20 @@ unsigned int *Cnf::to_int_rep() {
     bool *bit_addr = Cnf::clauses.normal_clauses.elements_dropped;
     for (int i = 0; i < Cnf::ints_needed_for_clauses; i++) {
         unsigned int current = bits_to_int(bit_addr);
-        // printf("current = %u\n", current);
-        compressed[i + 2] = current;
+        compressed[i] = current;
         bit_addr = bit_addr + 32;
     }
     bit_addr = Cnf::assigned_true;
     for (int i = 0; i < Cnf::ints_needed_for_vars; i++) {
         unsigned int current = bits_to_int(bit_addr);
-        compressed[i + 2 + Cnf::ints_needed_for_clauses] = current;
+        compressed[i + Cnf::ints_needed_for_clauses] = current;
         bit_addr = bit_addr + 32;
     }
     bit_addr = Cnf::assigned_false;
     for (int i = 0; i < Cnf::ints_needed_for_vars; i++) {
         unsigned int current = bits_to_int(bit_addr);
         compressed[
-            i + 2 + Cnf::ints_needed_for_clauses + Cnf::ints_needed_for_vars
+            i + Cnf::ints_needed_for_clauses + Cnf::ints_needed_for_vars
             ] = current;
         bit_addr = bit_addr + 32;
     }
@@ -1805,7 +1820,6 @@ void Cnf::free_cnf() {
     Cnf::edit_stack.free_deque();
     Cnf::edit_counts_stack.free_deque();
     free(Cnf::oldest_compressed);
-    free(Cnf::assigned_true);
     free(Cnf::assigned_false);
     free(Cnf::true_assignment_statuses);
     free(Cnf::false_assignment_statuses);

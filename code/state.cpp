@@ -62,7 +62,8 @@ State::State(
 
 // Gets child (or parent) pid from child (or parent) index
 short State::pid_from_child_index(short child_index) {
-    assert(0 <= child_index && child_index <= State::num_children);
+    assert(-1 <= child_index);
+    assert(child_index <= State::num_children);
     if (child_index == State::num_children) {
         // Is parent
         return State::parent_id;
@@ -121,6 +122,9 @@ bool State::task_stack_invariant(
     {
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     assert(cnf.local_edit_count <= cnf.edit_stack.count);
+    if (State::num_non_trivial_tasks > 0) {
+        assert(task_stack.count > 0);
+    }
     int num_processed = 0;
     int num_to_process = task_stack.count;
     int true_num_tasks = 0;
@@ -245,7 +249,10 @@ bool State::task_stack_invariant(
         opposite_assignment.var_id = stolen_task.var_id;
         opposite_assignment.value = !stolen_task.assignment;
         char opposite_status = cnf.get_decision_status(opposite_assignment);
-        assert((opposite_status == 'l') || (opposite_status == 's'));
+        if (!(opposite_status == 'l') || (opposite_status == 's') || (opposite_status == 'q')) {
+            printf("%sPID %d: failing thief %d [%d = %d] done\n", cnf.depth_str.c_str(), State::pid, stolen_task.pid, task_assignment.var_id, (int)task_assignment.value);
+        }
+        assert((opposite_status == 'l') || (opposite_status == 's') || (opposite_status == 'q'));
         num_stolen++;
     }
     assert(num_queued <= reported_num_queued);
@@ -355,6 +362,21 @@ void *State::grab_work_from_stack(
     GivenTask *task_to_give_ptr = (GivenTask *)malloc(sizeof(GivenTask));
     *task_to_give_ptr = task_to_give;
     (*State::thieves).add_to_front((void *)task_to_give_ptr);
+    if (!backtrack_at_top(task_stack)) {
+        int edits_to_apply = (cnf.edit_counts_stack).peak_back();
+        Queue tmp_stack;
+        while (edits_to_apply) {
+            void *formula_edit_ptr = ((cnf.edit_stack)).pop_from_back();
+            FormulaEdit edit = *((FormulaEdit *)formula_edit_ptr);
+            tmp_stack.add_to_front(formula_edit_ptr);
+            apply_edit_to_compressed(cnf, cnf.oldest_compressed, edit);
+            edits_to_apply--;
+        }
+        while (tmp_stack.count > 0) {
+            void *formula_edit_ptr = tmp_stack.pop_from_front();
+            cnf.edit_stack.add_to_back(formula_edit_ptr);
+        }
+    }
     // Prune the top of the tree
     while (backtrack_at_top(task_stack)) {
         // Two deques loose their top element, one looses at least one element
@@ -371,6 +393,8 @@ void *State::grab_work_from_stack(
     assert(State::num_non_trivial_tasks >= 1);
     if (PRINT_LEVEL > 1) printf("PID %d: grabbing work from stack done\n", State::pid);
     print_data(cnf, task_stack, "grabbed work from stack");
+    if (PRINT_LEVEL > 5) print_compressed(
+        cnf.pid, "giving work", cnf.depth_str, (unsigned int *)work, cnf.work_ints);
     return work;
 }
 
@@ -429,7 +453,6 @@ short State::pick_request_recipient() {
             break;
         }
     }
-    assert(recipient_index != -1);
     if (PRINT_LEVEL > 0) printf("PID %d: picked request recipient %d\n", State::pid, pid_from_child_index(recipient_index));
     return recipient_index;
 }
@@ -453,6 +476,7 @@ void State::give_work(
             work = (interconnect.get_stashed_work()).data;
         }
     } else {
+        assert(task_stack.count > 0);
         work = grab_work_from_stack(cnf, task_stack, recipient_pid);
     }
     if (State::child_statuses[recipient_index] == 'u') {
@@ -503,6 +527,9 @@ void State::ask_for_work(
         if (PRINT_LEVEL > 0) printf("PID %d: urgently asking for work\n", State::pid);
         // Send a single urgent work request
         short dest_index = pick_request_recipient();
+        if (dest_index == -1) {
+            return;
+        }
         short dest_pid = pid_from_child_index(dest_index);
         if (State::requests_sent[dest_index] == 'r') {
             // Send an urgent upgrade
@@ -517,6 +544,9 @@ void State::ask_for_work(
         if (PRINT_LEVEL > 0) printf("PID %d: asking for work\n", State::pid);
         // Send a single work request
         short dest_index = pick_request_recipient();
+        if (dest_index == -1) {
+            return;
+        }
         short dest_pid = pid_from_child_index(dest_index);
         assert(State::requests_sent[dest_index] == 'n');
         interconnect.send_work_request(dest_pid, 0);
@@ -1500,6 +1530,8 @@ void State::print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 4) printf("%sPID %d: %s edit counts = %s + %d\n", cnf.depth_str.c_str(), cnf.pid, prefix_str.c_str(), int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
     if (PRINT_LEVEL > 5) print_compressed(
         cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
+    if (PRINT_LEVEL > 5) print_compressed(
+        cnf.pid, prefix_str, cnf.depth_str, cnf.oldest_compressed, cnf.work_ints);
     if (PRINT_LEVEL > 5) {
         std::string drop_str = "regular dropped [";
         for (int i = 0; i < cnf.clauses.num_indexed; i++) {
@@ -1649,6 +1681,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         while (out_of_work() && !State::process_finished) {
             bool message_received = interconnect.async_receive_message(message);
             if (message_received) {
+                printf("%sPID %d: handle message A\n", cnf.depth_str.c_str(), State::pid);
                 handle_message(message, cnf, task_stack, interconnect);
             }
         }
@@ -1662,6 +1695,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         }
         if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {
             while (interconnect.async_receive_message(message) && !State::process_finished) {
+                printf("%sPID %d: handle message B\n", cnf.depth_str.c_str(), State::pid);
                 handle_message(message, cnf, task_stack, interconnect);
                 // NICE: serve work here?
             }
