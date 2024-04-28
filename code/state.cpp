@@ -240,7 +240,7 @@ bool State::task_stack_invariant(
         task_assignment.var_id = stolen_task.var_id;
         task_assignment.value = stolen_task.assignment;
         char task_status = cnf.get_decision_status(task_assignment);
-        assert(task_status == 'r');
+        assert(task_status == 's');
         Assignment opposite_assignment;
         opposite_assignment.var_id = stolen_task.var_id;
         opposite_assignment.value = !stolen_task.assignment;
@@ -335,10 +335,13 @@ void *State::grab_work_from_stack(
         short recipient_pid)
     {
     if (PRINT_LEVEL > 0) printf("PID %d: grabbing work from stack\n", State::pid);
+    print_data(cnf, task_stack, "grabbing work from stack");
     assert(State::num_non_trivial_tasks > 1);
     assert(task_stack.count >= State::num_non_trivial_tasks);
     // Get the actual work as a copy
-    Task top_task = *((Task *)(task_stack.pop_from_back()));
+    void *top_task_ptr = task_stack.pop_from_back();
+    Task top_task = *((Task *)(top_task_ptr));
+    free(top_task_ptr);
     void *work = cnf.convert_to_work_message(cnf.oldest_compressed, top_task);
     if (top_task.assignment) {
         cnf.true_assignment_statuses[top_task.var_id] = 's';
@@ -356,7 +359,6 @@ void *State::grab_work_from_stack(
     while (backtrack_at_top(task_stack)) {
         // Two deques loose their top element, one looses at least one element
         int edits_to_apply = (cnf.edit_counts_stack).pop_from_back();
-        assert(edits_to_apply > 0);
         while (edits_to_apply) {
             FormulaEdit edit = *((FormulaEdit *)(((cnf.edit_stack)).pop_from_back()));
             apply_edit_to_compressed(cnf, cnf.oldest_compressed, edit);
@@ -368,6 +370,7 @@ void *State::grab_work_from_stack(
     State::num_non_trivial_tasks--;
     assert(State::num_non_trivial_tasks >= 1);
     if (PRINT_LEVEL > 1) printf("PID %d: grabbing work from stack done\n", State::pid);
+    print_data(cnf, task_stack, "grabbed work from stack");
     return work;
 }
 
@@ -661,6 +664,7 @@ void State::handle_work_message(
         cnf.reconstruct_state(work, task_stack);
         (*State::thieves).free_data();
         State::num_non_trivial_tasks = 1;
+        print_data(cnf, task_stack, "Post reconstruct");
     } else {
         // Add to interconnect work stash
         interconnect.stash_work(message);
@@ -1430,13 +1434,34 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
 }
 
 // Displays data structure data for debugging purposes
-void print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
+void State::print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
     if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.edit_stack));
     if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, true);
     if (PRINT_LEVEL > 4) printf("%sPID %d: %s edit counts = %s + %d\n", cnf.depth_str.c_str(), cnf.pid, prefix_str.c_str(), int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
     if (PRINT_LEVEL > 5) print_compressed(
         cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
+    if (PRINT_LEVEL > 5) {
+        std::string drop_str = "regular dropped [";
+        for (int i = 0; i < cnf.clauses.num_indexed; i++) {
+            if (cnf.clauses.clause_is_dropped(i)) {
+                drop_str.append(std::to_string(i));
+                drop_str.append(", ");
+            }
+        }
+        drop_str.append("]");
+        printf("%sPID %d: %s %s\n", cnf.depth_str.c_str(), State::pid, prefix_str.c_str(), drop_str.c_str());
+        drop_str = "conflict dropped [";
+        for (int i = 0; i < cnf.clauses.num_conflict_indexed; i++) {
+            int clause_id = cnf.clauses.max_indexable + i;
+            if (cnf.clauses.clause_is_dropped(clause_id)) {
+                drop_str.append(std::to_string(clause_id));
+                drop_str.append(", ");
+            }
+        }
+        drop_str.append("]");
+        printf("%sPID %d: %s %s\n", cnf.depth_str.c_str(), State::pid, prefix_str.c_str(), drop_str.c_str());
+    }
 }
 
 // Runs one iteration of the solver

@@ -924,11 +924,13 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
     for (int i = 0; i < clause.num_literals; i++) {
         int var_id = clause.literal_variable_ids[i];
         if (Cnf::assigned_true[var_id]) {
+            assert(!Cnf::assigned_false[var_id]);
             if (clause.literal_signs[i]) {
                 *num_unsat = 0;
                 return 's';
             }
         } else if (Cnf::assigned_false[var_id]) {
+            assert(!Cnf::assigned_true[var_id]);
             if (!(clause.literal_signs[i])) {
                 *num_unsat = 0;
                 return 's';
@@ -1680,6 +1682,8 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         clause_group_offset += 32;
     }
     // Set values
+    memset(Cnf::true_assignment_statuses, 'u', Cnf::num_variables * sizeof(char));
+    memset(Cnf::false_assignment_statuses, 'u', Cnf::num_variables * sizeof(char));
     int value_group_offset = 0;
     for (int value_group = 0; value_group < Cnf::ints_needed_for_vars; value_group++) {
         unsigned int compressed_group_true = compressed[
@@ -1732,6 +1736,11 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     Task first_task = extract_task_from_work(work);
     task_stack.add_to_front(
         make_task(first_task.var_id, first_task.implier, first_task.assignment));
+    if (first_task.assignment) {
+        Cnf::true_assignment_statuses[first_task.var_id] = 'q';
+    } else {
+        Cnf::false_assignment_statuses[first_task.var_id] = 'q';
+    }
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::local_edit_count = 0;
