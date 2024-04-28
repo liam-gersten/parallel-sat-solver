@@ -1015,106 +1015,6 @@ bool Cnf::is_conflict_clause(int clause_id) {
 }
 
 // Resolves two clauses, returns the resulting clause
-Clause Cnf::resolve_clauses_old(Clause A, Clause B, int variable) {
-    assert(clause_is_sorted(A));
-    assert(clause_is_sorted(B));
-    assert(A.num_literals + B.num_literals >= 3);
-    if (PRINT_LEVEL > 1) printf("%s\tPID %d: resolving clauses\n\t\t%sC%d %s\n%s\t\t\twith %d\n\t\t%sC%d %s\n", Cnf::depth_str.c_str(), Cnf::pid, Cnf::depth_str.c_str(), A.id, clause_to_string_current(A, false).c_str(), Cnf::depth_str.c_str(), variable, Cnf::depth_str.c_str(), B.id, clause_to_string_current(B, false).c_str());  
-    Clause result;
-    result.id = -1;
-    Queue resolved;
-    short a_index = 0;
-    short b_index = 0;
-    while (a_index < A.num_literals && b_index < B.num_literals) {
-        int var_id_a = A.literal_variable_ids[a_index];
-        int var_id_b = B.literal_variable_ids[b_index];
-        if (var_id_a == variable && var_id_b == variable) {
-            a_index++;
-            b_index++;
-            continue;
-        } else if (var_id_a == variable) {
-            a_index++;
-            continue;
-        } else if (var_id_b == variable) {
-            b_index++;
-            continue;
-        }
-        bool var_sign_a = A.literal_signs[a_index];
-        bool var_sign_b = B.literal_signs[b_index];
-        int *var_id_ptr = (int *)(malloc(sizeof(int)));
-        bool *var_sign_ptr = (bool *)(malloc(sizeof(bool)));
-        if (var_id_a < var_id_b) {
-            *var_id_ptr = var_id_a;
-            *var_sign_ptr = var_sign_a;
-            a_index++;
-        } else if (var_id_b < var_id_a) {
-            *var_id_ptr = var_id_b;
-            *var_sign_ptr = var_sign_b;
-            b_index++;
-        } else {
-            *var_id_ptr = var_id_a;
-            *var_sign_ptr = var_sign_a;
-            a_index++;
-            b_index++;
-        }
-        resolved.add_to_back((void *)var_id_ptr);
-        resolved.add_to_back((void *)var_sign_ptr);
-    }
-    while (a_index < A.num_literals) {
-        int var_id_a = A.literal_variable_ids[a_index];
-        if (var_id_a == variable) {
-            a_index++;
-            continue;
-        }
-        bool var_sign_a = A.literal_signs[a_index];
-        int *var_id_ptr = (int *)(malloc(sizeof(int)));
-        bool *var_sign_ptr = (bool *)(malloc(sizeof(bool)));
-        *var_id_ptr = var_id_a;
-        *var_sign_ptr = var_sign_a;
-        a_index++;
-        resolved.add_to_back((void *)var_id_ptr);
-        resolved.add_to_back((void *)var_sign_ptr);
-    }
-    while (b_index < B.num_literals) {
-        int var_id_b = B.literal_variable_ids[b_index];
-        if (var_id_b == variable) {
-            b_index++;
-            continue;
-        }
-        bool var_sign_b = B.literal_signs[b_index];
-        int *var_id_ptr = (int *)(malloc(sizeof(int)));
-        bool *var_sign_ptr = (bool *)(malloc(sizeof(bool)));
-        *var_id_ptr = var_id_b;
-        *var_sign_ptr = var_sign_b;
-        b_index++;
-        resolved.add_to_back((void *)var_id_ptr);
-        resolved.add_to_back((void *)var_sign_ptr);
-    }
-    result.num_literals = (resolved.count / 2);
-    assert(result.num_literals >= std::max(A.num_literals, B.num_literals) - 1);
-    result.literal_variable_ids = (int *)malloc(
-        sizeof(int) * result.num_literals);
-    result.literal_signs = (bool *)malloc(
-        sizeof(bool) * result.num_literals);
-    short index = 0;
-    while (resolved.count > 0) {
-        void *var_id_ptr = resolved.pop_from_front();
-        void *var_sign_ptr = resolved.pop_from_front();
-        int var_id_a = *((int *)var_id_ptr);
-        bool var_sign_a = *((bool *)var_sign_ptr);
-        free(var_id_ptr);
-        free(var_sign_ptr);
-        result.literal_variable_ids[index] = var_id_a;
-        result.literal_signs[index] = var_sign_a;
-        index++;
-    }
-    if (PRINT_LEVEL > 2) printf("\t%sPID %d: resolved clause = %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_to_string_current(result, false).c_str());
-    assert(clause_is_sorted(result));
-    resolved.free_data();
-    return result;
-}
-
-// Resolves two clauses, returns the resulting clause
 Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
     assert(clause_is_sorted(A));
     assert(clause_is_sorted(B));
@@ -1198,10 +1098,8 @@ Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
         result.num_literals = i;
         result.literal_variable_ids = (int *)malloc(sizeof(int) * i);
         result.literal_signs = (bool *)malloc(sizeof(bool) * i);
-        for (int j = 0; j < i; j++) {
-            result.literal_variable_ids[j] = ids[j];
-            result.literal_signs[j] = signs[j];
-        }
+        memcpy(result.literal_variable_ids, ids, i*sizeof(int));
+        memcpy(result.literal_signs, signs, i*sizeof(bool));
         free(ids);
         free(signs);
     } else {
@@ -1212,7 +1110,6 @@ Clause Cnf::resolve_clauses(Clause A, Clause B, int variable) {
 
     if (PRINT_LEVEL > 2) printf("\t%sPID %d: resolved clause = %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_to_string_current(result, false).c_str());
     assert(clause_is_sorted(result));
-    assert(clauses_equal(result, resolve_clauses_old(A, B, variable)));
     return result;
 }
 
@@ -1299,7 +1196,7 @@ bool Cnf::conflict_resolution(int culprit_id, Clause &result) {
 
 // Populates result clause with 1UID conflict clause
 // Returns whether a result could be generated.
-bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id) {
+bool Cnf::conflict_resolution_uid_old(int culprit_id, Clause &result, int decided_var_id) {
     Clause conflict_clause = Cnf::clauses.get_clause(culprit_id);
     assert(clause_is_sorted(conflict_clause));
     if (PRINT_LEVEL > 1) { 
@@ -1378,6 +1275,111 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
     return true;
 }
 
+bool cmp_assignments(Assignment a, Assignment b) {
+    return a.var_id < b.var_id;
+}
+// Populates result clause with 1UID conflict clause
+// Returns whether a result could be generated.
+bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id) {
+    Clause conflict_clause = Cnf::clauses.get_clause(culprit_id);
+    assert(clause_is_sorted(conflict_clause));
+    if (PRINT_LEVEL > 1) { 
+        std::string data_string = "(";
+        for (int i = 0; i < conflict_clause.num_literals; i++) {
+            int resolve_variable_id = conflict_clause.literal_variable_ids[i];
+            VariableLocations locations = Cnf::variables[resolve_variable_id];
+            if (i > 0) {
+                data_string.append(", ");
+            }
+            data_string.append(std::to_string(locations.implying_clause_id));
+        }
+        data_string.append(")");
+        printf("%sPID %d: resolving conflict clause %d %s, implying = %s\n", Cnf::depth_str.c_str(), Cnf::pid, culprit_id, clause_to_string_current(conflict_clause, false).c_str(), data_string.c_str());
+    }
+
+    std::map<int, Assignment> lit_to_time; // in ascending order of assignment time
+
+    int last_decided_depth = Cnf::assignment_depths[decided_var_id];
+    int current_cycle_variables = 0;
+    for (int i = 0; i < conflict_clause.num_literals; i++) {
+        Assignment lit;
+        lit.var_id = conflict_clause.literal_variable_ids[i];
+        lit.value = conflict_clause.literal_signs[i];
+
+        int time = Cnf::assignment_times[lit.var_id];
+        int depth = Cnf::assignment_depths[lit.var_id];
+        lit_to_time.insert({time, lit});
+        if (depth >= last_decided_depth) {
+            current_cycle_variables++;
+        }
+    }
+
+    if (current_cycle_variables < 1) {
+        printf("bad cl: %s", clause_to_string_current(result, false).c_str());
+        printf("depths: %d, %d:: %d\n", Cnf::assignment_depths[451], Cnf::assignment_depths[7794], last_decided_depth);
+        printf("\n");
+    }
+    assert(current_cycle_variables >= 1);
+    while (current_cycle_variables > 1) {
+        // replace latest u-propped guy with rest of clause [must be u-propped]
+        auto iter = lit_to_time.rbegin();
+        Assignment u = iter->second; //take latest literal
+        int u_time = iter->first;
+        lit_to_time.erase(u_time);
+        assert(Cnf::assignment_depths[u.var_id] == last_decided_depth);
+        current_cycle_variables--;
+        
+        VariableLocations locations = Cnf::variables[u.var_id];
+        Clause implying_clause = Cnf::clauses.get_clause(
+            locations.implying_clause_id);
+
+        // add relevant vars from implying_clause
+        for (int i = 0; i < implying_clause.num_literals; i++) {
+            if (implying_clause.literal_variable_ids[i] == u.var_id) continue;
+            Assignment lit;
+            lit.var_id = implying_clause.literal_variable_ids[i];
+            lit.value = implying_clause.literal_signs[i];
+            int depth = Cnf::assignment_depths[lit.var_id];
+            int time = Cnf::assignment_times[lit.var_id];
+            
+            auto [_, success] = lit_to_time.insert({time, lit});
+            if (success && depth >= last_decided_depth) {
+                current_cycle_variables++;
+            }
+        }
+
+        // TODO: optimization if it gets too big
+        if (lit_to_time.size() > CONFLICT_CLAUSE_SIZE*Cnf::n) {
+            return false;
+        }
+    }
+    result.id = -1;
+    result.num_literals = lit_to_time.size();
+    result.literal_variable_ids = (int *)malloc(sizeof(int) * result.num_literals);
+    result.literal_signs = (bool *)malloc(sizeof(bool) * result.num_literals);
+    // make result clause from lit_to_time
+    Assignment lits[result.num_literals];
+    int i = 0;
+    for (auto iter = lit_to_time.begin(); iter != lit_to_time.end(); ++iter) {
+        lits[i] = iter->second;
+        i++;
+    }
+    std::sort(lits, lits+result.num_literals, cmp_assignments);
+
+    for (i = 0; i < result.num_literals; i++) {
+        result.literal_variable_ids[i] = lits[i].var_id;
+        result.literal_signs[i] = lits[i].value;
+    }
+
+    // TODO: when should we keep/discard conflict clause?
+    if (result.num_literals > CONFLICT_CLAUSE_SIZE*Cnf::n 
+    || Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
+        free_clause(result);
+        return false;
+    }
+    return true;
+}
+
 // Updates formula with given assignment.
 // Returns false on failure and populates Conflict clause.
 bool Cnf::propagate_assignment(
@@ -1414,7 +1416,7 @@ bool Cnf::propagate_assignment(
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
             Clause clause = Cnf::clauses.get_clause(clause_id);
             int num_unsat;
-            char new_clause_status = check_clause(clause, &num_unsat);
+            char new_clause_status = check_clause(clause, &num_unsat);            
             switch (new_clause_status) {
                 case 's': {
                     // Satisfied, can now drop

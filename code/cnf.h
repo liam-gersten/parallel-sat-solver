@@ -5,17 +5,18 @@
 
 struct VariableLocations {
     int variable_id; // id of variable
-    int variable_row;
-    int variable_col;
-    int variable_k;
+    // Used to determine who caused a conflict
+    int implying_clause_id;
     // Used to quickly updates the compressed version of the CNF
     unsigned int variable_addition;
     unsigned int variable_true_addition_index;
     unsigned int variable_false_addition_index;
-    // Used to determine who caused a conflict
-    int implying_clause_id;
     // Will have dynamic allocation size
     IntDeque clauses_containing; // LL of clause ids
+
+    int variable_row;
+    int variable_col;
+    int variable_k;
 };
 
 // Adds a clause to data structures
@@ -178,7 +179,6 @@ class Cnf {
         // Returns whether a clause id is for a conflict clause
         bool is_conflict_clause(int clause_id);
         
-        Clause resolve_clauses_old(Clause A, Clause B, int variable);
         // Resolves two clauses, returns the resulting clause
         Clause resolve_clauses(Clause A, Clause B, int variable);
         
@@ -191,6 +191,7 @@ class Cnf {
         // Populates result clause with 1UID conflict clause
         // Returns whether a result could be generated.
         bool conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id);
+        bool conflict_resolution_uid_old(int culprit_id, Clause &result, int decided_var_id);
 
         // Updates formula with given assignment.
         // Returns false on failure and populates Conflict clause.
