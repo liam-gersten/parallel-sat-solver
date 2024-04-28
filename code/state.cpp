@@ -480,6 +480,8 @@ void State::give_work(
         work = grab_work_from_stack(cnf, task_stack, recipient_pid);
     }
     if (State::child_statuses[recipient_index] == 'u') {
+        printf("PID %d recieved by %d, num urgent is %d\n", pid, (int)recipient_pid, num_urgent);
+        printf("\n");
         State::num_urgent--;
     }
     State::child_statuses[recipient_index] = 'w';
@@ -691,6 +693,7 @@ void State::handle_work_message(
         State::current_task.var_id = task.var_id;
         // NICE: implement forwarding
         State::current_task.pid = sender_pid;
+        printf("sender pid: %d\n", State::pid);
         cnf.reconstruct_state(work, task_stack);
         (*State::thieves).free_data();
         State::num_non_trivial_tasks = 1;
@@ -1202,20 +1205,31 @@ void State::handle_remote_conflict_clause(
         Clause conflict_clause,
         Interconnect &interconnect) 
     {
+    add_conflict_clause(cnf, conflict_clause, task_stack);
+
     // test using original valuation
     bool false_so_far = true;
-    bool none_from_local = true;
+    bool preassigned_false_so_far = true;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         int lit = conflict_clause.literal_variable_ids[i];
-        if (cnf.assignment_times[i] == -1) {
-            // unassigned -> backtrack to the highest depth-1
-            false_so_far = false;
-        } else if (cnf.assigned_true[i] && conflict_clause.literal_signs[i]
-                  || cnf.assigned_false[i] && !conflict_clause.literal_signs[i]) {
+        if (cnf.assigned_true[lit] && conflict_clause.literal_signs[lit]
+                  || cnf.assigned_false[lit] && !conflict_clause.literal_signs[lit]) {
             // is true, can add (or ignore?)
-            add_conflict_clause(cnf, conflict_clause, task_stack);
-            break;
+            // no need to backtrack
+            return;
+        } else if (!cnf.assigned_true[lit] && !cnf.assigned_false[lit]) {
+            false_so_far = false;
+            preassigned_false_so_far = false;
+        } else {
+            if (cnf.assignment_times[lit] != -1) {
+                preassigned_false_so_far = false;
+            }
         }
+    }
+
+    if (preassigned_false_so_far) {
+        invalidate_work(task_stack);
+        return;
     }
 
     if (false_so_far) {
@@ -1233,12 +1247,6 @@ void State::handle_remote_conflict_clause(
         // backtrack until I see the first depth
         // TODO: perhaps resolve until it would be unit?
         while (true) {
-            if (task_stack.count == 0) {
-                // still need to backtrack, but on "bad" choice of first variable
-                cnf.backtrack();
-                break;
-            }
-
             Task current_task = get_task(task_stack);
 
             if (current_task.is_backtrack) {
@@ -1443,14 +1451,7 @@ void State::handle_local_conflict_clause(
 
     // TODO: where to add conflict clause?
     add_conflict_clause(cnf, conflict_clause, task_stack, false);
-    inform_thieves_of_conflict(
-        (*State::thieves), conflict_clause, interconnect);
     
-    // Send conflict clause to remote
-    if (State::current_task.pid != -1) {
-        interconnect.send_conflict_clause(
-            State::current_task.pid, conflict_clause);
-    }
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
     if (SEND_CONFLICT_CLAUSES) {

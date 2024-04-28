@@ -191,7 +191,7 @@ void run_example_1(
     int num_variables = 7;
     VariableLocations *input_variables = (VariableLocations *)malloc(
         sizeof(VariableLocations) * num_variables);
-    Clauses input_clauses(30, 20);
+    Clauses input_clauses(6, 20);
 
     for (int i = 0; i < num_variables; i++) {
         VariableLocations current;

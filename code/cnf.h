@@ -164,7 +164,7 @@ class Cnf {
         int get_num_unsat(Clause clause);
 
         // Gets the status of a clause, 's', 'u', or 'n'.
-        char check_clause(Clause clause, int *num_unsat);
+        char check_clause(Clause clause, int *num_unsat, bool from_propagate=false);
         
         // A shortened version of a conflict clause containing only the literals
         // (Assignment structs) that are decided, not unit propagated.

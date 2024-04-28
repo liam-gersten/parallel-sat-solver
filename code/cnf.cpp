@@ -925,8 +925,18 @@ int Cnf::get_num_unsat(Clause clause) {
 }
 
 // Gets the status of a clause, 's', 'u', or 'n'.
-char Cnf::check_clause(Clause clause, int *num_unsat) {
-    int unsat_count = 0;
+char Cnf::check_clause(Clause clause, int *num_unsat, bool from_propagate) {
+    // if from_propagate, how many relevant variables are we expecting?
+    // int cid = clause.id;
+    // int old_num_unsat;
+    // if (cid < Cnf::clauses.num_indexed) {
+    //     old_num_unsat = Cnf::clauses.normal_clauses.element_counts[cid];
+    // } else {
+    //     cid -= Cnf::clauses.num_indexed;
+    //     old_num_unsat = Cnf::clauses.conflict_clauses.element_counts[cid];
+    // }
+
+    int unsat_count = 0; //0 if clause is true; otherwise, number of undetermined
     for (int i = 0; i < clause.num_literals; i++) {
         int var_id = clause.literal_variable_ids[i];
         if (Cnf::assigned_true[var_id]) {
@@ -943,9 +953,12 @@ char Cnf::check_clause(Clause clause, int *num_unsat) {
             }
         } else {
             unsat_count++;
+            // if (from_propagate && old_num_unsat != 0 && (unsat_count == old_num_unsat)) break;
         }
     }
     *num_unsat = unsat_count;
+    // if (old_num_unsat != 0) printf("%d, %d\n", unsat_count, old_num_unsat-1);
+    // assert (!(unsat_count <= old_num_unsat-1 || old_num_unsat == 0) && from_propagate);
     if (unsat_count == 0) {
         return 'u';
     }
@@ -1320,19 +1333,14 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         }
     }
 
-    if (current_cycle_variables < 1) {
-        printf("bad cl: %s", clause_to_string_current(result, false).c_str());
-        printf("depths: %d, %d:: %d\n", Cnf::assignment_depths[451], Cnf::assignment_depths[7794], last_decided_depth);
-        printf("\n");
-    }
     assert(current_cycle_variables >= 1);
     while (current_cycle_variables > 1) {
         // replace latest u-propped guy with rest of clause [must be u-propped]
         auto iter = lit_to_time.rbegin();
         Assignment u = iter->second; //take latest literal
         int u_time = iter->first;
-        lit_to_time.erase(u_time);
         assert(Cnf::assignment_depths[u.var_id] == last_decided_depth);
+        lit_to_time.erase(u_time);
         current_cycle_variables--;
         
         VariableLocations locations = Cnf::variables[u.var_id];
@@ -1349,7 +1357,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
             int time = Cnf::assignment_times[lit.var_id];
             
             auto [_, success] = lit_to_time.insert({time, lit});
-            if (success && depth >= last_decided_depth) {
+            if (success && (depth >= last_decided_depth)) {
                 current_cycle_variables++;
             }
         }
@@ -1377,9 +1385,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         result.literal_signs[i] = lits[i].value;
     }
 
-    // TODO: when should we keep/discard conflict clause?
-    if (result.num_literals > CONFLICT_CLAUSE_SIZE*Cnf::n 
-    || Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
+    if (Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
         free_clause(result);
         return false;
     }
@@ -1422,7 +1428,7 @@ bool Cnf::propagate_assignment(
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
             Clause clause = Cnf::clauses.get_clause(clause_id);
             int num_unsat;
-            char new_clause_status = check_clause(clause, &num_unsat);            
+            char new_clause_status = check_clause(clause, &num_unsat, true);            
             switch (new_clause_status) {
                 case 's': {
                     // Satisfied, can now drop
@@ -1730,7 +1736,23 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         free(value_bits_true);
         free(value_bits_false);
     }
-    // Re-evaluate conflict clauses
+    // Re-evaluate normal clauses
+    for (int i = 0; i < Cnf::clauses.num_indexed; i++) {
+        int conflict_id = i;
+        Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
+        int num_unsat;
+        char clause_status = check_clause(conflict_clause, &num_unsat);
+        // Should never be given a false formula
+        assert(clause_status != 'u');
+        if (clause_status == 's') {
+            Cnf::clauses.drop_clause(conflict_id);
+        } else {
+            if (num_unsat != conflict_clause.num_literals) {
+                assert(num_unsat > 0);
+                Cnf::clauses.change_clause_size(conflict_id, num_unsat);
+            }
+        }
+    }// Re-evaluate conflict clauses
     for (int i = 0; i < Cnf::clauses.num_conflict_indexed; i++) {
         int conflict_id = Cnf::clauses.max_indexable + i;
         Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
@@ -1742,6 +1764,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
             Cnf::clauses.drop_clause(conflict_id);
         } else {
             if (num_unsat != conflict_clause.num_literals) {
+                assert(num_unsat > 0);
                 Cnf::clauses.change_clause_size(conflict_id, num_unsat);
             }
         }
