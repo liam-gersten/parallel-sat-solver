@@ -8,7 +8,7 @@
 
 #define PRINT_LEVEL 0
 
-#define PRINT_INTERCONNECT 1
+#define PRINT_INTERCONNECT 0
 
 #define PRINT_PROGRESS 1
 

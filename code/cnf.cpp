@@ -535,7 +535,7 @@ void Cnf::init_compression() {
             Clause *clause_ptr = Cnf::clauses.get_clause_ptr(clause_id);
             Clause clause = *clause_ptr;
             clause.clause_addition = running_addition;
-            clause.clause_addition_index = (unsigned int)(comp_index + 2);
+            clause.clause_addition_index = (unsigned int)(comp_index);
             *clause_ptr = clause;
             running_addition = running_addition << 1;
         }
@@ -551,10 +551,10 @@ void Cnf::init_compression() {
             VariableLocations locations = Cnf::variables[var_id];
             locations.variable_addition = running_addition;
             locations.variable_true_addition_index = 
-                (unsigned int)(Cnf::ints_needed_for_clauses + comp_index + 2);
+                (unsigned int)(Cnf::ints_needed_for_clauses + comp_index);
             locations.variable_false_addition_index = 
                 (unsigned int)(Cnf::ints_needed_for_clauses 
-                + Cnf::ints_needed_for_vars + comp_index + 2);
+                + Cnf::ints_needed_for_vars + comp_index);
             Cnf::variables[var_id] = locations;
             running_addition = running_addition << 1;
         }
@@ -1379,7 +1379,8 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         result.literal_signs[i] = lits[i].value;
     }
 
-    if (Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable) {
+    if (Cnf::clauses.num_conflict_indexed - 1 == Cnf::clauses.max_conflict_indexable
+    || Cnf::clause_exists_already(result)) {
         free_clause(result);
         return false;
     }
@@ -1552,6 +1553,7 @@ short **Cnf::get_sudoku_board() {
             board[row][col] = k + 1;
         }
     }
+    // print_assignment(0, "bool ans =", "", get_assignment(), Cnf::num_variables);
     return board;
 }
 
@@ -1730,6 +1732,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         }
         free(value_bits_true);
         free(value_bits_false);
+        value_group_offset += 32;
     }
     // Re-evaluate normal clauses
     for (int i = 0; i < Cnf::clauses.num_indexed; i++) {
@@ -1755,6 +1758,10 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         char clause_status = check_clause(conflict_clause, &num_unsat);
         // Should never be given a false formula
         assert(clause_status != 'u');
+        if (clause_status == 'u') {
+            printf("AAH\n");
+            std::abort();
+        }
         if (clause_status == 's') {
             Cnf::clauses.drop_clause(conflict_id);
         } else {
@@ -1792,9 +1799,7 @@ void *Cnf::convert_to_work_message(unsigned int *compressed, Task task) {
     int offset = Cnf::ints_needed_for_clauses + (2 * Cnf::ints_needed_for_vars);
     assert(task.var_id >= 0);
     work[offset] = ((unsigned int)task.var_id);
-    if (task.assignment) {
-        work[offset + 1] = 1;
-    }
+    work[offset + 1] = (unsigned int)task.assignment;
     work[offset + 2] = (unsigned int)task.implier;
     return (void *)work;
 }

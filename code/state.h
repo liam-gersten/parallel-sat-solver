@@ -38,6 +38,8 @@ class State {
         Deque *thieves;
         GivenTask current_task;
 
+        bool *ans;
+
         State(
             short pid, 
             short nprocs, 

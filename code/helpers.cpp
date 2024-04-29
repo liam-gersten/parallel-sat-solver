@@ -149,8 +149,8 @@ Clause copy_clause(Clause clause) {
     memcpy(result.literal_signs, clause.literal_signs, 
         sizeof(bool) * clause.num_literals);
     result.num_literals = clause.num_literals;
-    result.clause_addition = clause.clause_addition;
-    result.clause_addition_index = clause.clause_addition_index;
+    result.clause_addition = 0;
+    result.clause_addition_index = 0;
     return result;
 }
 
@@ -259,6 +259,7 @@ void print_assignment(
         bool add_one,
         bool only_true) 
     {
+    int ct = 0;
     std::string data_string = "[";
     for (int i = 0; i < num_variables; i++) {
         if (only_true) {
@@ -271,6 +272,7 @@ void print_assignment(
                 if (i != num_variables - 1) {
                     data_string.append(", ");
                 }
+                ct++;
             }
         } else {
             if (add_one) {
@@ -288,6 +290,7 @@ void print_assignment(
     data_string.append("]");
     printf("%sPID %d %s %s\n", tab_string.c_str(), caller_pid, 
         prefix_string.c_str(), data_string.c_str());
+    printf("ct: %d\n", ct);
 }
 
 // Displays sudoku board
