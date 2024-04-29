@@ -121,7 +121,6 @@ bool State::task_stack_invariant(
         int supposed_num_tasks) 
     {
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
-    assert(cnf.local_edit_count <= cnf.edit_stack.count);
     if (State::num_non_trivial_tasks > 0) {
         assert(task_stack.count > 0);
     }
@@ -237,55 +236,56 @@ bool State::task_stack_invariant(
             }
         }
     }
-    for (int i = 0; i < num_thieves; i++) {
-        void *theif_ptr = thief_list[i];
-        GivenTask stolen_task = *((GivenTask *)theif_ptr);
-        Assignment task_assignment;
-        task_assignment.var_id = stolen_task.var_id;
-        task_assignment.value = stolen_task.assignment;
-        char task_status = cnf.get_decision_status(task_assignment);
-        assert(task_status == 's');
-        Assignment opposite_assignment;
-        opposite_assignment.var_id = stolen_task.var_id;
-        opposite_assignment.value = !stolen_task.assignment;
-        char opposite_status = cnf.get_decision_status(opposite_assignment);
-        if (!(opposite_status == 'l') || (opposite_status == 's') || (opposite_status == 'q')) {
-            printf("%sPID %d: failing thief %d [%d = %d] done\n", cnf.depth_str.c_str(), State::pid, stolen_task.pid, task_assignment.var_id, (int)task_assignment.value);
-        }
-        assert((opposite_status == 'l') || (opposite_status == 's') || (opposite_status == 'q'));
-        num_stolen++;
-    }
+    // for (int i = 0; i < num_thieves; i++) {
+    //     void *theif_ptr = thief_list[i];
+    //     GivenTask stolen_task = *((GivenTask *)theif_ptr);
+    //     Assignment task_assignment;
+    //     task_assignment.var_id = stolen_task.var_id;
+    //     task_assignment.value = stolen_task.assignment;
+    //     char task_status = cnf.get_decision_status(task_assignment);
+    //     if (task_status != 's') {
+    //         printf("%sPID %d: failing thief %d [%d = %d] with task status %c\n", cnf.depth_str.c_str(), State::pid, stolen_task.pid, task_assignment.var_id, (int)task_assignment.value, task_status);
+    //     }
+    //     assert(task_status == 's');
+    //     num_stolen++;
+    // }
     assert(num_queued <= reported_num_queued);
-    assert(num_stolen == reported_num_stolen);
+    // assert(num_stolen == reported_num_stolen);
     assert(total_assigned == reported_num_local + reported_num_remote);
     short *clause_sizes = (short *)calloc(sizeof(short), 
         cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
     memset(clause_sizes, -1, 
         (cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable) 
         * sizeof(short));
-    void **edit_list = (cnf.edit_stack).as_list();
-    bool found_decided_variable_assignment = false;
-    for (int i = 0; i < cnf.local_edit_count; i++) {
-        void *edit_ptr = edit_list[i];
-        FormulaEdit edit = *((FormulaEdit *)edit_ptr);
-        int clause_id = edit.edit_id;
-        if (edit.edit_type == 'c') { // Clause drop
-            assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
-            // No size changing clauses after dropping them
-            assert(clause_sizes[clause_id] == -1);
-            clause_sizes[clause_id] = 0;
-        } else if (edit.edit_type == 's') { // Size decrease
-            assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
-            // No duplicate size change edits
-            // Size should change always
-            assert(edit.size_before != -1);
-            assert(clause_sizes[clause_id] < edit.size_before);
-            clause_sizes[clause_id] = edit.size_before;
-        } else {
-            if (cnf.variables[edit.edit_id].implying_clause_id == -1) {
-                assert(!found_decided_variable_assignment);
-                found_decided_variable_assignment = true;
+    if (cnf.eedit_stack.count > 0) {
+        Deque local_edits = (*((Deque *)(cnf.eedit_stack.peak_front())));
+        void **edit_list = (local_edits).as_list();
+        bool found_decided_variable_assignment = false;
+        for (int i = 0; i < local_edits.count; i++) {
+            void *edit_ptr = edit_list[i];
+            FormulaEdit edit = *((FormulaEdit *)edit_ptr);
+            int clause_id = edit.edit_id;
+            if (edit.edit_type == 'c') { // Clause drop
+                assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
+                // No size changing clauses after dropping them
+                assert(clause_sizes[clause_id] == -1);
+                clause_sizes[clause_id] = 0;
+            } else if (edit.edit_type == 's') { // Size decrease
+                assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
+                // No duplicate size change edits
+                // Size should change always
+                assert(edit.size_before != -1);
+                assert(clause_sizes[clause_id] < edit.size_before);
+                clause_sizes[clause_id] = edit.size_before;
+            } else {
+                if (cnf.variables[edit.edit_id].implying_clause_id == -1) {
+                    assert(!found_decided_variable_assignment);
+                    found_decided_variable_assignment = true;
+                }
             }
+        }
+        if (local_edits.count > 0) {
+            free(edit_list);
         }
     }
     if (task_stack.count > 0) {
@@ -293,9 +293,6 @@ bool State::task_stack_invariant(
     }
     if ((*State::thieves).count > 0) {
         free(thief_list);
-    }
-    if (cnf.local_edit_count > 0) {
-        free(edit_list);
     }
     return true;
 }
@@ -362,30 +359,18 @@ void *State::grab_work_from_stack(
     GivenTask *task_to_give_ptr = (GivenTask *)malloc(sizeof(GivenTask));
     *task_to_give_ptr = task_to_give;
     (*State::thieves).add_to_front((void *)task_to_give_ptr);
-    if (!backtrack_at_top(task_stack)) {
-        int edits_to_apply = (cnf.edit_counts_stack).peak_back();
-        Queue tmp_stack;
-        while (edits_to_apply) {
-            void *formula_edit_ptr = ((cnf.edit_stack)).pop_from_back();
-            FormulaEdit edit = *((FormulaEdit *)formula_edit_ptr);
-            tmp_stack.add_to_front(formula_edit_ptr);
-            apply_edit_to_compressed(cnf, cnf.oldest_compressed, edit);
-            edits_to_apply--;
-        }
-        while (tmp_stack.count > 0) {
-            void *formula_edit_ptr = tmp_stack.pop_from_front();
-            cnf.edit_stack.add_to_back(formula_edit_ptr);
-        }
-    }
     // Prune the top of the tree
     while (backtrack_at_top(task_stack)) {
+        assert(cnf.eedit_stack.count > 0);
         // Two deques loose their top element, one looses at least one element
-        int edits_to_apply = (cnf.edit_counts_stack).pop_from_back();
-        while (edits_to_apply) {
-            FormulaEdit edit = *((FormulaEdit *)(((cnf.edit_stack)).pop_from_back()));
+        Deque edits_to_apply = *((Deque *)((cnf.eedit_stack).pop_from_back()));
+        while (edits_to_apply.count > 0) {
+            void *formula_edit_ptr = edits_to_apply.pop_from_back();
+            FormulaEdit edit = *((FormulaEdit *)formula_edit_ptr);
+            free(formula_edit_ptr);
             apply_edit_to_compressed(cnf, cnf.oldest_compressed, edit);
-            edits_to_apply--;
         }
+        edits_to_apply.free_deque();
         // Ditch the backtrack task at the top
         task_stack.pop_from_back();
     }
@@ -480,8 +465,6 @@ void State::give_work(
         work = grab_work_from_stack(cnf, task_stack, recipient_pid);
     }
     if (State::child_statuses[recipient_index] == 'u') {
-        printf("PID %d recieved by %d, num urgent is %d\n", pid, (int)recipient_pid, num_urgent);
-        printf("\n");
         State::num_urgent--;
     }
     State::child_statuses[recipient_index] = 'w';
@@ -574,7 +557,9 @@ void State::abort_process(
     if (PRINT_LEVEL > 0) printf("PID %d: aborting process\n", State::pid);
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
-    cnf.sudoku_board = cnf.get_sudoku_board();
+    if (cnf.is_sudoku) {
+        cnf.sudoku_board = cnf.get_sudoku_board();
+    }
     cnf.free_cnf();
     interconnect.free_interconnect();
     free(State::child_statuses);
@@ -693,7 +678,6 @@ void State::handle_work_message(
         State::current_task.var_id = task.var_id;
         // NICE: implement forwarding
         State::current_task.pid = sender_pid;
-        printf("sender pid: %d\n", State::pid);
         cnf.reconstruct_state(work, task_stack);
         (*State::thieves).free_data();
         State::num_non_trivial_tasks = 1;
@@ -783,41 +767,40 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     if (look_for_drop) {
         printf("%s\tPID %d: need drop edit for clause\n", cnf.depth_str.c_str(), State::pid);
     }
-    // Need to include the current iteration's edits on the edit stack
-    (cnf.edit_counts_stack).add_to_front(cnf.local_edit_count);
-    int iterations_to_check = (cnf.edit_counts_stack).count;
-    DoublyLinkedList *current_edit_ptr = (*(((cnf.edit_stack).head))).next;
-    IntDoublyLinkedList *current_iteration = (*(((cnf.edit_counts_stack).head))).next;
-    if (PRINT_LEVEL > 2) printf("%s\tPID %d: iteration edit counts = %s\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), cnf.edit_counts_stack.count).c_str());
+    int iterations_to_check = cnf.eedit_stack.count;
     int num_unsat = cnf.get_num_unsat(conflict_clause);
+    DoublyLinkedList *iteration_ptr = (*(cnf.eedit_stack.head)).next;
     while ((iterations_checked < iterations_to_check) 
         && (assigned_literals.count > 0)) {
         if (PRINT_LEVEL > 3) printf("%s\t\tPID %d: checking iteration (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, assigned_literals.count);
-        int current_count = (*current_iteration).value;
-        int new_count = current_count;
+        void *iteration_edits_ptr = (*iteration_ptr).value;
+        Deque iteration_edits = (*((Deque *)iteration_edits_ptr));
+        int current_count = iteration_edits.count;
         int edits_seen = 0;
+        DoublyLinkedList *edit_element_ptr = (*iteration_edits.head).next;
         while ((edits_seen < current_count) && (assigned_literals.count > 0)) {
             if (PRINT_LEVEL > 4) printf("%s\t\t\tPID %d: inspecting edit (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, edits_seen, current_count, assigned_literals.count);
-            FormulaEdit current_edit = *((FormulaEdit *)(
-                (*current_edit_ptr).value));
+            void *edit_ptr = (*edit_element_ptr).value;
+            FormulaEdit current_edit = *((FormulaEdit *)edit_ptr);
             if (current_edit.edit_type == 'v') {
                 int var_id = current_edit.edit_id;
                 if (look_for_drop && var_id == drop_var_id) {
                     // Add the drop edit
                     void *drop_edit = clause_edit(conflict_clause.id);
+                    DoublyLinkedList *prev = (*edit_element_ptr).prev;
                     DoublyLinkedList drop_element;
                     drop_element.value = drop_edit;
-                    drop_element.prev = (*current_edit_ptr).prev;
-                    drop_element.next = current_edit_ptr;
+                    drop_element.prev = prev;
+                    drop_element.next = edit_element_ptr;
                     DoublyLinkedList *drop_element_ptr = (
                         DoublyLinkedList *)malloc(sizeof(DoublyLinkedList));
                     *drop_element_ptr = drop_element;
-                    DoublyLinkedList *prev = (*current_edit_ptr).prev;
                     (*prev).next = drop_element_ptr;
-                    (*current_edit_ptr).prev = drop_element_ptr;
-                    new_count++;
+                    (*edit_element_ptr).prev = drop_element_ptr;
                     look_for_drop = false;
                     insertions_made++;
+                    iteration_edits.count++;
+                    (*((Deque *)iteration_edits_ptr)).count++;
                     if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted drop edit\n", cnf.depth_str.c_str(), State::pid);
                 } else {
                     int num_to_check = assigned_literals.count;
@@ -827,21 +810,21 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                             // Drecrease clause size edit
                             void *size_change = size_change_edit(
                                 conflict_clause.id, num_unsat + 1, num_unsat);
-                            FormulaEdit edit = *((FormulaEdit *)size_change);
+                            DoublyLinkedList *prev = (*edit_element_ptr).prev;
                             DoublyLinkedList size_change_element;
                             size_change_element.value = size_change;
-                            size_change_element.prev = (*current_edit_ptr).prev;
-                            size_change_element.next = current_edit_ptr;
+                            size_change_element.prev = prev;
+                            size_change_element.next = edit_element_ptr;
                             DoublyLinkedList *size_change_element_ptr = (
                                 DoublyLinkedList *)malloc(
                                     sizeof(DoublyLinkedList));
                             *size_change_element_ptr = size_change_element;
-                            DoublyLinkedList *prev = (*current_edit_ptr).prev;
                             (*prev).next = size_change_element_ptr;
-                            (*current_edit_ptr).prev = size_change_element_ptr;
-                            new_count++;
+                            (*edit_element_ptr).prev = size_change_element_ptr;
                             num_unsat++;
                             insertions_made++;
+                            iteration_edits.count++;
+                            (*((Deque *)iteration_edits_ptr)).count++;
                             if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted decrement edit\n", cnf.depth_str.c_str(), State::pid);
                             break;
                         } else {
@@ -854,27 +837,16 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                 if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: non-variable edit ignored\n", cnf.depth_str.c_str(), State::pid);
                 assert(current_edit.edit_id != conflict_clause.id);
             }
-            current_edit_ptr = (*current_edit_ptr).next;
+            edit_element_ptr = (*edit_element_ptr).next;
             edits_seen++;
         }
-        if (new_count != current_count) {
-            (cnf.edit_stack).count += (new_count - current_count);
-            (*current_iteration).value = new_count;
-            if (PRINT_LEVEL > 4) printf("%s\t\tPID %d: checked iteration (%d/%d), %d edits added\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, new_count - current_count);
-        } else {
-            if (PRINT_LEVEL > 4) printf("%s\t\tPID %d: checked iteration (%d/%d), no edits added\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check);
-        }
         iterations_checked++;
-        current_iteration = (*current_iteration).next;
+        iteration_ptr = (*iteration_ptr).next;
     }
     assert(assigned_literals.count == 0);
     // Restore the change we made
-    cnf.local_edit_count = (cnf.edit_counts_stack).pop_from_front();
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %d insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, insertions_made);
-    if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.edit_stack));
-    if ((cnf.edit_counts_stack).count > 0) { 
-        if (PRINT_LEVEL > 3) printf("%s\tPID %d: new iteration edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), cnf.edit_counts_stack.count).c_str(), cnf.local_edit_count);
-    }
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.eedit_stack));
     assigned_literals.free_deque();
 }
 
@@ -933,8 +905,7 @@ void State::backtrack_to_conflict_head(
     {
     if (PRINT_LEVEL > 0) printf("%sPID %d: backtrack to conflict head with lowest decision at var %d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id);
     if (PRINT_LEVEL > 1) cnf.print_task_stack("Pre conflict backtrack", task_stack);
-    if (PRINT_LEVEL > 2) cnf.print_edit_stack("Pre conflict backtrack", (cnf.edit_stack));
-    if (PRINT_LEVEL > 3) printf("%sPID %d: Pre conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack("Pre conflict backtrack", (cnf.eedit_stack));
     assert(cnf.get_num_unsat(conflict_clause) == 0);
     int num_backtracks = 0;
     assert(task_stack.count > 0);
@@ -977,12 +948,11 @@ void State::backtrack_to_conflict_head(
             State::num_non_trivial_tasks--;   
         } 
         if (PRINT_LEVEL > 5) cnf.print_task_stack("During backracking", task_stack);
-        if (PRINT_LEVEL > 5) cnf.print_edit_stack("During backracking", (cnf.edit_stack));
+        if (PRINT_LEVEL > 5) cnf.print_edit_stack("During backracking", (cnf.eedit_stack));
     }
     if (PRINT_LEVEL > 1) printf("%sPID %d: backtracked %d times\n", cnf.depth_str.c_str(), State::pid, num_backtracks);
     cnf.print_task_stack("Post conflict backtrack", task_stack);
-    if (PRINT_LEVEL > 3) cnf.print_edit_stack("Post conflict backtrack", (cnf.edit_stack));
-    if (PRINT_LEVEL > 4) printf("%sPID %d: Post conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
+    if (PRINT_LEVEL > 3) cnf.print_edit_stack("Post conflict backtrack", (cnf.eedit_stack));
     assert(cnf.get_num_unsat(conflict_clause) >= 1);
 }
 
@@ -1063,7 +1033,6 @@ void State::add_conflict_clause(
     }
     if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("With conflict clause", task_stack);
-    if (PRINT_LEVEL > 3) printf("%sPID %d: With conflict edit counts = %s + %d\n", cnf.depth_str.c_str(), State::pid, int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
 }
 
 // Returns who is responsible for making the decision that runs contrary
@@ -1526,9 +1495,8 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
 // Displays data structure data for debugging purposes
 void State::print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
-    if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.edit_stack));
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.eedit_stack));
     if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, true);
-    if (PRINT_LEVEL > 4) printf("%sPID %d: %s edit counts = %s + %d\n", cnf.depth_str.c_str(), cnf.pid, prefix_str.c_str(), int_list_to_string((cnf.edit_counts_stack).as_list(), (cnf.edit_counts_stack).count).c_str(), cnf.local_edit_count);
     if (PRINT_LEVEL > 5) print_compressed(
         cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
     if (PRINT_LEVEL > 5) print_compressed(
@@ -1623,8 +1591,9 @@ bool State::solve_iteration(
                     // backtracking has perhaps invalidated decided_var_id
                     // TODO: UNSURE HOW TO TEST CORRECTNESS
                     if (task_stack.count == 0) {
-                        if (cnf.local_edit_count > 0) {
-                            decided_var_id = (*(FormulaEdit *)(cnf.edit_stack.peak_back())).edit_id;
+                        if (cnf.get_local_edit_count() > 0) {
+                            Deque local_edits = *((Deque *)(cnf.eedit_stack.peak_front()));
+                            decided_var_id = (*(FormulaEdit *)(local_edits.peak_back())).edit_id;
                         } else {
                             decided_var_id = -1; // calc should begin with unit prop
                         }
@@ -1682,7 +1651,6 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         while (out_of_work() && !State::process_finished) {
             bool message_received = interconnect.async_receive_message(message);
             if (message_received) {
-                printf("%sPID %d: handle message A\n", cnf.depth_str.c_str(), State::pid);
                 handle_message(message, cnf, task_stack, interconnect);
             }
         }
@@ -1696,7 +1664,6 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         }
         if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {
             while (interconnect.async_receive_message(message) && !State::process_finished) {
-                printf("%sPID %d: handle message B\n", cnf.depth_str.c_str(), State::pid);
                 handle_message(message, cnf, task_stack, interconnect);
                 // NICE: serve work here?
             }

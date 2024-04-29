@@ -44,12 +44,10 @@ class Cnf {
     public:
         Clauses clauses; // dynamic number
         VariableLocations *variables; // static number
-        Deque edit_stack;
-        IntDeque edit_counts_stack;
+        Deque eedit_stack;
         unsigned int *oldest_compressed;
         short pid;
         short nprocs;
-        int local_edit_count;
         int num_variables;
         int num_conflict_to_hold;
         int ints_needed_for_clauses;
@@ -75,6 +73,7 @@ class Cnf {
         int reduction_method;
         std::string depth_str;
         short **sudoku_board;
+        bool is_sudoku;
 
         // Makes CNF formula from inputs
         Cnf(
@@ -139,10 +138,9 @@ class Cnf {
             Deque &edit_stack,
             int upto = 20);
 
-        // Returns whether a there is already a decided variable set edit.
-        // Populates passed var_id with the decided one found if so.
-        bool decided_variable_in_local_edits(int *var_id);
-
+        // Gets the number of local edits
+        int get_local_edit_count();
+        
         // Adds edit edit to edit stack, checks assertion
         void add_to_edit_stack(void *raw_edit);
         
