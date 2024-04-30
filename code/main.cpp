@@ -147,6 +147,8 @@ void run_tests(
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
     std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
 
+    MPI_Finalize();
+
     if (state.was_explicit_abort) {
         // A solution was found
         if (!result) {
@@ -167,8 +169,6 @@ void run_tests(
     }
     short **board = cnf.sudoku_board;
     print_board(board, cnf.n);
-
-    MPI_Finalize();
     for (int i = 0; i < n; i++) {
         free(board[i]);
     }

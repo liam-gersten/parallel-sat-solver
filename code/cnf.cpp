@@ -1674,34 +1674,6 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         Cnf::depth_str,
         oldest_compressed,
         Cnf::work_ints);
-    // int clause_group_offset = 0;
-    // // Drop normal clauses
-    // for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
-    //     unsigned int compressed_group = compressed[clause_group];
-    //     bool *clause_bits = int_to_bits(compressed_group);
-    //     for (int bit = 0; bit < 32; bit++) {
-    //         int clause_id = bit + clause_group_offset;
-    //         assert(!Cnf::clauses.clause_is_dropped(clause_id));
-    //         if (clause_id >= Cnf::clauses.num_indexed) break;
-    //         bool should_be_dropped = clause_bits[bit];
-    //         if (should_be_dropped) {
-    //             Cnf::clauses.drop_clause(clause_id);
-    //         } else {
-    //             Clause clause = Cnf::clauses.get_clause(clause_id);
-    //             int num_unsat;
-    //             char clause_status = check_clause(clause, &num_unsat);
-    //             if (num_unsat == 0) {
-    //                 printf("\n\nPID %d: bad clause = %d\n\n", Cnf::pid, clause_id);
-    //             }
-    //             assert(num_unsat > 0);
-    //             if (num_unsat != clause.num_literals) {
-    //                 Cnf::clauses.change_clause_size(clause_id, num_unsat);
-    //             }
-    //         }
-    //     }
-    //     free(clause_bits);
-    //     clause_group_offset += 32;
-    // }
     // Set values
     memset(Cnf::true_assignment_statuses, 'u', Cnf::num_variables * sizeof(char));
     memset(Cnf::false_assignment_statuses, 'u', Cnf::num_variables * sizeof(char));
@@ -1734,23 +1706,51 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         free(value_bits_false);
         value_group_offset += 32;
     }
-    // Re-evaluate normal clauses
-    for (int i = 0; i < Cnf::clauses.num_indexed; i++) {
-        int conflict_id = i;
-        Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
-        int num_unsat;
-        char clause_status = check_clause(conflict_clause, &num_unsat);
-        // Should never be given a false formula
-        assert(clause_status != 'u');
-        if (clause_status == 's') {
-            Cnf::clauses.drop_clause(conflict_id);
-        } else {
-            if (num_unsat != conflict_clause.num_literals) {
+    int clause_group_offset = 0;
+    // Drop normal clauses
+    for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
+        unsigned int compressed_group = compressed[clause_group];
+        bool *clause_bits = int_to_bits(compressed_group);
+        for (int bit = 0; bit < 32; bit++) {
+            int clause_id = bit + clause_group_offset;
+            assert(!Cnf::clauses.clause_is_dropped(clause_id));
+            if (clause_id >= Cnf::clauses.num_indexed) break;
+            bool should_be_dropped = clause_bits[bit];
+            if (should_be_dropped) {
+                Cnf::clauses.drop_clause(clause_id);
+            } else {
+                Clause clause = Cnf::clauses.get_clause(clause_id);
+                int num_unsat;
+                char clause_status = check_clause(clause, &num_unsat);
                 assert(num_unsat > 0);
-                Cnf::clauses.change_clause_size(conflict_id, num_unsat);
+                if (num_unsat != clause.num_literals) {
+                    Cnf::clauses.change_clause_size(clause_id, num_unsat);
+                }
             }
         }
-    }// Re-evaluate conflict clauses
+        free(clause_bits);
+        clause_group_offset += 32;
+    }
+
+    // Re-evaluate normal clauses
+    // for (int i = 0; i < Cnf::clauses.num_indexed; i++) {
+    //     int conflict_id = i;
+    //     Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
+    //     int num_unsat;
+    //     char clause_status = check_clause(conflict_clause, &num_unsat);
+    //     // Should never be given a false formula
+    //     assert(clause_status != 'u');
+    //     if (clause_status == 's') {
+    //         Cnf::clauses.drop_clause(conflict_id);
+    //     } else {
+    //         if (num_unsat != conflict_clause.num_literals) {
+    //             assert(num_unsat > 0);
+    //             Cnf::clauses.change_clause_size(conflict_id, num_unsat);
+    //         }
+    //     }
+    // }
+
+    // Re-evaluate conflict clauses
     for (int i = 0; i < Cnf::clauses.num_conflict_indexed; i++) {
         int conflict_id = Cnf::clauses.max_indexable + i;
         Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
@@ -1758,10 +1758,6 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         char clause_status = check_clause(conflict_clause, &num_unsat);
         // Should never be given a false formula
         assert(clause_status != 'u');
-        if (clause_status == 'u') {
-            printf("AAH\n");
-            std::abort();
-        }
         if (clause_status == 's') {
             Cnf::clauses.drop_clause(conflict_id);
         } else {
