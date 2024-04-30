@@ -745,75 +745,100 @@ void State::handle_message(
 // normal.
 void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     if (PRINT_LEVEL > 0) printf("%s\tPID %d: inserting conflict clause into history\n", cnf.depth_str.c_str(), State::pid);
+    // TODO: drop_var_id logic should be checked
     bool look_for_drop = false;
     cnf.clause_satisfied(conflict_clause, &look_for_drop);
+
     int drop_var_id = -1;
-    IntDeque assigned_literals;
+    int drop_time = State::current_cycle+1;
+    std::map<int, int> depth_to_al;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         int var_id = conflict_clause.literal_variable_ids[i];
         bool literal_sign = conflict_clause.literal_signs[i];
+        int time = cnf.assignment_times[var_id];
         if (cnf.assigned_true[var_id] 
             && (cnf.true_assignment_statuses[var_id] == 'l')) {
             if (literal_sign) {
-                drop_var_id = var_id;
+                if (time <= drop_time) {
+                    drop_var_id = var_id;
+                    drop_time = time;
+                }
             } else {
-                assigned_literals.add_to_front(var_id);
+                if (time >= 0) depth_to_al.insert({time, var_id});
             }
         } else if (cnf.assigned_false[var_id]
             && (cnf.false_assignment_statuses[var_id] == 'l')) {
             if (!literal_sign) {
-                drop_var_id = var_id;
+                if (time <= drop_time) {
+                    drop_var_id = var_id;
+                    drop_time = time;
+                }
             } else {
-                assigned_literals.add_to_front(var_id);
+                if (time >= 0) depth_to_al.insert({time, var_id});
             }
         }
     }
+
+    int num_relevant = depth_to_al.size();
+    int relevant_iterations[num_relevant]; // increasing order
+    int relevant_al[num_relevant]; // same order as r_i
+    int ri_index = 0;
+    for (auto iter=depth_to_al.rbegin(); iter != depth_to_al.rend(); ++iter) {
+        relevant_al[ri_index] = iter->second;
+        relevant_iterations[ri_index] = cnf.depth - cnf.assignment_depths[iter->second];
+        ri_index++;
+    }
+    ri_index = 0;
+
     int insertions_made = 0;
     int iterations_checked = 0;
-    if (PRINT_LEVEL > 2) printf("%s\tPID %d: need %d insertions for decrement of clause size\n", cnf.depth_str.c_str(), State::pid, assigned_literals.count);
+    if (PRINT_LEVEL > 2) printf("%s\tPID %d: need %d insertions for decrement of clause size\n", cnf.depth_str.c_str(), State::pid, num_relevant);
     if (look_for_drop) {
         printf("%s\tPID %d: need drop edit for clause\n", cnf.depth_str.c_str(), State::pid);
     }
     int iterations_to_check = cnf.eedit_stack.count;
     int num_unsat = cnf.get_num_unsat(conflict_clause);
     DoublyLinkedList *iteration_ptr = (*(cnf.eedit_stack.head)).next;
-    while ((iterations_checked < iterations_to_check) 
-        && (assigned_literals.count > 0)) {
-        if (PRINT_LEVEL > 3) printf("%s\t\tPID %d: checking iteration (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, assigned_literals.count);
-        void *iteration_edits_ptr = (*iteration_ptr).value;
-        Deque iteration_edits = (*((Deque *)iteration_edits_ptr));
-        int current_count = iteration_edits.count;
-        int edits_seen = 0;
-        DoublyLinkedList *edit_element_ptr = (*iteration_edits.head).next;
-        while ((edits_seen < current_count) && (assigned_literals.count > 0)) {
-            if (PRINT_LEVEL > 4) printf("%s\t\t\tPID %d: inspecting edit (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, edits_seen, current_count, assigned_literals.count);
-            void *edit_ptr = (*edit_element_ptr).value;
-            FormulaEdit current_edit = *((FormulaEdit *)edit_ptr);
-            if (current_edit.edit_type == 'v') {
-                int var_id = current_edit.edit_id;
-                if (look_for_drop && var_id == drop_var_id) {
-                    // Add the drop edit
-                    void *drop_edit = clause_edit(conflict_clause.id);
-                    DoublyLinkedList *prev = (*edit_element_ptr).prev;
-                    DoublyLinkedList drop_element;
-                    drop_element.value = drop_edit;
-                    drop_element.prev = prev;
-                    drop_element.next = edit_element_ptr;
-                    DoublyLinkedList *drop_element_ptr = (
-                        DoublyLinkedList *)malloc(sizeof(DoublyLinkedList));
-                    *drop_element_ptr = drop_element;
-                    (*prev).next = drop_element_ptr;
-                    (*edit_element_ptr).prev = drop_element_ptr;
-                    look_for_drop = false;
-                    insertions_made++;
-                    iteration_edits.count++;
-                    (*((Deque *)iteration_edits_ptr)).count++;
-                    if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted drop edit\n", cnf.depth_str.c_str(), State::pid);
-                } else {
-                    int num_to_check = assigned_literals.count;
-                    while (num_to_check > 0) {
-                        int literal_var_id = assigned_literals.pop_from_front();
+    while ((iterations_checked < iterations_to_check) && (ri_index < num_relevant)) {
+        // iterations_checked goes from most recent to oldest edits
+        if (PRINT_LEVEL > 3) printf("%s\t\tPID %d: checking iteration (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, num_relevant);
+        if (iterations_checked == relevant_iterations[ri_index]) {
+            // only check this iteration if there is a relevant variable
+            void *iteration_edits_ptr = (*iteration_ptr).value;
+            Deque iteration_edits = (*((Deque *)iteration_edits_ptr));
+            int current_count = iteration_edits.count;
+            int edits_seen = 0;
+            DoublyLinkedList *edit_element_ptr = (*iteration_edits.head).next;
+            while ((edits_seen < current_count) && (ri_index < num_relevant)) {
+                if (PRINT_LEVEL > 4) printf("%s\t\t\tPID %d: inspecting edit (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, edits_seen, current_count, num_relevant);
+                void *edit_ptr = (*edit_element_ptr).value;
+                FormulaEdit current_edit = *((FormulaEdit *)edit_ptr);
+                if (current_edit.edit_type == 'v') {
+                    // only look at variable assignment edits
+                    int var_id = current_edit.edit_id;
+                    if (look_for_drop && var_id == drop_var_id) {
+                        // if clause should be dropped and var_id matches
+                        void *drop_edit = clause_edit(conflict_clause.id);
+                        DoublyLinkedList *prev = (*edit_element_ptr).prev;
+                        DoublyLinkedList drop_element;
+                        drop_element.value = drop_edit;
+                        drop_element.prev = prev;
+                        drop_element.next = edit_element_ptr;
+                        DoublyLinkedList *drop_element_ptr = (
+                            DoublyLinkedList *)malloc(sizeof(DoublyLinkedList));
+                        *drop_element_ptr = drop_element;
+                        (*prev).next = drop_element_ptr;
+                        (*edit_element_ptr).prev = drop_element_ptr;
+                        look_for_drop = false;
+                        insertions_made++;
+                        iteration_edits.count++;
+                        (*((Deque *)iteration_edits_ptr)).count++;
+                        if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted drop edit\n", cnf.depth_str.c_str(), State::pid);
+                    } else {
+                        // otherwise check each var_id to the next relevant_literal we expect
+                        int literal_var_id = relevant_al[ri_index];
                         if (literal_var_id == var_id) {
+                            ri_index++; // move on to next r_l
                             // Drecrease clause size edit
                             void *size_change = size_change_edit(
                                 conflict_clause.id, num_unsat + 1, num_unsat);
@@ -833,29 +858,23 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                             iteration_edits.count++;
                             (*((Deque *)iteration_edits_ptr)).count++;
                             if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted decrement edit\n", cnf.depth_str.c_str(), State::pid);
-                            break;
-                        } else {
-                            assigned_literals.add_to_back(literal_var_id);
-                            num_to_check--;
                         }
                     }
+                } else {
+                    if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: non-variable edit ignored\n", cnf.depth_str.c_str(), State::pid);
+                    assert(current_edit.edit_id != conflict_clause.id);
                 }
-            } else {
-                if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: non-variable edit ignored\n", cnf.depth_str.c_str(), State::pid);
-                assert(current_edit.edit_id != conflict_clause.id);
+                edit_element_ptr = (*edit_element_ptr).next;
+                edits_seen++;
             }
-            edit_element_ptr = (*edit_element_ptr).next;
-            edits_seen++;
         }
         iterations_checked++;
         iteration_ptr = (*iteration_ptr).next;
     }
-    // assert(assigned_literals.count == 0); // should be the number of remotely assigned vars?
 
     // Restore the change we made
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %d insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, insertions_made);
     if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.eedit_stack));
-    assigned_literals.free_deque();
 }
 
 // Sends messages to specified theives in light of conflict
