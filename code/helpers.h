@@ -10,13 +10,13 @@
 
 #define PRINT_INTERCONNECT 0
 
-#define PRINT_PROGRESS 1
+#define PRINT_PROGRESS 0
 
 #define PRINT_INDENT 1
 
 #define PRINT_CONCISE_FORMULA 1
 
-#define CYCLES_TO_PRINT_PROGRESS 100
+#define CYCLES_TO_PRINT_PROGRESS 1000
 
 // Decision order control variables
 
@@ -34,7 +34,7 @@
 
 #define ENABLE_CONFLICT_RESOLUTION 1
 
-#define SEND_CONFLICT_CLAUSES 0
+#define SEND_CONFLICT_CLAUSES 1
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1
@@ -70,6 +70,7 @@ struct Message {
     // 4 = explicit abort
     // 5 = invalidation
     // 6 = conflict clause
+    int size;
     void *data;
 };
 

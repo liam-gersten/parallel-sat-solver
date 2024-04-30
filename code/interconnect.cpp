@@ -33,6 +33,7 @@ bool Interconnect::async_receive_message(Message &message) {
     MPI_ANY_TAG, MPI_COMM_WORLD, &status);
   message.sender = sender;
   message.type = status.MPI_TAG;
+  message.size = buffer_size_needed;
   message.data = buffer;
   if (PRINT_INTERCONNECT) printf(" I(message type %d [%d -> %d] received)\n", message.type, sender, Interconnect::pid);
   return true;
@@ -117,7 +118,7 @@ bool Interconnect::have_stashed_work(short sender) {
 void Interconnect::stash_work(Message work) {
   assert(0 <= work.sender && work.sender < Interconnect::nproc);
   assert(!have_stashed_work(work.sender));
-  assert(work.type == 2);
+  assert(work.type == 3);
   Interconnect::stashed_work[work.sender] = work;
   Interconnect::work_is_stashed[work.sender] = true;
   Interconnect::num_stashed_work++;

@@ -75,6 +75,8 @@ class Cnf {
         short **sudoku_board;
         bool is_sudoku;
 
+        bool *ans;
+
         // Makes CNF formula from inputs
         Cnf(
             short pid,

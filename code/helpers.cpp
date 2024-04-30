@@ -184,8 +184,19 @@ bool variable_in_clause(Clause clause, int var_id, bool *sign) {
 
 // Converts a message received to a clause
 Clause message_to_clause(Message message) {
-    // TODO: implement this
+    assert(message.type == 6);
+    int num_lits = message.size / (sizeof(bool) + sizeof(int));
+    bool *signs = (bool *)message.data;
+    int *vars = (int *)(signs + num_lits);
     Clause result;
+    result.num_literals = num_lits;
+    result.literal_signs = (bool *)malloc(sizeof(bool) * num_lits);
+    result.literal_variable_ids = (int *)malloc(sizeof(int) * num_lits);
+    for (int i = 0; i < num_lits; i++) {
+        result.literal_signs[i] = signs[i];
+        result.literal_variable_ids[i] = vars[i];
+    }
+    
     return result;
 }
 

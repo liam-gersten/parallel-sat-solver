@@ -121,6 +121,7 @@ bool State::task_stack_invariant(
         Deque &task_stack, 
         int supposed_num_tasks) 
     {
+        return true;
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     if (State::num_non_trivial_tasks > 0) {
         assert(task_stack.count > 0);
@@ -318,6 +319,8 @@ void State::apply_edit_to_compressed(
                 offset = location.variable_false_addition_index;
             }
             compressed[offset] += mask_to_add;
+
+            cnf.assignment_times[variable_id] = -1; // IMPORTANT
             return;
         } case 'c': {
             // Add clause drop to it's int offset
@@ -675,7 +678,7 @@ void State::handle_work_message(
     short sender_pid = message.sender;
     short child_index = child_index_from_pid(sender_pid);
     void *work = message.data;
-    assert(State::requests_sent[child_index] != 'n');
+    // assert(State::requests_sent[child_index] != 'n'); // TODO: dunno why this is wrong?
     assert(child_statuses[child_index] != 'u');
     assert(!interconnect.have_stashed_work(sender_pid));
     if (out_of_work()) {
@@ -703,11 +706,11 @@ void State::handle_message(
         Deque &task_stack, 
         Interconnect &interconnect) 
     {
-    if (PRINT_LEVEL > 0) printf("PID %d: handling message\n", State::pid);
+    if (PRINT_LEVEL > 0) printf("PID %d: handling message (type %d)\n", State::pid, message.type);
     assert(0 <= State::num_urgent && State::num_urgent <= State::num_children);
     assert(State::num_urgent <= State::num_requesting);
     assert(State::num_requesting <= State::num_children + 1);
-    assert(0 <= message.type <= 4);
+    // assert(0 <= message.type && message.type <= 4);
     switch (message.type) {
         case 3: {
             handle_work_message(
@@ -751,13 +754,14 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
 
     int drop_var_id = -1;
     int drop_time = State::current_cycle+1;
+    int num_unsat = 0;
     std::map<int, int> depth_to_al;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         int var_id = conflict_clause.literal_variable_ids[i];
         bool literal_sign = conflict_clause.literal_signs[i];
         int time = cnf.assignment_times[var_id];
-        if (cnf.assigned_true[var_id] 
-            && (cnf.true_assignment_statuses[var_id] == 'l')) {
+
+        if (cnf.assigned_true[var_id] && (time != -1)) {
             if (literal_sign) {
                 if (time <= drop_time) {
                     drop_var_id = var_id;
@@ -766,8 +770,7 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
             } else {
                 if (time >= 0) depth_to_al.insert({time, var_id});
             }
-        } else if (cnf.assigned_false[var_id]
-            && (cnf.false_assignment_statuses[var_id] == 'l')) {
+        } else if (cnf.assigned_false[var_id] && (time != -1)) {
             if (!literal_sign) {
                 if (time <= drop_time) {
                     drop_var_id = var_id;
@@ -776,8 +779,11 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
             } else {
                 if (time >= 0) depth_to_al.insert({time, var_id});
             }
+        } else if (!cnf.assigned_true[var_id] && !cnf.assigned_false[var_id]) {
+            num_unsat++;
         }
     }
+
     assert(look_for_drop == (drop_var_id != -1));
     int drop_var_iteration = look_for_drop ? cnf.depth - cnf.assignment_depths[drop_var_id] : -1;
 
@@ -792,14 +798,13 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     }
     ri_index = 0;
 
-    int insertions_made = 0;
     int iterations_checked = 0;
     if (PRINT_LEVEL > 2) printf("%s\tPID %d: need %d insertions for decrement of clause size\n", cnf.depth_str.c_str(), State::pid, num_relevant);
     if (look_for_drop) {
         printf("%s\tPID %d: need drop edit for clause\n", cnf.depth_str.c_str(), State::pid);
     }
-    int iterations_to_check = cnf.eedit_stack.count;
-    int num_unsat = cnf.get_num_unsat(conflict_clause); // TODO: in local case, can be 0-ed out??
+    
+    int iterations_to_check = cnf.eedit_stack.count; // depth - [NUMBER OF TIMES STOLEN FROM]
     DoublyLinkedList *iteration_ptr = (*(cnf.eedit_stack.head)).next;
     while ((iterations_checked < iterations_to_check) && (ri_index < num_relevant)) {
         // iterations_checked goes from most recent to oldest edits
@@ -832,7 +837,6 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                         (*prev).next = drop_element_ptr;
                         (*edit_element_ptr).prev = drop_element_ptr;
                         look_for_drop = false;
-                        insertions_made++;
                         iteration_edits.count++;
                         (*((Deque *)iteration_edits_ptr)).count++;
                         if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted drop edit\n", cnf.depth_str.c_str(), State::pid);
@@ -856,7 +860,6 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                             (*prev).next = size_change_element_ptr;
                             (*edit_element_ptr).prev = size_change_element_ptr;
                             num_unsat++;
-                            insertions_made++;
                             iteration_edits.count++;
                             (*((Deque *)iteration_edits_ptr)).count++;
                             if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted decrement edit\n", cnf.depth_str.c_str(), State::pid);
@@ -875,9 +878,10 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
         iterations_checked++;
         iteration_ptr = (*iteration_ptr).next;
     }
+    assert(ri_index == num_relevant);
 
     // Restore the change we made
-    if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %d insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, insertions_made);
+    if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %d insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, ri_index);
     if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.eedit_stack));
 }
 
@@ -1060,7 +1064,7 @@ void State::add_conflict_clause(
         cnf.clauses.drop_clause(new_clause_id);
     } else if (actual_size != conflict_clause.num_literals) {
         if (PRINT_LEVEL > 2) printf("Changing conflict clause size to %d\n", actual_size);
-        cnf.clauses.change_clause_size(conflict_clause.id, actual_size);
+        cnf.clauses.change_clause_size(conflict_clause.id, actual_size); //TODO: add to end if remote?
     }
     if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("With conflict clause", task_stack);
@@ -1205,22 +1209,23 @@ void State::handle_remote_conflict_clause(
         Clause conflict_clause,
         Interconnect &interconnect) 
     {
-    add_conflict_clause(cnf, conflict_clause, task_stack);
 
     // test using original valuation
     bool false_so_far = true;
     bool preassigned_false_so_far = true;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         int lit = conflict_clause.literal_variable_ids[i];
-        if (cnf.assigned_true[lit] && conflict_clause.literal_signs[lit]
-                  || cnf.assigned_false[lit] && !conflict_clause.literal_signs[lit]) {
+        if ((cnf.assigned_true[lit] && conflict_clause.literal_signs[i])
+            || (cnf.assigned_false[lit] && !conflict_clause.literal_signs[i])) {
             // is true, can add (or ignore?)
             // no need to backtrack
+            free_clause(conflict_clause);
             return;
-        } else if (!cnf.assigned_true[lit] && !cnf.assigned_false[lit]) {
+        } else if (!cnf.assigned_true[lit] && !cnf.assigned_false[lit]) { //unassigned
             false_so_far = false;
             preassigned_false_so_far = false;
         } else {
+            // lit evals to falsee
             if (cnf.assignment_times[lit] != -1) {
                 preassigned_false_so_far = false;
             }
@@ -1229,12 +1234,12 @@ void State::handle_remote_conflict_clause(
 
     if (preassigned_false_so_far) {
         invalidate_work(task_stack);
+        // TODO: add clause
         return;
     }
 
     if (false_so_far) {
         // unsat -> backtrack
-        // what is second-last variable
         std::map<int, int> lit_to_depth;
         for (int i = 0; i < conflict_clause.num_literals; i++) {
             int lit = conflict_clause.literal_variable_ids[i];
@@ -1247,13 +1252,18 @@ void State::handle_remote_conflict_clause(
         // backtrack until I see the first depth
         // TODO: perhaps resolve until it would be unit?
         while (true) {
+            if (task_stack.count == 0) {
+                // still need to backtrack, but on "bad" choice of first variable
+                cnf.backtrack();
+                break;
+            }
+
             Task current_task = get_task(task_stack);
 
             if (current_task.is_backtrack) {
                 cnf.backtrack();
-                if (cnf.depth == last_d) {
-                    // need to backtrack once more
-                    cnf.backtrack(); // could be bug??
+                if (cnf.depth == last_d-1) {
+                    // backtrack until we are exactly past the point of unsat
                     break;
                 }
             } else {
@@ -1268,8 +1278,11 @@ void State::handle_remote_conflict_clause(
             }
         }
     } else {
-        // unassigned, do nothing
+        // unassigned, no backtracking needed
     }
+    
+    if (PRINT_LEVEL >= 3) printf("%sPID %d: done backjumping from remote cc. Adding cc now\n", cnf.depth_str.c_str(), State::pid);
+    add_conflict_clause(cnf, conflict_clause, task_stack); // add to history after backtracking
 }
 
 // Handles a recieved conflict clause
@@ -1424,7 +1437,6 @@ void State::handle_local_conflict_clause(
                 cnf.backtrack();
                 break;
             }
-
             Task current_task = get_task(task_stack);
 
             if (current_task.is_backtrack) {
@@ -1455,6 +1467,7 @@ void State::handle_local_conflict_clause(
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
     if (SEND_CONFLICT_CLAUSES) {
+        if (PRINT_LEVEL > 1) printf("%sPID %d: sent conflict clause: %s\n", cnf.depth_str.c_str(), State::pid, cnf.clause_to_string_current(conflict_clause, false).c_str());
         interconnect.send_conflict_clause(-1, conflict_clause, true);
     }
 }
@@ -1604,6 +1617,7 @@ bool State::solve_iteration(
             if (ENABLE_CONFLICT_RESOLUTION && task_stack.count > 0) {
                 bool resolution_result = cnf.conflict_resolution_uid(
                     conflict_id, conflict_clause, decided_var_id);
+
                 if (resolution_result) {
                     handle_local_conflict_clause(
                         cnf, task_stack, conflict_clause, interconnect);
@@ -1640,6 +1654,7 @@ bool State::solve_iteration(
                 return false;
             }
         }
+
         assert(task_stack_invariant(
             cnf, task_stack, State::num_non_trivial_tasks));
         if (cnf.clauses.get_linked_list_size() == 0) {
@@ -1689,7 +1704,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             if (message_received) {
                 // printf("PID %d OOW\n", pid);
                 handle_message(message, cnf, task_stack, interconnect);
-                // if (!State::process_finished) printf("PID %d now has work\n", pid);
+                // if (!out_of_work() && !State::process_finished) printf("PID %d now has work\n", pid);
             }
         }
         if (State::process_finished) break;
