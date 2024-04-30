@@ -235,6 +235,7 @@ class IndexableDLL {
         // Could be within any one of the above
         DoublyLinkedList *iterator; // Used to traverse the LL
         short iterator_size; // Size of element iterator is at
+        void *bookend_val; //used for iterator_position_valid() opt
         
     IndexableDLL(int num_to_index);
     // default constructor

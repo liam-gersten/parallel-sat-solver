@@ -778,6 +778,8 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
             }
         }
     }
+    assert(look_for_drop == (drop_var_id != -1));
+    int drop_var_iteration = look_for_drop ? cnf.depth - cnf.assignment_depths[drop_var_id] : -1;
 
     int num_relevant = depth_to_al.size();
     int relevant_iterations[num_relevant]; // increasing order
@@ -797,12 +799,12 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
         printf("%s\tPID %d: need drop edit for clause\n", cnf.depth_str.c_str(), State::pid);
     }
     int iterations_to_check = cnf.eedit_stack.count;
-    int num_unsat = cnf.get_num_unsat(conflict_clause);
+    int num_unsat = cnf.get_num_unsat(conflict_clause); // TODO: in local case, can be 0-ed out??
     DoublyLinkedList *iteration_ptr = (*(cnf.eedit_stack.head)).next;
     while ((iterations_checked < iterations_to_check) && (ri_index < num_relevant)) {
         // iterations_checked goes from most recent to oldest edits
         if (PRINT_LEVEL > 3) printf("%s\t\tPID %d: checking iteration (%d/%d), %d edits left\n", cnf.depth_str.c_str(), State::pid, iterations_checked, iterations_to_check, num_relevant);
-        if (iterations_checked == relevant_iterations[ri_index]) {
+        if (iterations_checked == relevant_iterations[ri_index] || (look_for_drop && iterations_checked == drop_var_iteration)) {
             // only check this iteration if there is a relevant variable
             void *iteration_edits_ptr = (*iteration_ptr).value;
             Deque iteration_edits = (*((Deque *)iteration_edits_ptr));
@@ -858,6 +860,8 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
                             iteration_edits.count++;
                             (*((Deque *)iteration_edits_ptr)).count++;
                             if (PRINT_LEVEL > 5) printf("%s\t\t\tPID %d: inserted decrement edit\n", cnf.depth_str.c_str(), State::pid);
+
+                            if (ri_index == num_relevant || iterations_checked != relevant_iterations[ri_index]) break; // break if we are done with this iteration
                         }
                     }
                 } else {
