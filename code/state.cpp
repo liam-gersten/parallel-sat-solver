@@ -9,8 +9,7 @@ State::State(
         short pid,
         short nprocs,
         short branching_factor,
-        short assignment_method,
-        bool use_smart_prop)
+        short assignment_method)
     {
     State::pid = pid;
     State::nprocs = nprocs;
@@ -50,7 +49,6 @@ State::State(
     State::was_explicit_abort = false;
     State::calls_to_solve = 0;
     State::assignment_method = assignment_method;
-    State::use_smart_prop = use_smart_prop;
     State::current_cycle = 0;
     Deque thieves;
     State::thieves = (Deque *)malloc(sizeof(Deque));
@@ -932,66 +930,6 @@ void State::split_thieves(
     }
 }
 
-// Moves to lowest point in call stack when conflict clause is useful
-void State::backtrack_to_conflict_head(
-        Cnf &cnf, 
-        Deque &task_stack,
-        Clause conflict_clause,
-        Task lowest_bad_decision) 
-    {
-    if (PRINT_LEVEL > 0) printf("%sPID %d: backtrack to conflict head with lowest decision at var %d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id);
-    if (PRINT_LEVEL > 1) cnf.print_task_stack("Pre conflict backtrack", task_stack);
-    if (PRINT_LEVEL > 2) cnf.print_edit_stack("Pre conflict backtrack", (cnf.eedit_stack));
-    assert(cnf.get_num_unsat(conflict_clause) == 0);
-    int num_backtracks = 0;
-    assert(task_stack.count > 0);
-    Task current_task;
-    bool make_initial_backtrack = false;
-    if (task_stack.count >= 2) {
-        Task first_task = peak_task(task_stack);
-        Task second_task = peak_task(task_stack, 1);
-        Task opposite_first = opposite_task(first_task);
-        if (cnf.get_decision_status(opposite_first) == 'l') {
-            make_initial_backtrack = true;
-        }
-    } else {
-        make_initial_backtrack = true;
-    }
-    if (make_initial_backtrack) {
-        printf("Backtrack initial\n");
-        cnf.backtrack();
-        num_backtracks++;
-    }
-    bool tasks_equal = false;
-    while ((!tasks_equal) && (task_stack.count > 0)) {
-        // Clause is not useful to us, must backtrack more
-        current_task = get_task(task_stack);
-        tasks_equal = (lowest_bad_decision.var_id == current_task.var_id)
-            && (lowest_bad_decision.is_backtrack == current_task.is_backtrack);
-        if (current_task.is_backtrack) {
-            if (!tasks_equal) {
-                cnf.backtrack();
-                num_backtracks++;
-            }
-        } else {
-            if (current_task.assignment) {
-                cnf.true_assignment_statuses[current_task.var_id] = 'u';
-                if (PRINT_LEVEL >= 3) printf("%sPID %d: removed pre-conflict task {%d = T}\n", cnf.depth_str.c_str(), State::pid, current_task.var_id);
-            } else {
-                cnf.false_assignment_statuses[current_task.var_id] = 'u';
-                if (PRINT_LEVEL >= 3) printf("%sPID %d: removed pre-conflict task {%d = F}\n", cnf.depth_str.c_str(), State::pid, current_task.var_id);
-            }
-            State::num_non_trivial_tasks--;   
-        } 
-        if (PRINT_LEVEL > 5) cnf.print_task_stack("During backracking", task_stack);
-        if (PRINT_LEVEL > 5) cnf.print_edit_stack("During backracking", (cnf.eedit_stack));
-    }
-    if (PRINT_LEVEL > 1) printf("%sPID %d: backtracked %d times\n", cnf.depth_str.c_str(), State::pid, num_backtracks);
-    cnf.print_task_stack("Post conflict backtrack", task_stack);
-    if (PRINT_LEVEL > 3) cnf.print_edit_stack("Post conflict backtrack", (cnf.eedit_stack));
-    assert(cnf.get_num_unsat(conflict_clause) >= 1);
-}
-
 // Adds tasks based on what a conflict clause says (always greedy)
 int State::add_tasks_from_conflict_clause(
         Cnf &cnf, 
@@ -1069,138 +1007,6 @@ void State::add_conflict_clause(
     }
     if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("With conflict clause", task_stack);
-}
-
-// Returns who is responsible for making the decision that runs contrary
-// to decided_conflict_literals, one of
-// 'l' (in local), 'r' (in remote), or 's' (in stealers).
-// Also populates the lowest (most-recent) bad decision made.
-char State::blame_decision(
-        Cnf &cnf,
-        Deque &task_stack,
-        Deque decided_conflict_literals, 
-        Task *lowest_bad_decision) 
-    {
-    if (PRINT_LEVEL > 1) printf("%sPID %d: blaming decision\n", cnf.depth_str.c_str(), State::pid);
-    char result = 'r';
-    if (decided_conflict_literals.count == 0) {
-        if (task_stack.count == 0) {
-            return result;
-        } else if (task_stack.count == 1) {
-            Task top_task = peak_task(task_stack);
-            top_task.assignment = !top_task.assignment;
-            *lowest_bad_decision = top_task;
-            return 'l';
-        }
-        Task top_task = peak_task(task_stack);
-        if (!top_task.is_backtrack) {
-            top_task = peak_task(task_stack, 1);
-        }
-        top_task.assignment = !top_task.assignment;
-        *lowest_bad_decision = top_task;
-        return 'l';
-    }
-    void **decided_literals_list = decided_conflict_literals.as_list();
-    for (int i = 0; i < decided_conflict_literals.count; i++) {
-        void *decision_ptr = decided_literals_list[i];
-        Assignment good_decision = *((Assignment *)decision_ptr);
-        Assignment bad_decision;
-        bad_decision.var_id = good_decision.var_id;
-        bad_decision.value = !good_decision.value;
-        char good_status = cnf.get_decision_status(good_decision);
-        char bad_status = cnf.get_decision_status(bad_decision);
-        // Then conflict clause is satisfied
-        assert(good_status != 'l');
-        // Ensure the conflict clause is unsatisfiable
-        assert((bad_status == 'l') || (bad_status == 'r'));
-        if (bad_status == 'l') {
-            if (good_status == 'u') {
-                // Should be queued or stolen
-                assert(false);
-            } else if (good_status == 'q') {
-                result = 'l';
-                break;
-            } else if (good_status == 'r') {
-                // Can't locally assign something contrary to remote assignment
-                assert(false);
-            } else { // 's'
-                if (result == 'r') {
-                    result = 's';
-                }
-            }
-        } else { // 'r'
-            assert(good_status == 'u');
-        }
-    }
-    if (result == 'l') {
-        if (PRINT_LEVEL > 2) printf("%sPID %d: searching for local culprit\n", cnf.depth_str.c_str(), State::pid);
-        cnf.print_task_stack("should be in", task_stack);
-        // Find lowest bad decision locally (good one is queued up)
-        void **tasks = task_stack.as_list();
-        int num_tasks = task_stack.count;
-        // Check each task in order
-        for (int task_num = 0; task_num < num_tasks; task_num++) {
-            void *task_ptr = tasks[task_num];
-            Task task = *((Task *)task_ptr);
-            if (task_num == num_tasks - 1) {
-                // Don't expect it to be a backtrack task
-                if (task.is_backtrack) {
-                    continue;
-                }
-            } else {
-                // Should be a backtrack task
-                if (!task.is_backtrack) {
-                    continue;
-                }
-            }
-            // Check to see if the task is a bad decision
-            for (int i = 0; i < decided_conflict_literals.count; i++) {
-                void *decision_ptr = decided_literals_list[i];
-                Assignment good_decision = *((Assignment *)decision_ptr);
-                if (good_decision.var_id == task.var_id) {
-                    // Found!
-                    Task bad_decision;
-                    bad_decision.var_id = task.var_id;
-                    bad_decision.assignment = !task.assignment;
-                    bad_decision.implier = task.implier;
-                    bad_decision.is_backtrack = task.is_backtrack;
-                    *lowest_bad_decision = bad_decision;
-                    free(decided_literals_list);
-                    free(tasks);
-                    return result;
-                }
-            }
-        }
-        free(tasks);
-        assert(false);
-    } else if (result == 's') {
-        if (PRINT_LEVEL > 2) printf("%sPID %d: searching for stolen culprit\n", cnf.depth_str.c_str(), State::pid);
-        // Find lowest bad decision as opposite of lowest stolen good decision 
-        void **stolen_tasks = (*State::thieves).as_list();
-        int num_tasks = (*State::thieves).count;
-        // Check each task in order
-        for (int task_num = 0; task_num < num_tasks; task_num++) {
-            void *task_ptr = stolen_tasks[task_num];
-            GivenTask task = *((GivenTask *)task_ptr);
-            // Check to see if the task is a bad decision
-            for (int i = 0; i < decided_conflict_literals.count; i++) {
-                void *decision_ptr = decided_literals_list[i];
-                Assignment good_decision = *((Assignment *)decision_ptr);
-                if (good_decision.var_id == task.var_id) {
-                    // Found!
-                    Task bad_decision;
-                    bad_decision.var_id = good_decision.var_id;
-                    bad_decision.assignment = !good_decision.value;
-                    bad_decision.is_backtrack = false;
-                    *lowest_bad_decision = bad_decision;
-                    free(decided_literals_list);
-                    return result;
-                }
-            }
-        }
-    }
-    free(decided_literals_list);
-    return result;
 }
 
 // Handles the current REMOTE conflict clause
@@ -1285,103 +1091,6 @@ void State::handle_remote_conflict_clause(
     if (PRINT_LEVEL >= 3) printf("%sPID %d: done backjumping from remote cc. Adding cc now\n", cnf.depth_str.c_str(), State::pid);
     add_conflict_clause(cnf, conflict_clause, task_stack); // add to history after backtracking
 }
-
-// Handles a recieved conflict clause
-void State::handle_conflict_clause_old(
-        Cnf &cnf, 
-        Deque &task_stack, 
-        Clause conflict_clause,
-        Interconnect &interconnect,
-        bool blamed_for_error)
-    {
-    int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
-    printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, false).c_str());
-    printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, true).c_str());
-    bool clause_value;
-    bool clause_satisfied = cnf.clause_satisfied(
-        conflict_clause, &clause_value);
-    // TODO: handle conflict clause reconstruction & message passing
-    if (cnf.clause_exists_already(conflict_clause)) {
-        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause already exists\n", cnf.depth_str.c_str(), State::pid);
-        assert(State::nprocs > 1);
-        if (blamed_for_error || (clause_satisfied && !clause_value)) {
-            // TODO: swap the clause forward
-        }
-        return;
-    } 
-    if (!clause_satisfied) {
-        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause unsatisfied\n", cnf.depth_str.c_str(), State::pid);
-        add_conflict_clause(cnf, conflict_clause, task_stack);
-        return;
-    } else if (clause_value) {
-        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause true already\n", cnf.depth_str.c_str(), State::pid);
-        print_assignment(State::pid, "current assignment: ", cnf.depth_str.c_str(), cnf.get_assignment(), cnf.num_variables, false, false);
-        // TODO: add hist edit here
-        add_conflict_clause(cnf, conflict_clause, task_stack);
-        return;
-    } else {
-        if (PRINT_LEVEL > 1) printf("%s\tPID %d: conflict clause must be dealt with\n", cnf.depth_str.c_str(), State::pid);
-    }
-    // The places to backtrack to are those decided, not unit propagated.
-    // We save these beforehand, as backtracking will change whether
-    // we believe they are decided or unit propagated.
-    Deque decided_conflict_literals = cnf.get_decided_conflict_literals(
-        conflict_clause);
-    Task lowest_bad_decision;
-    char culprit = blame_decision(
-        cnf, task_stack, decided_conflict_literals, &lowest_bad_decision);
-    if (lowest_bad_decision.is_backtrack) {
-        printf("%sPID %d: Lowest bad decision B%d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id);
-    } else {
-        printf("%sPID %d: Lowest bad decision %d = %d\n", cnf.depth_str.c_str(), State::pid, lowest_bad_decision.var_id, lowest_bad_decision.assignment);
-    }
-    assert(cnf.valid_lbd(decided_conflict_literals, lowest_bad_decision));
-    bool blame_remote = false;
-    switch (culprit) {
-        case 'l': {
-            // local is responsible
-            if (PRINT_LEVEL > 1) printf("%s\tPID %d: local is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
-            backtrack_to_conflict_head(
-                cnf, task_stack, conflict_clause, lowest_bad_decision);
-            add_conflict_clause(cnf, conflict_clause, task_stack, true);
-            inform_thieves_of_conflict(
-                (*State::thieves), conflict_clause, interconnect);
-            break;
-        } case 'r': {
-            assert(State::nprocs > 1);
-            // remote is responsible
-            if (PRINT_LEVEL > 1) printf("%s\tPID %d: remote is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
-            invalidate_work(task_stack);
-            inform_thieves_of_conflict(
-                (*State::thieves), conflict_clause, interconnect, true);
-            blame_remote = true;
-            break;
-        } case 's': {
-            assert(State::nprocs > 1);
-            // thieves are responsible
-            if (PRINT_LEVEL > 1) printf("%s\tPID %d: thieves are responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
-            invalidate_work(task_stack);
-            Deque thieves_to_invalidate;
-            Deque thieves_to_give;
-            split_thieves(
-                lowest_bad_decision, thieves_to_invalidate, thieves_to_give);
-            inform_thieves_of_conflict(
-                thieves_to_invalidate, conflict_clause, interconnect, true);
-            inform_thieves_of_conflict(
-                thieves_to_give, conflict_clause, interconnect);
-            break;
-        }
-    }
-    if (State::current_task.pid != -1) {
-        // Send conflict clause to remote
-        interconnect.send_conflict_clause(
-            State::current_task.pid, conflict_clause);
-    }
-    decided_conflict_literals.free_data();
-    if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
-    if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
-}
-
 
 // Handles the current LOCAL conflict clause
 void State::handle_local_conflict_clause(
@@ -1609,10 +1318,6 @@ bool State::solve_iteration(
         if (PRINT_LEVEL > 3) print_data(cnf, task_stack, "Loop start");
         bool propagate_result = cnf.propagate_assignment(
             var_id, assignment, implier, &conflict_id);
-        if (State::use_smart_prop) {
-            propagate_result = propagate_result && cnf.smart_propagate_assignment(
-                var_id, assignment, implier, &conflict_id);
-        }
         if (!propagate_result) {
             print_data(cnf, task_stack, "Prop fail");
             if (ENABLE_CONFLICT_RESOLUTION && task_stack.count > 0) {

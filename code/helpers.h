@@ -16,7 +16,7 @@
 
 #define PRINT_CONCISE_FORMULA 1
 
-#define CYCLES_TO_PRINT_PROGRESS 300
+#define CYCLES_TO_PRINT_PROGRESS 1000
 
 // Decision order control variables
 

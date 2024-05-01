@@ -33,7 +33,6 @@ class State {
         // 1 opposite of greedy
         // 2 always set True
         // 3 always set False
-        bool use_smart_prop;
         int current_cycle;
         Deque *thieves;
         GivenTask current_task;
@@ -44,8 +43,7 @@ class State {
             short pid, 
             short nprocs, 
             short branching_factor, 
-            short assignment_method,
-            bool use_smart_prop);
+            short assignment_method);
 
         // Gets pid from child (or parent) index
         short pid_from_child_index(short child_index);
@@ -166,16 +164,6 @@ class State {
             Task midpoint, 
             Deque &thieves_before, 
             Deque &thieves_after);
-        
-        // Simply backtracks once and removes the first decided task(s)
-        void simple_conflict_backtrack(Cnf &cnf, Deque &task_stack);
-        
-        // Moves to lowest point in call stack when conflict clause is useful
-        void backtrack_to_conflict_head(
-            Cnf &cnf, 
-            Deque &task_stack, 
-            Clause conflict_clause,
-            Task lowest_bad_decision);
 
         // Adds tasks based on what a conflict clause says (always greedy)
         int add_tasks_from_conflict_clause(
@@ -190,16 +178,6 @@ class State {
             Deque &task_stack,
             bool pick_from_clause = false);
         
-        // Returns who is responsible for making the decision that runs contrary
-        // to decided_conflict_literals, one of
-        // 'l' (in local), 'r' (in remote), or 's' (in stealers).
-        // Also populates the lowest (most-recent) bad decision made.
-        char blame_decision(
-            Cnf &cnf,
-            Deque &task_stack,
-            Deque decided_conflict_literals, 
-            Task *lowest_bad_decision);
-        
         // Handles the current LOCAL conflict clause
         void handle_local_conflict_clause(
                 Cnf &cnf, 
@@ -213,14 +191,6 @@ class State {
                 Deque &task_stack, 
                 Clause conflict_clause,
                 Interconnect &interconnect);
-        
-        // Handles a recieved conflict clause
-        void handle_conflict_clause_old(
-            Cnf &cnf, 
-            Deque &task_stack, 
-            Clause conflict_clause,
-            Interconnect &interconnect,
-            bool blamed_for_error = true);
 
         // Adds one or two variable assignment tasks to task stack
         int add_tasks_from_formula(Cnf &cnf, Deque &task_stack);

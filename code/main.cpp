@@ -17,8 +17,7 @@ void run_filename(
         int nproc,
         std::string input_filename, 
         short branching_factor, 
-        short assignment_method, 
-        bool use_smart_prop, 
+        short assignment_method,
         int reduction_method) 
     {
     const auto init_start = std::chrono::steady_clock::now();
@@ -38,7 +37,7 @@ void run_filename(
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        assignment_method, use_smart_prop);
+        assignment_method);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -88,8 +87,7 @@ void run_tests(
         int num_tests,
         short test_length,
         short branching_factor, 
-        short assignment_method, 
-        bool use_smart_prop, 
+        short assignment_method,
         int reduction_method) 
     {
     //uses hard_16s.txt
@@ -136,7 +134,7 @@ void run_tests(
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        assignment_method, use_smart_prop);
+        assignment_method);
 
     const auto compute_start = std::chrono::steady_clock::now();
 
@@ -182,8 +180,7 @@ void run_example_1(
         int nproc,
         std::string input_filename, 
         short branching_factor, 
-        short assignment_method, 
-        bool use_smart_prop, 
+        short assignment_method,
         int reduction_method) 
     {
     const auto init_start = std::chrono::steady_clock::now();
@@ -221,7 +218,7 @@ void run_example_1(
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
     State state(pid, nproc, branching_factor, 
-        assignment_method, use_smart_prop);
+        assignment_method);
 
     if (pid == 0) {
         const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
@@ -370,9 +367,8 @@ int main(int argc, char *argv[]) {
     int opt;
     short branching_factor = 2;
     short assignment_method = 1;
-    bool use_smart_prop = false;
     int reduction_method = 0;
-    while ((opt = getopt(argc, argv, "c:f:t:l:b:m:s:r:")) != -1) {
+    while ((opt = getopt(argc, argv, "c:f:t:l:b:m:r:")) != -1) {
         switch (opt) {
             case 'c':
                 command = optarg;
@@ -392,9 +388,6 @@ int main(int argc, char *argv[]) {
             case 'm':
                 assignment_method = (short)atoi(optarg);
                 break;
-            case 's':
-                use_smart_prop = (bool)atoi(optarg);
-                break;
             case 'r':
                 reduction_method = (int)atoi(optarg);
                 break;
@@ -411,7 +404,6 @@ int main(int argc, char *argv[]) {
             input_filename, 
             branching_factor, 
             assignment_method, 
-            use_smart_prop, 
             reduction_method);
     } else if (command == "runtests") {
         run_tests(
@@ -421,7 +413,6 @@ int main(int argc, char *argv[]) {
             test_length,
             branching_factor, 
             assignment_method, 
-            use_smart_prop, 
             reduction_method);
     } else if (command == "example1") {
         run_example_1(
@@ -430,7 +421,6 @@ int main(int argc, char *argv[]) {
             input_filename, 
             branching_factor, 
             assignment_method, 
-            use_smart_prop, 
             reduction_method);
     } else {
         if (pid == 0) {

@@ -161,11 +161,6 @@ class Cnf {
 
         // Gets the status of a variable decision (task)
         char get_decision_status(Task decision);
-
-        // Returns whether we have a valid lowest bad decision
-        bool valid_lbd(
-            Deque decided_conflict_literals, 
-            Task lowest_bad_decision);
         
         // Picks unassigned variable from the clause, returns the number of unsats
         int pick_from_clause(Clause clause, int *var_id, bool *var_sign);
@@ -175,10 +170,6 @@ class Cnf {
 
         // Gets the status of a clause, 's', 'u', or 'n'.
         char check_clause(Clause clause, int *num_unsat, bool from_propagate=false);
-        
-        // A shortened version of a conflict clause containing only the literals
-        // (Assignment structs) that are decided, not unit propagated.
-        Deque get_decided_conflict_literals(Clause conflict_clause);
         
         // Returns whether a clause already exists
         bool clause_exists_already(Clause new_clause);
@@ -192,16 +183,9 @@ class Cnf {
         // Resolves two clauses, returns the resulting clause
         Clause resolve_clauses(Clause A, Clause B, int variable);
         
-        // Sorts (in place) the variables by decreasing assignment time
-        void sort_variables_by_assignment_time(int *variables, int num_vars);
-        
-        // Performs resoltion, populating the result clause.
-        // Returns whether a result could be generated.
-        bool conflict_resolution(int culprit_id, Clause &result);
         // Populates result clause with 1UID conflict clause
         // Returns whether a result could be generated.
         bool conflict_resolution_uid(int culprit_id, Clause &result, int decided_var_id);
-        bool conflict_resolution_uid_old(int culprit_id, Clause &result, int decided_var_id);
 
         // Updates formula with given assignment.
         // Returns false on failure and populates Conflict clause.
@@ -209,14 +193,6 @@ class Cnf {
             int var_id,
             bool value, 
             int implier, 
-            int *conflict_id);
-
-        // Uses Sudoku context with variable indexing to immidiately assign
-        // other variables
-        bool smart_propagate_assignment(
-            int var_id, 
-            bool value, 
-            int implier,
             int *conflict_id);
         
         // Returns the assignment of variables
