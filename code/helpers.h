@@ -10,13 +10,13 @@
 
 #define PRINT_INTERCONNECT 0
 
-#define PRINT_PROGRESS 0
+#define PRINT_PROGRESS 1
 
 #define PRINT_INDENT 1
 
 #define PRINT_CONCISE_FORMULA 1
 
-#define CYCLES_TO_PRINT_PROGRESS 1000
+#define CYCLES_TO_PRINT_PROGRESS 300
 
 // Decision order control variables
 
@@ -34,7 +34,7 @@
 
 #define ENABLE_CONFLICT_RESOLUTION 1
 
-#define SEND_CONFLICT_CLAUSES 1
+#define SEND_CONFLICT_CLAUSES 0
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1

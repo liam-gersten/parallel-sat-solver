@@ -963,9 +963,9 @@ void Clauses::change_clause_size(int clause_id, int new_size) {
 
 // Returns whether a clause is dropped
 bool Clauses::clause_is_dropped(int clause_id) {
-    if (clause_id >= Clauses::max_indexable) {
+    if (clause_id >= Clauses::num_indexed) {
         return Clauses::conflict_clauses.element_is_dropped(
-            clause_id - Clauses::max_indexable);
+            clause_id - Clauses::num_indexed);
     }
     return Clauses::normal_clauses.element_is_dropped(clause_id);
 }

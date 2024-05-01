@@ -121,7 +121,7 @@ bool State::task_stack_invariant(
         Deque &task_stack, 
         int supposed_num_tasks) 
     {
-        return true;
+        // return true;
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     if (State::num_non_trivial_tasks > 0) {
         assert(task_stack.count > 0);
@@ -321,6 +321,7 @@ void State::apply_edit_to_compressed(
             compressed[offset] += mask_to_add;
 
             cnf.assignment_times[variable_id] = -1; // IMPORTANT
+            cnf.assignment_depths[variable_id] = -1;
             return;
         } case 'c': {
             // Add clause drop to it's int offset
@@ -1399,10 +1400,10 @@ void State::handle_local_conflict_clause(
     // Backtrack to just when the clause would've become unit [or restart if conflict clause is unit]
     if (conflict_clause.num_literals == 1) {
         // backtrack all the way back
+        // printf("local conflict clause backtracking all the way on pid %d\n", pid);
         while (task_stack.count > 0) {
             Task current_task = get_task(task_stack);
             if (current_task.is_backtrack) {
-                printf("c\n");
                 cnf.backtrack();
             } else {
                 if (current_task.assignment) {
@@ -1617,7 +1618,6 @@ bool State::solve_iteration(
             if (ENABLE_CONFLICT_RESOLUTION && task_stack.count > 0) {
                 bool resolution_result = cnf.conflict_resolution_uid(
                     conflict_id, conflict_clause, decided_var_id);
-
                 if (resolution_result) {
                     handle_local_conflict_clause(
                         cnf, task_stack, conflict_clause, interconnect);

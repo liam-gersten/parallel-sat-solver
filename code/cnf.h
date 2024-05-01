@@ -2,6 +2,7 @@
 #define CNF_H
 
 #include "helpers.h"
+#include <vector>
 
 struct VariableLocations {
     int variable_id; // id of variable
@@ -101,14 +102,23 @@ class Cnf {
         std::tuple<int, bool> oneOfClause(int* vars, int length, int &var_id, bool beginning=true, int newComm=-1, bool newCommSign=false);
 
         // Working version that reduces the number of clauses needed
-        void reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments, GridAssignment* assignments);
+        int reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments, GridAssignment* assignments,
+            int numExtraVars, int numExtraClauses);
+
+        // helper for reduce_constraints
+        std::vector<std::vector<int>> generatePartitions(int sum, int size, int max);
+        int generatePartitionsNum(int sum, int size, int max);
+
+        // Reduces sum constraints
+        void reduce_constraints(int n, int &var_id, int num_constraints, int** constraints);
 
         // Original version with lowest variable count
         void reduce_puzzle_original(
             int n, 
             int sqrt_n, 
             int num_assignments,
-            GridAssignment *assignments);
+            GridAssignment *assignments,
+            int numExtraVars, int numExtraClauses);
         
         // Initializes CNF compression
         void init_compression();
