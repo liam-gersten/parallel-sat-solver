@@ -1475,7 +1475,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
 
     std::map<int, Assignment> lit_to_time; // in ascending order of assignment time
 
-    int last_decided_depth = Cnf::assignment_depths[decided_var_id];
+    int last_decided_time = Cnf::assignment_times[decided_var_id];
     int current_cycle_variables = 0;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         Assignment lit;
@@ -1484,10 +1484,9 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
 
         int time = Cnf::assignment_times[lit.var_id];
         if (time == -1) time = -(lit.var_id+1); // for uniqueness in the map. add 1 bc var_id starts at 0
-        int depth = Cnf::assignment_depths[lit.var_id];
         lit_to_time.insert({time, lit});
-        
-        if (depth >= last_decided_depth) {
+
+        if (time >= last_decided_time) {
             current_cycle_variables++;
         }
     }
@@ -1499,7 +1498,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         auto iter = lit_to_time.rbegin();
         Assignment u = iter->second; //take latest literal
         int u_time = iter->first;
-        assert(Cnf::assignment_depths[u.var_id] == last_decided_depth);
+        // assert(Cnf::assignment_depths[u.var_id] == last_decided_depth);
         lit_to_time.erase(u_time);
         current_cycle_variables--;
         
@@ -1514,12 +1513,11 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
             Assignment lit;
             lit.var_id = implying_clause.literal_variable_ids[i];
             lit.value = implying_clause.literal_signs[i];
-            int depth = Cnf::assignment_depths[lit.var_id];
             int time = Cnf::assignment_times[lit.var_id];
             if (time == -1) time = -(lit.var_id+1); // for uniqueness in the map
             
             auto [_, success] = lit_to_time.insert({time, lit});
-            if (success && (depth >= last_decided_depth)) {
+            if (success && (time >= last_decided_time)) {
                 current_cycle_variables++;
             }
         }
