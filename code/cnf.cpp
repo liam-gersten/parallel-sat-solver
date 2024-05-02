@@ -1346,7 +1346,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         lits[i] = iter->second;
         i++;
     }
-    std::sort(lits, lits+result.num_literals, cmp_assignments);
+    if (KEEP_SORTED) std::sort(lits, lits+result.num_literals, cmp_assignments);
 
     for (i = 0; i < result.num_literals; i++) {
         result.literal_variable_ids[i] = lits[i].var_id;
@@ -1367,7 +1367,8 @@ bool Cnf::propagate_assignment(
         int var_id, 
         bool value, 
         int implier, 
-        int *conflict_id) 
+        int *conflict_id,
+        bool add_to_edit) 
     {
     if (PRINT_LEVEL > 1) printf("%sPID %d: trying var %d |= %d\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value);
     VariableLocations locations = (Cnf::variables)[var_id];
@@ -1402,7 +1403,7 @@ bool Cnf::propagate_assignment(
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
             if (Cnf::clauses.num_unsats[clause_id] == -1) {
                 Clause clause = Cnf::clauses.get_clause(clause_id);
-                Cnf::clauses.num_unsats[clause_id] = get_num_unsat(clause); // from reconstruct_state
+                Cnf::clauses.num_unsats[clause_id] = get_num_unsat(clause); // not init from reconstruct_state [if originally dropped] - shouldn't happen
             } else {
                 Cnf::clauses.num_unsats[clause_id]--;
             }

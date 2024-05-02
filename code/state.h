@@ -183,7 +183,8 @@ class State {
                 Cnf &cnf, 
                 Deque &task_stack, 
                 Clause conflict_clause,
-                Interconnect &interconnect);
+                Interconnect &interconnect,
+                bool send=true);
 
         // Handles the current REMOTE conflict clause
         void handle_remote_conflict_clause(

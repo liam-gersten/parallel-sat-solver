@@ -195,7 +195,8 @@ class Cnf {
             int var_id,
             bool value, 
             int implier, 
-            int *conflict_id);
+            int *conflict_id,
+            bool add_to_edit=true);
         
         // Returns the assignment of variables
         bool *get_assignment();

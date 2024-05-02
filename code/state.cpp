@@ -972,7 +972,6 @@ void State::handle_remote_conflict_clause(
 
     if (preassigned_false_so_far) {
         invalidate_work(task_stack);
-        // TODO: add clause
         return;
     }
 
@@ -1020,7 +1019,8 @@ void State::handle_remote_conflict_clause(
     }
     
     if (PRINT_LEVEL >= 3) printf("%sPID %d: done backjumping from remote cc. Adding cc now\n", cnf.depth_str.c_str(), State::pid);
-    add_conflict_clause(cnf, conflict_clause, task_stack); // add to history after backtracking
+    handle_local_conflict_clause(cnf, task_stack, conflict_clause, interconnect, false); // resolve until unit, then add that clause
+    // add_conflict_clause(cnf, conflict_clause, task_stack); // add to history after backtracking
 }
 
 // Handles the current LOCAL conflict clause
@@ -1028,7 +1028,8 @@ void State::handle_local_conflict_clause(
         Cnf &cnf, 
         Deque &task_stack, 
         Clause conflict_clause,
-        Interconnect &interconnect)
+        Interconnect &interconnect,
+        bool send)
     {
     int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
     if (PRINT_LEVEL > 2) printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, false).c_str());
@@ -1107,7 +1108,7 @@ void State::handle_local_conflict_clause(
     
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
-    if (SEND_CONFLICT_CLAUSES && conflict_clause.num_literals < CONFLICT_CLAUSE_SIZE * cnf.n / 3) {
+    if (SEND_CONFLICT_CLAUSES && send && conflict_clause.num_literals < SEND_CONFLICT_CLAUSE_LIMIT * cnf.n) {
         if (PRINT_LEVEL > 1) printf("%sPID %d: sent conflict clause: %s\n", cnf.depth_str.c_str(), State::pid, cnf.clause_to_string_current(conflict_clause, false).c_str());
         interconnect.send_conflict_clause(-1, conflict_clause, true);
     }
@@ -1350,6 +1351,26 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             abort_others(interconnect, true);
             abort_process(cnf, task_stack, interconnect, true);
             return true;
+        }
+        if (out_of_work()) {
+            // generate conflict clause
+            Clause cc_done;
+            std::vector<int> givens;
+            for (int i = 0; i < cnf.num_variables; i++) {
+                if (cnf.assignment_times[i] == -1) {
+                    givens.push_back(i);
+                }
+            }
+            cc_done.num_literals = givens.size();
+            cc_done.literal_variable_ids = (int *)malloc(sizeof(int) * givens.size());
+            cc_done.literal_signs = (bool *)calloc(sizeof(bool), givens.size()); //all false
+            for (int i = 0; i < givens.size(); i++) {
+                cc_done.literal_variable_ids[i] = givens[i];
+            }
+            add_conflict_clause(cnf, cc_done, task_stack);
+            if (SEND_CONFLICT_CLAUSES) {
+                interconnect.send_conflict_clause(-1, cc_done, true);
+            }
         }
         if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {
             while (interconnect.async_receive_message(message) && !State::process_finished) {
