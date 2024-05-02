@@ -3,6 +3,7 @@
 
 #include "helpers.h"
 #include <vector>
+#include <unordered_set>
 
 struct VariableLocations {
     int variable_id; // id of variable
@@ -13,7 +14,7 @@ struct VariableLocations {
     unsigned int variable_true_addition_index;
     unsigned int variable_false_addition_index;
     // Will have dynamic allocation size
-    IntDeque clauses_containing; // LL of clause ids
+    std::vector<int> *clauses_containing; // LL of clause ids
     Deque *edit_stack_ptr;
 
     int variable_row;
@@ -77,7 +78,7 @@ class Cnf {
         short **sudoku_board;
         bool is_sudoku;
 
-        bool *ans;
+        // std::unordered_set<Clause> clause_hash;
 
         // Makes CNF formula from inputs
         Cnf(

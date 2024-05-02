@@ -917,7 +917,7 @@ void State::add_conflict_clause(
         int var_id = conflict_clause.literal_variable_ids[lit];
         bool sgn = conflict_clause.literal_signs[lit];
         int pm_id = sgn ? new_clause_id : -(new_clause_id+1); // negative means neg occurence of literal
-        (cnf.variables[var_id]).clauses_containing.add_to_back(pm_id);
+        (*((cnf.variables[var_id]).clauses_containing)).push_back(pm_id);
     }
     cnf.clauses.add_conflict_clause(conflict_clause);
     int actual_size = cnf.get_num_unsat(conflict_clause);

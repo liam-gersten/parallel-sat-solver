@@ -1063,6 +1063,7 @@ void Clauses::free_data() {
     // TODO: implement this
     Clauses::normal_clauses.free_data();
     Clauses::conflict_clauses.free_data();
+    free(Clauses::num_unsats);
 }
 
 // Default constructor
