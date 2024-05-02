@@ -28,10 +28,12 @@ void add_clause(
     new_clause.id = new_clause_id;
     for (int lit = 0; lit < new_clause.num_literals; lit++) {
         int variable_id = new_clause.literal_variable_ids[lit];
-        (((variables[variable_id])).clauses_containing).add_to_back(
-            new_clause_id);
+        bool sgn = new_clause.literal_signs[lit];
+        int pm_id = sgn ? new_clause_id : -(new_clause_id+1); // negative means neg occurence of literal
+        ((variables[variable_id]).clauses_containing).add_to_back(pm_id);
     }
     clauses.add_regular_clause(new_clause);
+    clauses.num_unsats[new_clause_id] = new_clause.num_literals;
 }
 
 /**
@@ -64,7 +66,6 @@ std::tuple<int, bool> Cnf::oneOfClause(int* vars, int length, int &var_id, bool 
             // comm.variable_k = k;
             Cnf::true_assignment_statuses[var_id] = 'u';
             Cnf::false_assignment_statuses[var_id] = 'u';
-            comm.clauses_containing;
             Cnf::variables[var_id] = comm;
             var_id++;
         } else {
@@ -309,7 +310,6 @@ int Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments,
                 current_variable.variable_k = k;
                 Cnf::true_assignment_statuses[variable_id] = 'u';
                 Cnf::false_assignment_statuses[variable_id] = 'u';
-                current_variable.clauses_containing;
                 Cnf::variables[variable_id] = current_variable;
                 variable_id++;
             }
@@ -453,7 +453,6 @@ void Cnf::reduce_constraints(int n, int &var_id, int num_constraints, int** cons
             dic_variable.variable_id = digit_in_cage_vars[d];
             Cnf::true_assignment_statuses[digit_in_cage_vars[d]] = 'u';
             Cnf::false_assignment_statuses[digit_in_cage_vars[d]] = 'u';
-            dic_variable.clauses_containing;
             Cnf::variables[digit_in_cage_vars[d]] = dic_variable;
         }
         var_id += n;
@@ -470,7 +469,7 @@ void Cnf::reduce_constraints(int n, int &var_id, int num_constraints, int** cons
                 dic.literal_variable_ids[cell] = getRegularVariable(row, col, d, n);
                 dic.literal_signs[cell] = true;
 
-                // (exists d in cage) -> dic
+                // (exists d in cage) -> dic);
                 Clause dic2 = make_small_clause(getRegularVariable(row, col, d, n), digit_in_cage_vars[d], false, true);
                 add_clause(dic2, Cnf::clauses, Cnf::variables);
             }
@@ -499,7 +498,6 @@ void Cnf::reduce_constraints(int n, int &var_id, int num_constraints, int** cons
             part_variable.variable_id = part_var;
             Cnf::true_assignment_statuses[part_var] = 'u';
             Cnf::false_assignment_statuses[part_var] = 'u';
-            part_variable.clauses_containing;
             Cnf::variables[part_var] = part_variable;
 
             Clause part;
@@ -565,7 +563,6 @@ void Cnf::reduce_puzzle_original(
                 current_variable.variable_k = k;
                 Cnf::true_assignment_statuses[variable_id] = 'u';
                 Cnf::false_assignment_statuses[variable_id] = 'u';
-                current_variable.clauses_containing;
                 Cnf::variables[variable_id] = current_variable;
                 variable_id++;
             }
@@ -854,12 +851,14 @@ void Cnf::print_cnf(
             IntDeque containment_queue = current_location.clauses_containing;
             while (containment_queue.count > 0) {
                 int clause_id = containment_queue.pop_from_front();
+                int actual_clause_id = clause_id >= 0 ? clause_id : -(clause_id+1);
+
                 tmp_stack.add_to_front(clause_id);
-                if (Cnf::clauses.clause_is_dropped(clause_id) && elimination) {
+                if (Cnf::clauses.clause_is_dropped(actual_clause_id) && elimination) {
                     continue;
                 }
                 data_string.append("C");
-                data_string.append(std::to_string(clause_id));
+                data_string.append(std::to_string(actual_clause_id));
                 if (containment_queue.count != 0) {
                     data_string.append(", ");
                 }
@@ -1067,7 +1066,6 @@ char Cnf::check_clause(Clause clause, int *num_unsat, bool from_propagate) {
     //     cid -= Cnf::clauses.num_indexed;
     //     old_num_unsat = Cnf::clauses.conflict_clauses.element_counts[cid];
     // }
-
     int unsat_count = 0; //0 if clause is true; otherwise, number of undetermined
     for (int i = 0; i < clause.num_literals; i++) {
         int var_id = clause.literal_variable_ids[i];
@@ -1383,12 +1381,30 @@ bool Cnf::propagate_assignment(
     if (PRINT_LEVEL > 3) printf("%sPID %d: assigned var %d |= %d, checking %d clauses\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, num_to_check);    
     for (int i = 0; i < num_to_check; i++) {
         int clause_id = clauses_to_check[i];
+        bool isPositive = true;
+        if (clause_id < 0) {
+            clause_id = -(clause_id+1);
+            isPositive = false;
+        }
         // Try to drop it
         if (!Cnf::clauses.clause_is_dropped(clause_id)) {
             if (PRINT_LEVEL >= 6) printf("%sPID %d: checking clause %d\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
             Clause clause = Cnf::clauses.get_clause(clause_id);
-            int num_unsat;
-            char new_clause_status = check_clause(clause, &num_unsat, true);            
+            if (Cnf::clauses.num_unsats[clause_id] == -1) {
+                Cnf::clauses.num_unsats[clause_id] = get_num_unsat(clause); // from reconstruct_state
+            } else {
+                Cnf::clauses.num_unsats[clause_id]--;
+            }
+            int num_unsat = Cnf::clauses.num_unsats[clause_id];
+            char new_clause_status;
+            if (isPositive == value) {
+                new_clause_status = 's';
+            } else if (num_unsat == 0) {
+                new_clause_status = 'u';
+            } else {
+                new_clause_status = 'n';
+            }
+            
             switch (new_clause_status) {
                 case 's': {
                     // Satisfied, can now drop
@@ -1400,17 +1416,18 @@ bool Cnf::propagate_assignment(
                     if (PRINT_LEVEL >= 3) printf("%sPID %d: clause %d %s contains conflict\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(clause, false).c_str());
                     *conflict_id = clause_id;
                     free(clauses_to_check);
+                    Cnf::clauses.num_unsats[clause_id]++; // undo previous decrement
                     if (PRINT_LEVEL > 1) printf("%sPID %d: assignment propagation of var %d = %d failed (conflict = %d)\n", Cnf::depth_str.c_str(), Cnf::pid, var_id, (int)value, clause_id);
                     return false;
                 } default: {
                     // At least the size changed
                     if (PRINT_LEVEL > 3) printf("%sPID %d: decreasing clause %d %s size (%d -> %d)\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(clause, false).c_str(), num_unsat + 1, num_unsat);
-                    if (num_unsat < 3) {
-                        Cnf::clauses.change_clause_size(
-                            clause_id, num_unsat);
-                        add_to_edit_stack(size_change_edit(
-                            clause_id, num_unsat + 1, num_unsat));
-                    }
+                    // if (num_unsat < 3) {
+                    Cnf::clauses.change_clause_size(
+                        clause_id, num_unsat);
+                    add_to_edit_stack(size_change_edit(
+                        clause_id, num_unsat + 1, num_unsat));
+                    // }
                     break;
                 }
             }
@@ -1495,12 +1512,14 @@ void Cnf::undo_local_edits() {
                 break;
             } case 'c': {
                 int clause_id = recent.edit_id;
+                Cnf::clauses.num_unsats[clause_id]++;
                 if (PRINT_LEVEL >= 3) printf("%sPID %d: undoing clause %d drop edit\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
                 Cnf::clauses.re_add_clause(clause_id);
                 break;
             } default: {
                 assert(recent.edit_type == 's');
                 int clause_id = recent.edit_id;
+                Cnf::clauses.num_unsats[clause_id]++;
                 if (PRINT_LEVEL >= 3) printf("%sPID %d: undoing clause %d size change edit\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id);
                 int size_before = (int)recent.size_before;
                 int size_after = (int)recent.size_after;
@@ -1596,6 +1615,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         value_group_offset += 32;
     }
     int clause_group_offset = 0;
+
     // Drop normal clauses
     for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
         unsigned int compressed_group = compressed[clause_group];
@@ -1607,6 +1627,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
             bool should_be_dropped = clause_bits[bit];
             if (should_be_dropped) {
                 Cnf::clauses.drop_clause(clause_id);
+                Cnf::clauses.num_unsats[clause_id] = -1; // to be determined while in the alg
             } else {
                 Clause clause = Cnf::clauses.get_clause(clause_id);
                 int num_unsat;
@@ -1615,6 +1636,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
                 if (num_unsat != clause.num_literals) {
                     Cnf::clauses.change_clause_size(clause_id, num_unsat);
                 }
+                Cnf::clauses.num_unsats[clause_id] = num_unsat;
             }
         }
         free(clause_bits);
@@ -1649,11 +1671,13 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         assert(clause_status != 'u');
         if (clause_status == 's') {
             Cnf::clauses.drop_clause(conflict_id);
+            Cnf::clauses.num_unsats[conflict_id] = -1;
         } else {
             if (num_unsat != conflict_clause.num_literals) {
                 assert(num_unsat > 0);
                 Cnf::clauses.change_clause_size(conflict_id, num_unsat);
             }
+            Cnf::clauses.num_unsats[conflict_id] = num_unsat;
         }
     }
     memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));

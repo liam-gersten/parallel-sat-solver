@@ -994,11 +994,13 @@ void State::add_conflict_clause(
     insert_conflict_clause_history(cnf, conflict_clause);
     for (int lit = 0; lit < conflict_clause.num_literals; lit++) {
         int var_id = conflict_clause.literal_variable_ids[lit];
-        (cnf.variables[var_id]).clauses_containing.add_to_back(
-            new_clause_id);
+        bool sgn = conflict_clause.literal_signs[lit];
+        int pm_id = sgn ? new_clause_id : -(new_clause_id+1); // negative means neg occurence of literal
+        (cnf.variables[var_id]).clauses_containing.add_to_back(pm_id);
     }
     cnf.clauses.add_conflict_clause(conflict_clause);
     int actual_size = cnf.get_num_unsat(conflict_clause);
+    cnf.clauses.num_unsats[new_clause_id] = actual_size;
     if (actual_size == 0) {
         cnf.clauses.drop_clause(new_clause_id);
     } else if (actual_size != conflict_clause.num_literals) {
@@ -1017,6 +1019,11 @@ void State::handle_remote_conflict_clause(
         Interconnect &interconnect) 
     {
 
+    if (cnf.clauses.max_conflict_indexable >= cnf.clauses.num_conflict_indexed - 1) {
+        free_clause(conflict_clause);
+        return;
+    }
+
     // test using original valuation
     bool false_so_far = true;
     bool preassigned_false_so_far = true;
@@ -1032,7 +1039,7 @@ void State::handle_remote_conflict_clause(
             false_so_far = false;
             preassigned_false_so_far = false;
         } else {
-            // lit evals to falsee
+            // lit evals to false
             if (cnf.assignment_times[lit] != -1) {
                 preassigned_false_so_far = false;
             }

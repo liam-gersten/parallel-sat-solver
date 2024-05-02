@@ -16,7 +16,7 @@
 
 #define PRINT_CONCISE_FORMULA 1
 
-#define CYCLES_TO_PRINT_PROGRESS 1000
+#define CYCLES_TO_PRINT_PROGRESS 10000
 
 // Decision order control variables
 
@@ -24,17 +24,17 @@
 
 #define ALWAYS_PREFER_NORMAL_VARS 0
 
-#define CYCLES_TO_RECEIVE_MESSAGES 1
+#define CYCLES_TO_RECEIVE_MESSAGES 100
 
 // Conflict resolution control variables
 
 #define ALWAYS_PREFER_CONFLICT_CLAUSES 0
 
-#define CONFLICT_CLAUSE_SIZE 4
+#define CONFLICT_CLAUSE_SIZE 8
 
 #define ENABLE_CONFLICT_RESOLUTION 1
 
-#define SEND_CONFLICT_CLAUSES 1
+#define SEND_CONFLICT_CLAUSES 0
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1
@@ -311,6 +311,8 @@ class Clauses {
         int num_clauses_dropped;
         IndexableDLL normal_clauses;
         IndexableDLL conflict_clauses;
+
+        int *num_unsats;
 
     Clauses(int num_regular_to_index, int num_conflict_to_index);
     // default constructor
