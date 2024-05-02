@@ -952,7 +952,7 @@ void State::handle_remote_conflict_clause(
         int lit = conflict_clause.literal_variable_ids[i];
         if ((cnf.assigned_true[lit] && conflict_clause.literal_signs[i])
             || (cnf.assigned_false[lit] && !conflict_clause.literal_signs[i])) {
-            // is true, can add (or ignore?)
+            // is true, can add (or ignore?) - DROP CLAUSE IN CONFLICT CLAUSE HISTORY NOT IMPLEMENTED
             // no need to backtrack
             free_clause(conflict_clause);
             return;
@@ -1104,7 +1104,7 @@ void State::handle_local_conflict_clause(
     
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Updated", task_stack);
-    if (SEND_CONFLICT_CLAUSES) {
+    if (SEND_CONFLICT_CLAUSES && conflict_clause.num_literals < CONFLICT_CLAUSE_SIZE * cnf.n / 3) {
         if (PRINT_LEVEL > 1) printf("%sPID %d: sent conflict clause: %s\n", cnf.depth_str.c_str(), State::pid, cnf.clause_to_string_current(conflict_clause, false).c_str());
         interconnect.send_conflict_clause(-1, conflict_clause, true);
     }

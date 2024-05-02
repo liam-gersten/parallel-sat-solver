@@ -34,7 +34,7 @@
 
 #define ENABLE_CONFLICT_RESOLUTION 1
 
-#define SEND_CONFLICT_CLAUSES 0
+#define SEND_CONFLICT_CLAUSES 1
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1
