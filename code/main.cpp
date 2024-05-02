@@ -196,7 +196,6 @@ void run_example_1(
         current.variable_row = i;
         current.variable_col = i;
         current.variable_k = i;
-        current.clauses_containing;
         input_variables[i] = current;
     }
     Clause C1 = make_small_clause(0, 1, false, true);

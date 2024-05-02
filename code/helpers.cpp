@@ -236,7 +236,6 @@ void *size_change_edit(int clause_id, int size_before, int size_after) {
     FormulaEdit edit;
     edit.edit_type = 's';
     edit.edit_id = clause_id;
-    if (clause_id == 836) printf("hi!\n");
     edit.size_before = (short)size_before;
     edit.size_after = (short)size_after;
     FormulaEdit *edit_ptr = (FormulaEdit *)malloc(sizeof(FormulaEdit));
@@ -956,7 +955,6 @@ void Clauses::re_add_clause(int clause_id) {
 
 // Moves clause element to a new bin based on a new size
 void Clauses::change_clause_size(int clause_id, int new_size) {
-    if (clause_id == 836) printf("size changed\n");
     if (clause_id >= Clauses::max_indexable) {
         Clauses::conflict_clauses.change_size_of_value(
             clause_id - Clauses::max_indexable, new_size);

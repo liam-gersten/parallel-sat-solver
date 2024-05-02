@@ -14,6 +14,7 @@ struct VariableLocations {
     unsigned int variable_false_addition_index;
     // Will have dynamic allocation size
     IntDeque clauses_containing; // LL of clause ids
+    Deque *edit_stack_ptr;
 
     int variable_row;
     int variable_col;

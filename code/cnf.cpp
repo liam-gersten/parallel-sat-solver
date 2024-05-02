@@ -1005,6 +1005,12 @@ void Cnf::add_to_edit_stack(void *raw_edit) {
     }
     FormulaEdit edit = *((FormulaEdit *)raw_edit);
     (*((Deque *)(Cnf::eedit_stack.peak_front()))).add_to_front(raw_edit);
+
+    if (edit.edit_type == 'v') {
+        // save ptr to [sub]-edit stack for fast conflict clause adding
+        Deque *subedit_ptr = (Deque *)(Cnf::eedit_stack.peak_front());
+        Cnf::variables[edit.edit_id].edit_stack_ptr = subedit_ptr;
+    }
 }
 
 // Gets the status of a variable decision (task)
@@ -1404,7 +1410,7 @@ bool Cnf::propagate_assignment(
             } else {
                 new_clause_status = 'n';
             }
-            
+
             switch (new_clause_status) {
                 case 's': {
                     // Satisfied, can now drop
