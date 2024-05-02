@@ -1352,26 +1352,28 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             abort_process(cnf, task_stack, interconnect, true);
             return true;
         }
-        if (out_of_work()) {
-            // generate conflict clause
-            Clause cc_done;
-            std::vector<int> givens;
-            for (int i = 0; i < cnf.num_variables; i++) {
-                if (cnf.assignment_times[i] == -1) {
-                    givens.push_back(i);
-                }
-            }
-            cc_done.num_literals = givens.size();
-            cc_done.literal_variable_ids = (int *)malloc(sizeof(int) * givens.size());
-            cc_done.literal_signs = (bool *)calloc(sizeof(bool), givens.size()); //all false
-            for (int i = 0; i < givens.size(); i++) {
-                cc_done.literal_variable_ids[i] = givens[i];
-            }
-            add_conflict_clause(cnf, cc_done, task_stack);
-            if (SEND_CONFLICT_CLAUSES) {
-                interconnect.send_conflict_clause(-1, cc_done, true);
-            }
-        }
+        // if (out_of_work()) {
+        //     // generate conflict clause
+        //     Clause cc_done;
+        //     std::vector<int> givens;
+        //     for (int i = 0; i < cnf.num_variables; i++) {
+        //         if (cnf.assignment_times[i] == -1) {
+        //             givens.push_back(i);
+        //         }
+        //     }
+        //     cc_done.num_literals = givens.size();
+        //     cc_done.literal_variable_ids = (int *)malloc(sizeof(int) * givens.size());
+        //     cc_done.literal_signs = (bool *)calloc(sizeof(bool), givens.size()); //all false
+        //     for (int i = 0; i < givens.size(); i++) {
+        //         cc_done.literal_variable_ids[i] = givens[i];
+        //     }
+
+        //     cnf.clauses.add_conflict_clause(cc_done);
+        //     cnf.clause_hash.insert(cc_done);
+        //     if (SEND_CONFLICT_CLAUSES) {
+        //         interconnect.send_conflict_clause(-1, cc_done, true);
+        //     }
+        // }
         if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {
             while (interconnect.async_receive_message(message) && !State::process_finished) {
                 handle_message(message, cnf, task_stack, interconnect);
