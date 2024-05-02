@@ -920,6 +920,9 @@ void State::add_conflict_clause(
         (*((cnf.variables[var_id]).clauses_containing)).push_back(pm_id);
     }
     cnf.clauses.add_conflict_clause(conflict_clause);
+    // hash
+    cnf.clause_hash.insert(conflict_clause);
+
     int actual_size = cnf.get_num_unsat(conflict_clause);
     cnf.clauses.num_unsats[new_clause_id] = actual_size;
     if (actual_size == 0) {

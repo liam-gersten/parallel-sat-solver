@@ -32,6 +32,8 @@
 
 #define CONFLICT_CLAUSE_SIZE 8
 
+#define CONFLICT_CLAUSE_UNSAT_LIMIT 4
+
 #define ENABLE_CONFLICT_RESOLUTION 1
 
 #define SEND_CONFLICT_CLAUSES 1
@@ -50,6 +52,11 @@ struct Clause {
     // Used to quickly updates the compressed version of the CNF
     unsigned int clause_addition;
     unsigned int clause_addition_index;
+
+    bool operator==(const Clause &clause) const;
+    struct Hash {
+        std::size_t operator()(const Clause &clause) const;
+    };
 };
 
 struct FormulaEdit {

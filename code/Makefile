@@ -5,7 +5,7 @@ fast:
 	mpic++ -O3 -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG
 
 fast_profiled:
-	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG -pg -g
+	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG -g
 
 clean:
 	/bin/rm -rf *~ *.o $(APP_NAME) *.class

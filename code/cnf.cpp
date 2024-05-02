@@ -18,7 +18,7 @@
 //----------------------------------------------------------------
 
 // Adds a clause to data structures
-void add_clause(
+void Cnf::add_clause(
     Clause new_clause, 
     Clauses &clauses, 
     VariableLocations *variables) 
@@ -34,6 +34,9 @@ void add_clause(
     }
     clauses.add_regular_clause(new_clause);
     clauses.num_unsats[new_clause_id] = new_clause.num_literals;
+
+    // hash
+    clause_hash.insert(new_clause);
 }
 
 /**
@@ -233,6 +236,8 @@ Cnf::Cnf(
     }
     free(constraints);
     free(assignments);
+
+    Cnf::clause_hash;
 }
 
 // Makes CNF formula from premade data structures
@@ -1098,6 +1103,12 @@ char Cnf::check_clause(Clause clause, int *num_unsat, bool from_propagate) {
 // Returns whether a clause already exists
 bool Cnf::clause_exists_already(Clause new_clause) {
     // NICE: make this faster
+    if (Cnf::clause_hash.find(new_clause) != Cnf::clause_hash.end()) {
+        if (PRINT_LEVEL > 0) printf("Clause equality detected");
+        return true;
+    }
+    return false;
+
     // Check it is not equal to an existing conflict clause
     for (int clause_id = Cnf::clauses.max_indexable; clause_id < Cnf::clauses.max_indexable + Cnf::clauses.num_conflict_indexed; clause_id++) {
         Clause other_clause = Cnf::clauses.get_clause(clause_id);
@@ -1641,25 +1652,8 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         clause_group_offset += 32;
     }
 
-    // Re-evaluate normal clauses
-    // for (int i = 0; i < Cnf::clauses.num_indexed; i++) {
-    //     int conflict_id = i;
-    //     Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
-    //     int num_unsat;
-    //     char clause_status = check_clause(conflict_clause, &num_unsat);
-    //     // Should never be given a false formula
-    //     assert(clause_status != 'u');
-    //     if (clause_status == 's') {
-    //         Cnf::clauses.drop_clause(conflict_id);
-    //     } else {
-    //         if (num_unsat != conflict_clause.num_literals) {
-    //             assert(num_unsat > 0);
-    //             Cnf::clauses.change_clause_size(conflict_id, num_unsat);
-    //         }
-    //     }
-    // }
-
     // Re-evaluate conflict clauses
+    int ctr = 0;
     for (int i = 0; i < Cnf::clauses.num_conflict_indexed; i++) {
         int conflict_id = Cnf::clauses.max_indexable + i;
         Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
@@ -1667,7 +1661,8 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         char clause_status = check_clause(conflict_clause, &num_unsat);
         // Should never be given a false formula
         assert(clause_status != 'u');
-        if (clause_status == 's') {
+        if (clause_status == 's' || num_unsat > CONFLICT_CLAUSE_UNSAT_LIMIT * Cnf::n) {
+            if (clause_status != 's') ctr++;
             Cnf::clauses.drop_clause(conflict_id);
             Cnf::clauses.num_unsats[conflict_id] = -1;
         } else {
@@ -1678,6 +1673,7 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
             Cnf::clauses.num_unsats[conflict_id] = num_unsat;
         }
     }
+    // printf("PID %d dropped %d out of %d ccs\n", pid, ctr, Cnf::clauses.num_conflict_indexed);
     memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));
     memset(Cnf::assignment_depths, -1, Cnf::num_variables * sizeof(int));
     task_stack.free_data();

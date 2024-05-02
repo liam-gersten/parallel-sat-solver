@@ -22,12 +22,6 @@ struct VariableLocations {
     int variable_k;
 };
 
-// Adds a clause to data structures
-void add_clause(
-    Clause new_clause, 
-    Clauses &clauses, 
-    VariableLocations *variables);
-
 int getRegularVariable(int i, int j, int k, int n);
 
 int getSubcolID(
@@ -78,8 +72,6 @@ class Cnf {
         short **sudoku_board;
         bool is_sudoku;
 
-        // std::unordered_set<Clause> clause_hash;
-
         // Makes CNF formula from inputs
         Cnf(
             short pid,
@@ -100,6 +92,12 @@ class Cnf {
             int num_variables);
         // Default constructor
         Cnf();
+
+        // Adds a clause to data structures
+        void add_clause(
+            Clause new_clause, 
+            Clauses &clauses, 
+            VariableLocations *variables);
 
         std::tuple<int, bool> oneOfClause(int* vars, int length, int &var_id, bool beginning=true, int newComm=-1, bool newCommSign=false);
 
@@ -127,6 +125,8 @@ class Cnf {
 
         // Testing method only
         bool clauses_equal(Clause a, Clause b);
+        
+        std::unordered_set<Clause, Clause::Hash> clause_hash;
 
         // Returns whethere every variable has at most one truth value
         bool valid_truth_assignments();

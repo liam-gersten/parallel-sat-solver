@@ -84,6 +84,24 @@ void *make_task(int var_id, int implier, bool value, bool backtrack) {
     return (void *)task_ptr;
 }
 
+bool Clause::operator==(const Clause &clause) const {
+    for (int i = 0; i < clause.num_literals; i++) {
+        if (!(this->literal_variable_ids[i] == clause.literal_variable_ids[i] &&
+            this->literal_signs[i] == clause.literal_signs[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+std::size_t Clause::Hash::operator()(const Clause &clause) const {
+    int hash = 0;
+    for (int i = 0; i < clause.num_literals; i++) {
+        hash *= 196613;
+        hash += clause.literal_variable_ids[i] * (clause.literal_signs ? 1 : -1);
+    }
+    return hash;
+}
+
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2) {
     if (var1 > var2) {

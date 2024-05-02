@@ -205,14 +205,14 @@ void run_example_1(
     Clause C5 = make_triple_clause(1, 4, 5, false, false, false);
     Clause C6 = make_triple_clause(0, 4, 6, false, true, false);
 
-    add_clause(C1, input_clauses, input_variables);
-    add_clause(C2, input_clauses, input_variables);
-    add_clause(C3, input_clauses, input_variables);
-    add_clause(C4, input_clauses, input_variables);
-    add_clause(C5, input_clauses, input_variables);
-    add_clause(C6, input_clauses, input_variables);
-
     Cnf cnf(pid, 1, input_clauses, input_variables, num_variables);
+
+    cnf.add_clause(C1, input_clauses, input_variables);
+    cnf.add_clause(C2, input_clauses, input_variables);
+    cnf.add_clause(C3, input_clauses, input_variables);
+    cnf.add_clause(C4, input_clauses, input_variables);
+    cnf.add_clause(C5, input_clauses, input_variables);
+    cnf.add_clause(C6, input_clauses, input_variables);
 
     Deque task_stack;
     Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
