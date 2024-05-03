@@ -195,7 +195,6 @@ Cnf::Cnf(
     Cnf::nprocs = nprocs;
     Cnf::num_vars_assigned = 0;
     Cnf::reduction_method = reduction_method;
-    Cnf::is_sudoku = true;
 
     int var_id;
 
@@ -261,7 +260,6 @@ Cnf::Cnf(
     Cnf::num_vars_assigned = 0;
     Cnf::reduction_method = 0;
     Task recently_undone_assignment;
-    Cnf::is_sudoku = false;
     Cnf::true_assignment_statuses = (char *)calloc(
         sizeof(char), Cnf::num_variables);
     Cnf::false_assignment_statuses = (char *)calloc(
@@ -1581,6 +1579,7 @@ Task Cnf::extract_task_from_work(void *work) {
 void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     Cnf::clauses.reset();
     unsigned int *compressed = (unsigned int *)work;
+    free(Cnf::oldest_compressed);
     Cnf::oldest_compressed = compressed;
     if (PRINT_LEVEL > 5) print_compressed(
         Cnf::pid,
@@ -1743,6 +1742,7 @@ void Cnf::free_cnf() {
     }
     Cnf::eedit_stack.free_deque();
     free(Cnf::oldest_compressed);
+    free(Cnf::assigned_true);
     free(Cnf::assigned_false);
     free(Cnf::true_assignment_statuses);
     free(Cnf::false_assignment_statuses);

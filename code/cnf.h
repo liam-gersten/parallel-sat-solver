@@ -69,8 +69,6 @@ class Cnf {
         int depth;
         int reduction_method;
         std::string depth_str;
-        short **sudoku_board;
-        bool is_sudoku;
 
         // Makes CNF formula from inputs
         Cnf(

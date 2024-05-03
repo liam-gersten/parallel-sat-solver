@@ -116,7 +116,6 @@ class State {
         
         // Empties/frees data structures and immidiately returns
         void abort_process(
-            Cnf &cnf, 
             Deque &task_stack, 
             Interconnect &interconnect,
             bool explicit_abort = false);

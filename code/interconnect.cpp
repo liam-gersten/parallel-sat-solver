@@ -44,8 +44,8 @@ void Interconnect::send_work_request(short recipient, short version) {
   MPI_Request request;
   void *data = (void *)malloc(sizeof(char));
   MPI_Isend(data, 1, MPI_CHAR, recipient, version, MPI_COMM_WORLD, &request);
+  if (PRINT_INTERCONNECT) printf(" I(message type %d [%d -> %d] sent) (id = %d)\n", version, Interconnect::pid, recipient, Interconnect::dead_message_queue.index);
   Interconnect::dead_message_queue.add_to_queue(data, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type %d [%d -> %d] sent)\n", version, Interconnect::pid, recipient);
 }
 
 // Sends work message
@@ -53,8 +53,8 @@ void Interconnect::send_work(short recipient, void *work) {
   MPI_Request request;
   MPI_Isend(work, Interconnect::work_bytes, MPI_CHAR, recipient, 3, 
     MPI_COMM_WORLD, &request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 3 [%d -> %d] sent) (id = %d)\n", Interconnect::pid, recipient, Interconnect::dead_message_queue.index);
   Interconnect::dead_message_queue.add_to_queue(work, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type 3 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Sends an abort message
@@ -62,8 +62,8 @@ void Interconnect::send_abort_message(short recipient) {
   MPI_Request request;
   void *data = (void *)malloc(sizeof(char));
   MPI_Isend(data, 1, MPI_CHAR, recipient, 4, MPI_COMM_WORLD, &request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 4 [%d -> %d] sent) (id = %d)\n", Interconnect::pid, recipient, Interconnect::dead_message_queue.index);
   Interconnect::dead_message_queue.add_to_queue(data, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type 4 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Sends an invalidation message
@@ -71,8 +71,8 @@ void Interconnect::send_invalidation(short recipient) {
   MPI_Request request;
   void *data = (void *)malloc(sizeof(char));
   MPI_Isend(data, 1, MPI_CHAR, recipient, 5, MPI_COMM_WORLD, &request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 5 [%d -> %d] sent) (id = %d)\n", Interconnect::pid, recipient, Interconnect::dead_message_queue.index);
   Interconnect::dead_message_queue.add_to_queue(data, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type 5 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Sends a conflict clause to a recipient
@@ -100,8 +100,8 @@ void Interconnect::send_conflict_clause(
   MPI_Request request;
   MPI_Isend(data, buffer_size, MPI_CHAR, recipient, 6, 
     MPI_COMM_WORLD, &request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 6 [%d -> %d] sent) (id = %d)\n", Interconnect::pid, recipient, Interconnect::dead_message_queue.index);
   Interconnect::dead_message_queue.add_to_queue(data, request);
-  if (PRINT_INTERCONNECT) printf(" I(message type 6 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
 // Returns whether there is already work stashed from a sender, or
@@ -153,20 +153,24 @@ void Interconnect::clean_dead_messages(bool always_free) {
   int num_cleaned = 0;
   void *message;
   MPI_Status status;
-  int flag = 0;
   MPI_Request request;
   while (num_checked < num_to_check) {
-    request = Interconnect::dead_message_queue.peak_front();
-    message = Interconnect::dead_message_queue.pop_from_front();
-    if (!always_free) {
+    int flag = 0;
+    int message_id;
+    request = Interconnect::dead_message_queue.peak_front(&message_id);
+    if (always_free) {
+      if (PRINT_INTERCONNECT) printf(" I(PID %d explicitly freed message %d)\n", Interconnect::pid, message_id);
+      message = Interconnect::dead_message_queue.pop_from_front();
+      free(message);
+    } else {
       MPI_Test(&request, &flag, &status);
-    } else {
-      flag = 1;
-    }
-    if (!flag) {
-      Interconnect::dead_message_queue.add_to_queue(message, request);
-    } else {
-      num_cleaned++;
+      if (!flag) {
+        if (PRINT_INTERCONNECT) printf(" I(PID %d could not free message %d)\n", Interconnect::pid, message_id);
+        return;
+      }
+      if (PRINT_INTERCONNECT) printf(" I(PID %d freed message %d)\n", Interconnect::pid, message_id);
+      message = Interconnect::dead_message_queue.pop_from_front();
+      free(message);
     }
     num_checked++;
   }
