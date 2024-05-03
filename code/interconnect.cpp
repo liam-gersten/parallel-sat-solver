@@ -147,7 +147,7 @@ Message Interconnect::get_stashed_work(short sender) {
 
 // Frees up saved dead messages
 void Interconnect::clean_dead_messages(bool always_free) {
-  if (PRINT_LEVEL >= 2) printf("\tPID %d cleaning_dead_message\n", Interconnect::pid);
+  if (PRINT_LEVEL >= 2) printf("\tPID %d: cleaning_dead_message\n", Interconnect::pid);
   int num_to_check = Interconnect::dead_message_queue.count;
   int num_checked = 0;
   int num_cleaned = 0;
@@ -170,7 +170,7 @@ void Interconnect::clean_dead_messages(bool always_free) {
     }
     num_checked++;
   }
-  if (PRINT_LEVEL >= 2) printf("\tPID %d cleaning_dead_message cleaned = %d\n", Interconnect::pid, num_cleaned);
+  if (PRINT_LEVEL >= 2) printf("\tPID %d: cleaning_dead_message cleaned = %d\n", Interconnect::pid, num_cleaned);
 }
 
 // Waits until all messages have been delivered, freeing dead message
