@@ -10,7 +10,7 @@
 
 #define PRINT_INTERCONNECT 0
 
-#define PRINT_PROGRESS 1
+#define PRINT_PROGRESS 0
 
 #define PRINT_INDENT 1
 
@@ -28,15 +28,15 @@
 
 // Conflict resolution control variables
 
-#define KEEP_SORTED false
+#define KEEP_SORTED true
 
 #define ALWAYS_PREFER_CONFLICT_CLAUSES 0
 
 #define CONFLICT_CLAUSE_SIZE 8
 
-#define CONFLICT_CLAUSE_UNSAT_LIMIT 4
+#define CONFLICT_CLAUSE_UNSAT_LIMIT 0.5
 
-#define SEND_CONFLICT_CLAUSE_LIMIT 6
+#define SEND_CONFLICT_CLAUSE_LIMIT 1
 
 #define ENABLE_CONFLICT_RESOLUTION 1
 
@@ -333,7 +333,7 @@ class Clauses {
     void add_regular_clause(Clause clause);
 
     // Adds clause to conflict clause list, O(1)
-    void add_conflict_clause(Clause clause);
+    void add_conflict_clause(Clause clause, bool addToFront=true);
 
     // Returns whether a clause id is for a conflict clause
     bool is_conflict_clause(int clause_id);

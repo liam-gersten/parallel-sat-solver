@@ -47,10 +47,10 @@ void run_filename(
 
     bool result = state.solve(cnf, task_stack, interconnect);
 
-    printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
+    // printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
     
     const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
-    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+    // std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
 
     MPI_Finalize();
 
@@ -61,8 +61,8 @@ void run_filename(
             free(cnf.assigned_true);
             return;
         }
-        printf("Solution found by PID %d\n", pid);
-        std::cout << "Solution (PID %d) computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
+        printf("Solution found for puzzle %s by PID %d; called solve_iteration %llu times\n", input_filename.c_str(), pid, state.calls_to_solve);
+        std::cout << "Solution (n = " << nproc << ") computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
     } else {
         // No solution was found
         raise_error("No solution was found");
@@ -73,7 +73,7 @@ void run_filename(
         print_assignment((short)pid, "", "", assignment, cnf.num_variables);
     }
     short **board = cnf.sudoku_board;
-    print_board(board, cnf.n);
+    // print_board(board, cnf.n);
     for (int i = 0; i < n; i++) {
         free(board[i]);
     }

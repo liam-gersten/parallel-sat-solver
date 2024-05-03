@@ -857,9 +857,12 @@ void IndexableDLL::reset() {
     memcpy(IndexableDLL::element_counts, IndexableDLL::original_element_counts, 
         sizeof(int) * num_indexed);
     for (int id = 0; id < IndexableDLL::num_indexed; id++) {
-        if (element_is_dropped(id)) {
-            re_add_value(id);
+        int id2 = IndexableDLL::num_indexed - 1 - id;
+
+        if (!element_is_dropped(id)) {
+            strip_value(id);
         }
+        re_add_value(id); // to front
     }
     reset_ll_bins();
 }
@@ -933,14 +936,16 @@ void Clauses::add_regular_clause(Clause clause) {
 }
 
 // Adds clause to conflict clause list, O(1)
-void Clauses::add_conflict_clause(Clause clause) {
+void Clauses::add_conflict_clause(Clause clause, bool addToFront) {
     assert(clause.num_literals > 0);
     Clause *clause_ptr = (Clause *)malloc(sizeof(Clause));
     *clause_ptr = clause;
     Clauses::conflict_clauses.add_value(
         (void *)clause_ptr, Clauses::num_conflict_indexed, clause.num_literals);
-    Clauses::conflict_clauses.strip_value(Clauses::num_conflict_indexed);
-    Clauses::conflict_clauses.re_add_value(Clauses::num_conflict_indexed);
+    if (addToFront) {
+        Clauses::conflict_clauses.strip_value(Clauses::num_conflict_indexed);
+        Clauses::conflict_clauses.re_add_value(Clauses::num_conflict_indexed);
+    }
     Clauses::num_conflict_indexed++;
 }
 

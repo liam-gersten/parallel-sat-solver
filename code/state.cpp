@@ -57,6 +57,8 @@ State::State(
     current_task.pid = -1;
     current_task.var_id = -1;
     State::current_task = current_task;
+
+    State::last_asked_child = State::num_children;
 }
 
 // Gets child (or parent) pid from child (or parent) index
@@ -419,8 +421,11 @@ short State::pick_request_recipient() {
     bool make_double_requests = should_forward_urgent_request();
     short recipient_index = -1;
     // Pick recipient we haven't already asked, prefering one who hasn't asked
-    // us, with bias for asking our parent (hence reverse direction).
-    for (short child = State::num_children; child >= 0; child--) {
+    // us, with bias for asking our parent (hence reverse direction). <- nah
+    for (short ctr = State::num_children; ctr >= 0; ctr--) {
+        short child = State::last_asked_child - ctr + State::num_children;
+        child = child % (State::num_children + 1);
+
         if (make_double_requests) {
             if (State::requests_sent[child] == 'u') {
                 // We've urgently-asked them already
@@ -442,7 +447,9 @@ short State::pick_request_recipient() {
             break;
         }
     }
-    if (PRINT_LEVEL > 0) printf("PID %d: picked request recipient %d\n", State::pid, pid_from_child_index(recipient_index));
+    // cycle choice by 1 each time [or random??]
+    State::last_asked_child = (State::last_asked_child+1) % (State::num_children+1);
+    // printf("PID %d: picked request recipient %d\n", State::pid, pid_from_child_index(recipient_index));
     return recipient_index;
 }
 
@@ -576,7 +583,7 @@ void State::abort_process(
 // Sends messages to children to force them to abort
 void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
     if (explicit_abort) {
-        printf("PID %d: explicitly aborting others\n", State::pid);
+        // printf("PID %d: explicitly aborting others\n", State::pid);
         // Success, broadcase explicit abort to every process
         for (short i = 0; i < State::nprocs; i++) {
             if (i == State::pid) {
@@ -689,7 +696,26 @@ void State::handle_work_message(
         State::current_task.pid = sender_pid;
         cnf.reconstruct_state(work, task_stack);
         (*State::thieves).free_data();
-        State::num_non_trivial_tasks = 1;
+
+        // apply task immediately so we cant backtrack out
+        int cid;
+        bool valid = cnf.propagate_assignment(task.var_id, task.assignment, -1, &cid, false);
+        if (valid) {
+            cnf.assignment_times[task.var_id] = -1;
+            cnf.assignment_depths[task.var_id] = -1;
+            if (cnf.assigned_true[task.var_id]) {
+                cnf.true_assignment_statuses[task.var_id] = 'r';
+                cnf.false_assignment_statuses[task.var_id] = 'u';
+            } else if (cnf.assigned_false[task.var_id]) {
+                cnf.true_assignment_statuses[task.var_id] = 'u';
+                cnf.false_assignment_statuses[task.var_id] = 'r';
+            }
+            add_tasks_from_formula(cnf, task_stack);
+        } else {
+            invalidate_work(task_stack);
+        }
+        
+        // State::num_non_trivial_tasks = 1;
         print_data(cnf, task_stack, "Post reconstruct");
     } else {
         // Add to interconnect work stash
@@ -901,9 +927,10 @@ int State::add_tasks_from_conflict_clause(
 // EDITED: NO LONGER PICKS FROM CLAUSE
 void State::add_conflict_clause(
         Cnf &cnf, 
-        Clause conflict_clause,
+        Clause &conflict_clause,
         Deque &task_stack,
-        bool pick_from_clause) 
+        bool pick_from_clause,
+        bool toFront) 
     {
     if (PRINT_LEVEL > 0) printf("%sPID %d: adding conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_cnf("Before conflict clause", cnf.depth_str, (PRINT_LEVEL <= 3));
@@ -919,7 +946,7 @@ void State::add_conflict_clause(
         int pm_id = sgn ? new_clause_id : -(new_clause_id+1); // negative means neg occurence of literal
         (*((cnf.variables[var_id]).clauses_containing)).push_back(pm_id);
     }
-    cnf.clauses.add_conflict_clause(conflict_clause);
+    cnf.clauses.add_conflict_clause(conflict_clause, toFront);
     // hash
     cnf.clause_hash.insert(conflict_clause);
 
@@ -943,7 +970,7 @@ void State::handle_remote_conflict_clause(
         Interconnect &interconnect) 
     {
 
-    if (cnf.clauses.max_conflict_indexable >= cnf.clauses.num_conflict_indexed - 1) {
+    if (cnf.clauses.max_conflict_indexable == cnf.clauses.num_conflict_indexed - 1) {
         free_clause(conflict_clause);
         return;
     }
@@ -951,6 +978,7 @@ void State::handle_remote_conflict_clause(
     // test using original valuation
     bool false_so_far = true;
     bool preassigned_false_so_far = true;
+    int num_unsat = 0;
     for (int i = 0; i < conflict_clause.num_literals; i++) {
         int lit = conflict_clause.literal_variable_ids[i];
         if ((cnf.assigned_true[lit] && conflict_clause.literal_signs[i])
@@ -962,6 +990,7 @@ void State::handle_remote_conflict_clause(
         } else if (!cnf.assigned_true[lit] && !cnf.assigned_false[lit]) { //unassigned
             false_so_far = false;
             preassigned_false_so_far = false;
+            num_unsat++;
         } else {
             // lit evals to false
             if (cnf.assignment_times[lit] != -1) {
@@ -972,6 +1001,12 @@ void State::handle_remote_conflict_clause(
 
     if (preassigned_false_so_far) {
         invalidate_work(task_stack);
+        free_clause(conflict_clause);
+        return;
+    }
+    
+    if (num_unsat > CONFLICT_CLAUSE_UNSAT_LIMIT * cnf.n) {
+        free_clause(conflict_clause);
         return;
     }
 
@@ -987,7 +1022,6 @@ void State::handle_remote_conflict_clause(
         int last_d = iter->first;
 
         // backtrack until I see the first depth
-        // TODO: perhaps resolve until it would be unit?
         while (true) {
             if (task_stack.count == 0) {
                 // still need to backtrack, but on "bad" choice of first variable
@@ -1014,13 +1048,14 @@ void State::handle_remote_conflict_clause(
                 State::num_non_trivial_tasks--;   
             }
         }
-    } else {
-        // unassigned, no backtracking needed
+        // handle_local_conflict_clause(cnf, task_stack, conflict_clause, interconnect, false); // resolve until unit, then add that clause
     }
+    // unassigned, no backtracking needed
+    add_conflict_clause(cnf, conflict_clause, task_stack, false, false);
+    // printf("pid %d saw %s: %s\n", pid, clause_to_string(conflict_clause).c_str(), cnf.clause_to_string_current(conflict_clause, true).c_str());
+    // printf("id %d:%d vs %d\n", conflict_clause.id, cnf.clauses.num_unsats[conflict_clause.id], num_unsat);
     
     if (PRINT_LEVEL >= 3) printf("%sPID %d: done backjumping from remote cc. Adding cc now\n", cnf.depth_str.c_str(), State::pid);
-    handle_local_conflict_clause(cnf, task_stack, conflict_clause, interconnect, false); // resolve until unit, then add that clause
-    // add_conflict_clause(cnf, conflict_clause, task_stack); // add to history after backtracking
 }
 
 // Handles the current LOCAL conflict clause
@@ -1041,6 +1076,7 @@ void State::handle_local_conflict_clause(
     // Backtrack to just when the clause would've become unit [or restart if conflict clause is unit]
     if (conflict_clause.num_literals == 1) {
         // backtrack all the way back
+        // printf("all the way pid %d. %d=%d\n", pid, conflict_clause.literal_variable_ids[0], (int)conflict_clause.literal_signs[0]);
         // printf("local conflict clause backtracking all the way on pid %d\n", pid);
         while (task_stack.count > 0) {
             Task current_task = get_task(task_stack);
@@ -1245,6 +1281,7 @@ bool State::solve_iteration(
             State::current_cycle = 0;
         }
     }
+    
     State::current_cycle++;
     while (true) {
         if (PRINT_LEVEL > 3) print_data(cnf, task_stack, "Loop start");
@@ -1325,13 +1362,17 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         add_tasks_from_formula(cnf, task_stack);
         assert(task_stack.count > 0);
     }
+
+    // bool first = interconnect.pid == 0 ? false : true;
     while (!State::process_finished) {
         interconnect.clean_dead_messages();
         if (out_of_work()) {
-            // printf("pid %d oow\n", pid);
+            // if (!first) printf("PID %d OOW\n", pid);
             bool found_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
             if (!found_work) {
+                // first = false;
+                // printf("pid %d asking\n", pid);
                 ask_for_work(cnf, task_stack, interconnect);
             }
         }
@@ -1339,7 +1380,6 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         while (out_of_work() && !State::process_finished) {
             bool message_received = interconnect.async_receive_message(message);
             if (message_received) {
-                // printf("PID %d OOW\n", pid);
                 handle_message(message, cnf, task_stack, interconnect);
                 // if (!out_of_work() && !State::process_finished) printf("PID %d now has work\n", pid);
             }
@@ -1352,29 +1392,39 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             abort_process(cnf, task_stack, interconnect, true);
             return true;
         }
-        // if (out_of_work()) {
-        //     // generate conflict clause
-        //     Clause cc_done;
-        //     std::vector<int> givens;
-        //     for (int i = 0; i < cnf.num_variables; i++) {
-        //         if (cnf.assignment_times[i] == -1) {
-        //             givens.push_back(i);
-        //         }
-        //     }
-        //     cc_done.num_literals = givens.size();
-        //     cc_done.literal_variable_ids = (int *)malloc(sizeof(int) * givens.size());
-        //     cc_done.literal_signs = (bool *)calloc(sizeof(bool), givens.size()); //all false
-        //     for (int i = 0; i < givens.size(); i++) {
-        //         cc_done.literal_variable_ids[i] = givens[i];
-        //     }
+        
+        if (out_of_work()) {
+            // generate conflict clause
+            Clause cc_done;
+            std::vector<int> givens;
+            for (int i = 0; i < cnf.num_variables; i++) {
+                if (cnf.assignment_times[i] == -1) {
+                    givens.push_back(i);
+                }
+            }
+            cc_done.num_literals = givens.size();
+            cc_done.literal_variable_ids = (int *)malloc(sizeof(int) * givens.size());
+            cc_done.literal_signs = (bool *)calloc(sizeof(bool), givens.size()); //all false
+            for (int i = 0; i < givens.size(); i++) {
+                cc_done.literal_variable_ids[i] = givens[i];
+            }
 
-        //     cnf.clauses.add_conflict_clause(cc_done);
-        //     cnf.clause_hash.insert(cc_done);
-        //     if (SEND_CONFLICT_CLAUSES) {
-        //         interconnect.send_conflict_clause(-1, cc_done, true);
-        //     }
-        // }
-        if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 0) {
+            int new_clause_id = cnf.clauses.max_indexable + cnf.clauses.num_conflict_indexed;
+            cc_done.id = new_clause_id;
+            for (int lit = 0; lit < cc_done.num_literals; lit++) {
+                int var_id = cc_done.literal_variable_ids[lit];
+                bool sgn = cc_done.literal_signs[lit];
+                int pm_id = sgn ? new_clause_id : -(new_clause_id+1); // negative means neg occurence of literal
+                (*((cnf.variables[var_id]).clauses_containing)).push_back(pm_id);
+            }
+            cnf.clauses.add_conflict_clause(cc_done);
+            cnf.clause_hash.insert(cc_done);
+            if (SEND_CONFLICT_CLAUSES) {
+                interconnect.send_conflict_clause(-1, cc_done, true);
+            }
+        }
+
+        if (current_cycle % CYCLES_TO_RECEIVE_MESSAGES == 1) { // dish messages first
             while (interconnect.async_receive_message(message) && !State::process_finished) {
                 handle_message(message, cnf, task_stack, interconnect);
                 // NICE: serve work here?

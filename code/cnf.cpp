@@ -223,10 +223,10 @@ Cnf::Cnf(
 
     reduce_constraints(n, var_id, num_constraints, constraints);
 
-    if (pid == 0) {
-        printf("%d clauses added out of %d alloted\n", Cnf::clauses.num_indexed, Cnf::clauses.max_indexable);
-        printf("%d variables added out of %d alloted\n", Cnf::num_variables, var_id);
-    }
+    // if (pid == 0) {
+    //     printf("%d clauses added out of %d alloted\n", Cnf::clauses.num_indexed, Cnf::clauses.max_indexable);
+    //     printf("%d variables added out of %d alloted\n", Cnf::num_variables, var_id);
+    // }
     Cnf::depth = 0;
     Cnf::depth_str = "";
     init_compression();
@@ -1386,7 +1386,7 @@ bool Cnf::propagate_assignment(
     Cnf::assignment_times[var_id] = Cnf::current_time;
     Cnf::assignment_depths[var_id] = Cnf::depth;
     Cnf::variables[var_id].implying_clause_id = implier;
-    add_to_edit_stack(variable_edit(var_id, old_implier));
+    if (add_to_edit) add_to_edit_stack(variable_edit(var_id, old_implier));
     Cnf::num_vars_assigned++;
 
     int num_to_check = (*(locations.clauses_containing)).size();
@@ -1422,7 +1422,7 @@ bool Cnf::propagate_assignment(
                     // Satisfied, can now drop
                     if (PRINT_LEVEL > 3) printf("%sPID %d: dropping clause %d %s\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(Cnf::clauses.get_clause(clause_id), false).c_str());
                     Cnf::clauses.drop_clause(clause_id);
-                    add_to_edit_stack(clause_edit(clause_id));
+                    if (add_to_edit) add_to_edit_stack(clause_edit(clause_id));
                     break;
                 } case 'u': {
                     if (PRINT_LEVEL >= 3) printf("%sPID %d: clause %d %s contains conflict\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(Cnf::clauses.get_clause(clause_id), false).c_str());
@@ -1436,7 +1436,7 @@ bool Cnf::propagate_assignment(
                     // if (num_unsat < 3) {
                     Cnf::clauses.change_clause_size(
                         clause_id, num_unsat);
-                    add_to_edit_stack(size_change_edit(
+                    if (add_to_edit) add_to_edit_stack(size_change_edit(
                         clause_id, num_unsat + 1, num_unsat));
                     // }
                     break;
@@ -1624,8 +1624,30 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         free(value_bits_false);
         value_group_offset += 32;
     }
-    int clause_group_offset = 0;
 
+    // Re-evaluate conflict clauses
+    int ctr = 0;
+    for (int i = 0; i < Cnf::clauses.num_conflict_indexed; i++) {
+        int conflict_id = Cnf::clauses.max_indexable + i;
+        Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
+        int num_unsat;
+        char clause_status = check_clause(conflict_clause, &num_unsat);
+        // Should never be given a false formula
+        assert(clause_status != 'u');
+        if (clause_status == 's' || num_unsat > CONFLICT_CLAUSE_UNSAT_LIMIT * Cnf::n) {
+            if (clause_status != 's') ctr++;
+            Cnf::clauses.drop_clause(conflict_id);
+            Cnf::clauses.num_unsats[conflict_id] = -1;
+        } else {
+            if (num_unsat != conflict_clause.num_literals) {
+                assert(num_unsat > 0);
+                Cnf::clauses.change_clause_size(conflict_id, num_unsat);
+            }
+            Cnf::clauses.num_unsats[conflict_id] = num_unsat;
+        }
+    }
+
+    int clause_group_offset = 0;
     // Drop normal clauses
     for (int clause_group = 0; clause_group < Cnf::ints_needed_for_clauses; clause_group++) {
         unsigned int compressed_group = compressed[clause_group];
@@ -1653,42 +1675,22 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         clause_group_offset += 32;
     }
 
-    // Re-evaluate conflict clauses
-    int ctr = 0;
-    for (int i = 0; i < Cnf::clauses.num_conflict_indexed; i++) {
-        int conflict_id = Cnf::clauses.max_indexable + i;
-        Clause conflict_clause = Cnf::clauses.get_clause(conflict_id);
-        int num_unsat;
-        char clause_status = check_clause(conflict_clause, &num_unsat);
-        // Should never be given a false formula
-        assert(clause_status != 'u');
-        if (clause_status == 's' || num_unsat > CONFLICT_CLAUSE_UNSAT_LIMIT * Cnf::n) {
-            if (clause_status != 's') ctr++;
-            Cnf::clauses.drop_clause(conflict_id);
-            Cnf::clauses.num_unsats[conflict_id] = -1;
-        } else {
-            if (num_unsat != conflict_clause.num_literals) {
-                assert(num_unsat > 0);
-                Cnf::clauses.change_clause_size(conflict_id, num_unsat);
-            }
-            Cnf::clauses.num_unsats[conflict_id] = num_unsat;
-        }
-    }
     // printf("PID %d dropped %d out of %d ccs\n", pid, ctr, Cnf::clauses.num_conflict_indexed);
     memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));
     memset(Cnf::assignment_depths, -1, Cnf::num_variables * sizeof(int));
     task_stack.free_data();
     (Cnf::eedit_stack).free_data();
-    Task first_task = extract_task_from_work(work);
-    assert(0 <= first_task.var_id);
-    assert(first_task.var_id < Cnf::num_variables);
-    task_stack.add_to_front(
-        make_task(first_task.var_id, first_task.implier, first_task.assignment));
-    if (first_task.assignment) {
-        Cnf::true_assignment_statuses[first_task.var_id] = 'q';
-    } else {
-        Cnf::false_assignment_statuses[first_task.var_id] = 'q';
-    }
+    
+    // Task first_task = extract_task_from_work(work);
+    // assert(0 <= first_task.var_id);
+    // assert(first_task.var_id < Cnf::num_variables);
+    // task_stack.add_to_front(
+    //     make_task(first_task.var_id, first_task.implier, first_task.assignment));
+    // if (first_task.assignment) {
+    //     Cnf::true_assignment_statuses[first_task.var_id] = 'q';
+    // } else {
+    //     Cnf::false_assignment_statuses[first_task.var_id] = 'q';
+    // }
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::current_time = 0;

@@ -37,7 +37,7 @@ class State {
         Deque *thieves;
         GivenTask current_task;
 
-        bool *ans;
+        short last_asked_child;
 
         State(
             short pid, 
@@ -174,9 +174,10 @@ class State {
         // Adds a conflict clause to the clause list
         void add_conflict_clause(
             Cnf &cnf, 
-            Clause conflict_clause,
+            Clause &conflict_clause,
             Deque &task_stack,
-            bool pick_from_clause = false);
+            bool pick_from_clause = false,
+            bool toFront = true);
         
         // Handles the current LOCAL conflict clause
         void handle_local_conflict_clause(
