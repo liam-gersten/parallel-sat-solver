@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <cmath> 
 
+// Runs algorithm on input sudoku puzzle
 void run_filename(
         int pid,
         int nproc,
@@ -98,8 +99,8 @@ void run_tests(
     std::ifstream fin("inputs/16_hards.txt");
 
     if (!fin) {
-    std::cerr << "Unable to open inputs/16_hards.txt\n";
-    exit(EXIT_FAILURE);
+        std::cerr << "Unable to open inputs/16_hards.txt\n";
+        exit(EXIT_FAILURE);
     }
 
     std::string str;
@@ -175,6 +176,7 @@ void run_tests(
     fin.close();
 }
 
+// Runs a very small, non-sudoku formula meant to generate conflict clauses
 void run_example_1(
         int pid,
         int nproc,
@@ -253,6 +255,7 @@ void run_example_1(
     free(cnf.assigned_true);
 }
 
+// Outputs memory stats in terms of B, KB, MB, GB, or TB and shrinks size
 void truncate_size(unsigned long long int &input_size, std::string &suffix) {
     if (input_size > (unsigned long long int)(1000000000000)) {
         suffix.append("TB(s)");
@@ -271,10 +274,12 @@ void truncate_size(unsigned long long int &input_size, std::string &suffix) {
     }
 }
 
+// Same as the math definition
 int n_choose_2(int n) {
     return (n * (n - 1)) / 2;
 }
 
+// Computes the number of literals needed under normal reduction
 unsigned long long get_literal_count(int n) {
     unsigned long long count = 0;
     // For each position, there is at most one k value true
@@ -299,6 +304,7 @@ unsigned long long get_literal_count(int n) {
     return count;
 }
 
+// Prints statistics about estimated memory usage
 void print_memory_stats() {
     for (int sqrt_n = 2; sqrt_n <= 12; sqrt_n++) {
         int n = sqrt_n * sqrt_n;
@@ -351,6 +357,7 @@ void print_memory_stats() {
     printf("\n");
 }
 
+// Calls various commands after parsing arguments
 int main(int argc, char *argv[]) {
     int pid;
     int nproc;

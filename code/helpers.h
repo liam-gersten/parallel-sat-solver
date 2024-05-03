@@ -28,7 +28,7 @@
 
 // Conflict resolution control variables
 
-#define KEEP_SORTED true
+#define KEEP_SORTED 1
 
 #define ALWAYS_PREFER_CONFLICT_CLAUSES 0
 
