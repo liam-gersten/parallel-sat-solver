@@ -943,7 +943,9 @@ void Clauses::add_conflict_clause(Clause clause, bool addToFront) {
     Clauses::conflict_clauses.add_value(
         (void *)clause_ptr, Clauses::num_conflict_indexed, clause.num_literals);
     if (addToFront) {
-        Clauses::conflict_clauses.strip_value(Clauses::num_conflict_indexed);
+        if (clause.num_literals > 0) {
+            Clauses::conflict_clauses.strip_value(Clauses::num_conflict_indexed);
+        }
         Clauses::conflict_clauses.re_add_value(Clauses::num_conflict_indexed);
     }
     Clauses::num_conflict_indexed++;

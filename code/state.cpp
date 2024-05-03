@@ -770,7 +770,7 @@ void State::handle_message(
 // Edits history to make it appear as though the conflict clause is
 // normal.
 void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
-    if (PRINT_LEVEL > 0) printf("%s\tPID %d: inserting conflict clause into history\n", cnf.depth_str.c_str(), State::pid);
+    if (PRINT_LEVEL > 1) printf("%s\tPID %d: inserting conflict clause into history\n", cnf.depth_str.c_str(), State::pid);
     // TODO: drop_var_id logic should be checked
     bool look_for_drop = false;
     cnf.clause_satisfied(conflict_clause, &look_for_drop);
@@ -930,7 +930,7 @@ void State::add_conflict_clause(
         bool pick_from_clause,
         bool toFront) 
     {
-    if (PRINT_LEVEL > 0) printf("%sPID %d: adding conflict clause\n", cnf.depth_str.c_str(), State::pid);
+    if (PRINT_LEVEL > 1) printf("%sPID %d: adding conflict clause\n", cnf.depth_str.c_str(), State::pid);
     if (PRINT_LEVEL > 2) cnf.print_cnf("Before conflict clause", cnf.depth_str, (PRINT_LEVEL <= 3));
     if (PRINT_LEVEL > 2) cnf.print_task_stack("Before conflict clause", task_stack);
     if (PRINT_LEVEL > 2) printf("Conflict clause num unsat = %d\n", cnf.get_num_unsat(conflict_clause));
@@ -1348,6 +1348,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
     while (!State::process_finished) {
         interconnect.clean_dead_messages();
         if (out_of_work()) {
+            if (PRINT_INTERCONNECT) printf(" I(PID %d ran out of work)\n", State::pid);
             bool found_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
             if (!found_work) {
