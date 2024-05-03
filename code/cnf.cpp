@@ -1674,8 +1674,12 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));
     memset(Cnf::assignment_depths, -1, Cnf::num_variables * sizeof(int));
     task_stack.free_data();
-    (Cnf::eedit_stack).free_data();
-    
+    while (Cnf::eedit_stack.count > 0) {
+        Deque *local_edit_group_ptr = (Deque *)(Cnf::eedit_stack.pop_from_front());
+        Deque local_edit_group = *local_edit_group_ptr;
+        free(local_edit_group_ptr);
+        local_edit_group.free_deque();
+    }
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::current_time = 0;
@@ -1731,6 +1735,12 @@ void Cnf::free_cnf() {
         // TODO: i assume deque pointers freed somewhere else?
     }
     free(Cnf::variables);
+    while (Cnf::eedit_stack.count > 0) {
+        Deque *local_edit_group_ptr = (Deque *)(Cnf::eedit_stack.pop_from_front());
+        Deque local_edit_group = *local_edit_group_ptr;
+        free(local_edit_group_ptr);
+        local_edit_group.free_deque();
+    }
     Cnf::eedit_stack.free_deque();
     free(Cnf::oldest_compressed);
     free(Cnf::assigned_false);
