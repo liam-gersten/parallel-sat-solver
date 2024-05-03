@@ -523,6 +523,7 @@ class IntDeque {
 };
 
 struct DeadMessageLinkedList {
+  int message_id;
   void *message;
   MPI_Request request;
   DeadMessageLinkedList *next;
@@ -533,6 +534,7 @@ class DeadMessageQueue {
     DeadMessageLinkedList *head;
     DeadMessageLinkedList *tail;
     int count = 0;
+    int index = 0;
 
     // Adds value to back of queue
     void add_to_queue(void *message, MPI_Request request);
@@ -541,7 +543,7 @@ class DeadMessageQueue {
     void *pop_from_front();
 
     // Returns the front request without removing it
-    MPI_Request peak_front();
+    MPI_Request peak_front(int *id_ptr);
 };
 
 #endif

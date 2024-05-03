@@ -59,7 +59,7 @@ void run_filename(
         // A solution was found
         if (!result) {
             // someone else has the solution
-            free(cnf.assigned_true);
+            cnf.free_cnf();
             return;
         }
         printf("Solution found for puzzle %s by PID %d; called solve_iteration %llu times\n", input_filename.c_str(), pid, state.calls_to_solve);
@@ -68,18 +68,18 @@ void run_filename(
         // No solution was found
         raise_error("No solution was found");
     }
-    
-    bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
+        bool *assignment = cnf.get_assignment();
         print_assignment((short)pid, "", "", assignment, cnf.num_variables);
+        free(assignment);
+        short **board = cnf.get_sudoku_board();
+        print_board(board, cnf.n);
+        for (int i = 0; i < n; i++) {
+            free(board[i]);
+        }
+        free(board);
     }
-    short **board = cnf.sudoku_board;
-    if (PRINT_LEVEL > 0) print_board(board, cnf.n);
-    for (int i = 0; i < n; i++) {
-        free(board[i]);
-    }
-    free(board);
-    free(cnf.assigned_true);
+    cnf.free_cnf();
 }
 
 void run_tests(
@@ -151,7 +151,7 @@ void run_tests(
         // A solution was found
         if (!result) {
             // someone else has the solution
-            free(cnf.assigned_true);
+            cnf.free_cnf();
             return;
         }
         printf("Solution found by PID %d\n", pid);
@@ -160,18 +160,18 @@ void run_tests(
         // No solution was found
         raise_error("No solution was found");
     }
-
-    bool *assignment = cnf.get_assignment();
     if (PRINT_LEVEL > 0) {
+        bool *assignment = cnf.get_assignment();
         print_assignment((short)pid, "", "", assignment, cnf.num_variables);
+        free(assignment);
+        short **board = cnf.get_sudoku_board();
+        print_board(board, cnf.n);
+        for (int i = 0; i < n; i++) {
+            free(board[i]);
+        }
+        free(board);
     }
-    short **board = cnf.sudoku_board;
-    print_board(board, cnf.n);
-    for (int i = 0; i < n; i++) {
-        free(board[i]);
-    }
-    free(board);
-    free(cnf.assigned_true);
+    cnf.free_cnf();
     fin.close();
 }
 

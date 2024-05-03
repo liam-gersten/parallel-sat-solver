@@ -1527,6 +1527,7 @@ void IntDeque::free_deque() {
 // Adds value to back of queue
 void DeadMessageQueue::add_to_queue(void *message, MPI_Request request) {
   DeadMessageLinkedList current;
+  current.message_id = DeadMessageQueue::index;
   current.message = message;
   current.request = request;
   if (DeadMessageQueue::count == 0) {
@@ -1541,6 +1542,7 @@ void DeadMessageQueue::add_to_queue(void *message, MPI_Request request) {
     DeadMessageQueue::tail = tail.next;
   }
   DeadMessageQueue::count++;
+  DeadMessageQueue::index++;
 }
 
 // Pops value from front of queue
@@ -1553,8 +1555,9 @@ void *DeadMessageQueue::pop_from_front() {
 }
 
 // Returns the front value without removing it
-MPI_Request DeadMessageQueue::peak_front() {
+MPI_Request DeadMessageQueue::peak_front(int *id_ptr) {
   DeadMessageLinkedList current = *(DeadMessageQueue::head);
+  *id_ptr = current.message_id;
   return current.request;
 }
 

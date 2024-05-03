@@ -517,7 +517,7 @@ void State::ask_for_work(
     if (should_implicit_abort()) {
         // Self abort
         abort_others(interconnect);
-        abort_process(cnf, task_stack, interconnect);
+        abort_process(task_stack, interconnect);
     } else if (should_forward_urgent_request()) {
         if (PRINT_LEVEL > 0) printf("PID %d: urgently asking for work\n", State::pid);
         // Send a single urgent work request
@@ -559,7 +559,6 @@ void State::invalidate_work(Deque &task_stack) {
 
 // Empties/frees data structures and immidiately returns
 void State::abort_process(
-        Cnf &cnf, 
         Deque &task_stack, 
         Interconnect &interconnect,
         bool explicit_abort) 
@@ -567,10 +566,6 @@ void State::abort_process(
     if (PRINT_LEVEL > 0) printf("PID %d: aborting process\n", State::pid);
     State::process_finished = true;
     State::was_explicit_abort = explicit_abort;
-    if (cnf.is_sudoku) {
-        cnf.sudoku_board = cnf.get_sudoku_board();
-    }
-    cnf.free_cnf();
     interconnect.free_interconnect();
     free(State::child_statuses);
     free(State::requests_sent);
@@ -583,6 +578,7 @@ void State::abort_process(
 void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
     if (explicit_abort) {
         // Success, broadcase explicit abort to every process
+        interconnect.clean_dead_messages(true);
         for (short i = 0; i < State::nprocs; i++) {
             if (i == State::pid) {
                 continue;
@@ -652,7 +648,7 @@ void State::handle_work_request(
                 // Self-abort
                 printf("implicit abort from pid %d (in handle_work_request)\n", pid);
                 abort_others(interconnect);
-                abort_process(cnf, task_stack, interconnect);
+                abort_process(task_stack, interconnect);
             } else if (should_forward_urgent_request()) {
                 // Send a single urgent work request
                 short dest_index = pick_request_recipient();
@@ -740,10 +736,12 @@ void State::handle_message(
                 message, cnf, task_stack, interconnect);
             return;
         } case 4: {
-            abort_process(cnf, task_stack, interconnect, true);
+            abort_process(task_stack, interconnect, true);
+            free(message.data);
             return;
         } case 5: {
             invalidate_work(task_stack);
+            free(message.data);
             return;
         } case 6: {
             assert(SEND_CONFLICT_CLAUSES);
@@ -753,11 +751,13 @@ void State::handle_message(
                 task_stack, 
                 conflict_clause, 
                 interconnect);
+            free(message.data);
             return;
         } default: {
             // 0, 1, or 2
             handle_work_request(
                 message.sender, message.type, cnf, task_stack, interconnect);
+            free(message.data);
             return;
         }
     }
@@ -1212,8 +1212,12 @@ void State::print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
     if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.eedit_stack));
     if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, true);
-    if (PRINT_LEVEL > 5) print_compressed(
-        cnf.pid, prefix_str, cnf.depth_str, cnf.to_int_rep(), cnf.work_ints);
+    if (PRINT_LEVEL > 5) {
+        unsigned int *tmp_compressed = cnf.to_int_rep();
+        print_compressed(cnf.pid, prefix_str, cnf.depth_str, 
+            tmp_compressed, cnf.work_ints);
+        free(tmp_compressed);
+    }
     if (PRINT_LEVEL > 5) print_compressed(
         cnf.pid, prefix_str, cnf.depth_str, cnf.oldest_compressed, cnf.work_ints);
     if (PRINT_LEVEL > 5) {
@@ -1367,7 +1371,7 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         if (result) {
             assert(State::num_non_trivial_tasks >= 0);
             abort_others(interconnect, true);
-            abort_process(cnf, task_stack, interconnect, true);
+            abort_process(task_stack, interconnect, true);
             return true;
         }
         
