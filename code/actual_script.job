@@ -3,9 +3,9 @@
 module load openmpi/4.0.2-gcc8.3.1
 
 for st in "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"
-do for x in 1 2 4 8 16
+do for x in 16
 do for r in {0..3}
-do mpirun -n $x ./main -f inputs/ktest${st}.txt -r 1 -b 7
+do mpirun -n $x ./main -f inputs/ktest${st}.txt -r 1 -b 15
 done
 done
 done
