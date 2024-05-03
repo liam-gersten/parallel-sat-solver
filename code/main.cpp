@@ -91,7 +91,6 @@ void run_tests(
         short assignment_method,
         int reduction_method) 
     {
-    //uses hard_16s.txt
     int n = 16;
     int sqrt_n = 4;
     int num_constraints = 0;
@@ -109,7 +108,7 @@ void run_tests(
     }
         
     int num_assignments = 0;
-    for (int k =0;k<256;k++) {
+    for (int k = 0; k < 256; k++) {
         if (str[k] != '.') num_assignments++;
     }
 
