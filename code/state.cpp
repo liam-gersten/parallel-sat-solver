@@ -449,7 +449,6 @@ short State::pick_request_recipient() {
     }
     // cycle choice by 1 each time [or random??]
     State::last_asked_child = (State::last_asked_child+1) % (State::num_children+1);
-    // printf("PID %d: picked request recipient %d\n", State::pid, pid_from_child_index(recipient_index));
     return recipient_index;
 }
 
@@ -583,7 +582,6 @@ void State::abort_process(
 // Sends messages to children to force them to abort
 void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
     if (explicit_abort) {
-        // printf("PID %d: explicitly aborting others\n", State::pid);
         // Success, broadcase explicit abort to every process
         for (short i = 0; i < State::nprocs; i++) {
             if (i == State::pid) {
@@ -1052,9 +1050,6 @@ void State::handle_remote_conflict_clause(
     }
     // unassigned, no backtracking needed
     add_conflict_clause(cnf, conflict_clause, task_stack, false, false);
-    // printf("pid %d saw %s: %s\n", pid, clause_to_string(conflict_clause).c_str(), cnf.clause_to_string_current(conflict_clause, true).c_str());
-    // printf("id %d:%d vs %d\n", conflict_clause.id, cnf.clauses.num_unsats[conflict_clause.id], num_unsat);
-    
     if (PRINT_LEVEL >= 3) printf("%sPID %d: done backjumping from remote cc. Adding cc now\n", cnf.depth_str.c_str(), State::pid);
 }
 
@@ -1076,8 +1071,6 @@ void State::handle_local_conflict_clause(
     // Backtrack to just when the clause would've become unit [or restart if conflict clause is unit]
     if (conflict_clause.num_literals == 1) {
         // backtrack all the way back
-        // printf("all the way pid %d. %d=%d\n", pid, conflict_clause.literal_variable_ids[0], (int)conflict_clause.literal_signs[0]);
-        // printf("local conflict clause backtracking all the way on pid %d\n", pid);
         while (task_stack.count > 0) {
             Task current_task = get_task(task_stack);
             if (current_task.is_backtrack) {
@@ -1296,17 +1289,6 @@ bool State::solve_iteration(
                     handle_local_conflict_clause(
                         cnf, task_stack, conflict_clause, interconnect);
                     print_data(cnf, task_stack, "Post-handle local conflict clause");
-
-                    // a unit prop is forced
-                    // int ct = 0;
-                    // for (int i = 0; i < conflict_clause.num_literals; i++) {
-                    //     if (!(cnf.assigned_true[conflict_clause.literal_variable_ids[i]] || cnf.assigned_false[conflict_clause.literal_variable_ids[i]])) {
-                    //         ct++;
-                    //     }
-                    // }
-                    // assert(ct == 1);
-                    // don't return false - continue to unit prop code later on
-
                     // backtracking has perhaps invalidated decided_var_id
                     // TODO: UNSURE HOW TO TEST CORRECTNESS
                     if (task_stack.count == 0) {
@@ -1363,16 +1345,12 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
         assert(task_stack.count > 0);
     }
 
-    // bool first = interconnect.pid == 0 ? false : true;
     while (!State::process_finished) {
         interconnect.clean_dead_messages();
         if (out_of_work()) {
-            // if (!first) printf("PID %d OOW\n", pid);
             bool found_work = get_work_from_interconnect_stash(
                 cnf, task_stack, interconnect);
             if (!found_work) {
-                // first = false;
-                // printf("pid %d asking\n", pid);
                 ask_for_work(cnf, task_stack, interconnect);
             }
         }
@@ -1381,7 +1359,6 @@ bool State::solve(Cnf &cnf, Deque &task_stack, Interconnect &interconnect) {
             bool message_received = interconnect.async_receive_message(message);
             if (message_received) {
                 handle_message(message, cnf, task_stack, interconnect);
-                // if (!out_of_work() && !State::process_finished) printf("PID %d now has work\n", pid);
             }
         }
         if (State::process_finished) break;

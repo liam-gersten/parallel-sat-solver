@@ -337,7 +337,6 @@ int Cnf::reduce_puzzle_clauses_truncated(int n, int sqrt_n, int num_assignments,
                         vars[j] = getRegularVariable(xbox*sqrt_n + col, ybox*sqrt_n + j, k, n);
                     }
                     auto [subcol_id, _] = oneOfClause(vars, sqrt_n, variable_id, false);
-                    // printf("%d, %d, %d, %d: %d vs %d\n", k, col, xbox, ybox, subcol_id, getSubcolID(col, xbox, ybox, k, sqrt_n, start, subcol_id_spacing));
                     assert(subcol_id == getSubcolID(col, xbox, ybox, k, sqrt_n, start, subcol_id_spacing));
                 }
             }
@@ -1299,7 +1298,6 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
     }
 
     assert(current_cycle_variables >= 1);
-    // printf("PID %d: initial clause = %s\n", pid, clause_to_string(conflict_clause).c_str());
     while (current_cycle_variables > 1) {
         // replace latest u-propped guy with rest of clause [must be u-propped]
         auto iter = lit_to_time.rbegin();
@@ -1312,7 +1310,6 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         VariableLocations locations = Cnf::variables[u.var_id];
         Clause implying_clause = Cnf::clauses.get_clause(
             locations.implying_clause_id);
-        // printf("PID %d: resolving clause = %s\n", pid, clause_to_string(implying_clause).c_str());
 
         // add relevant vars from implying_clause
         for (int i = 0; i < implying_clause.num_literals; i++) {
@@ -1469,7 +1466,6 @@ short **Cnf::get_sudoku_board() {
             board[row][col] = k + 1;
         }
     }
-    // print_assignment(0, "bool ans =", "", get_assignment(), Cnf::num_variables);
     return board;
 }
 
@@ -1675,22 +1671,11 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
         clause_group_offset += 32;
     }
 
-    // printf("PID %d dropped %d out of %d ccs\n", pid, ctr, Cnf::clauses.num_conflict_indexed);
     memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));
     memset(Cnf::assignment_depths, -1, Cnf::num_variables * sizeof(int));
     task_stack.free_data();
     (Cnf::eedit_stack).free_data();
     
-    // Task first_task = extract_task_from_work(work);
-    // assert(0 <= first_task.var_id);
-    // assert(first_task.var_id < Cnf::num_variables);
-    // task_stack.add_to_front(
-    //     make_task(first_task.var_id, first_task.implier, first_task.assignment));
-    // if (first_task.assignment) {
-    //     Cnf::true_assignment_statuses[first_task.var_id] = 'q';
-    // } else {
-    //     Cnf::false_assignment_statuses[first_task.var_id] = 'q';
-    // }
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::current_time = 0;
