@@ -46,7 +46,8 @@ current_norm = 1
 ctr = 0
 sums = {2: 0., 4: 0., 8: 0., 16: 0.}
 banned = [2.024013754333333, 16.32330399]
-banned = []
+banned = [2.024013754333333]
+# banned = []
 banned_ctr = 0
 for line in inputfile:
     data = line.split(' :  ')
