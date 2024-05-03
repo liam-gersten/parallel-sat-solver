@@ -4,23 +4,47 @@
 #include <string>
 #include "mpi.h"
 
+// Print control variables
+
 #define PRINT_LEVEL 0
 
 #define PRINT_INTERCONNECT 0
 
 #define PRINT_PROGRESS 0
 
-#define CONCISE_FORMULA 1
+#define PRINT_INDENT 1
+
+#define PRINT_CONCISE_FORMULA 1
+
+#define CYCLES_TO_PRINT_PROGRESS 10000
+
+// Decision order control variables
+
+#define BIAS_CLAUSES_OF_SIZES_CHANGED 1
+
+#define ALWAYS_PREFER_NORMAL_VARS 0
+
+#define CYCLES_TO_RECEIVE_MESSAGES 100
+
+// Conflict resolution control variables
+
+#define KEEP_SORTED true
 
 #define ALWAYS_PREFER_CONFLICT_CLAUSES 0
+
+#define CONFLICT_CLAUSE_SIZE 8
+
+#define CONFLICT_CLAUSE_UNSAT_LIMIT 0.5
+
+#define SEND_CONFLICT_CLAUSE_LIMIT 1
+
+#define ENABLE_CONFLICT_RESOLUTION 1
+
+#define SEND_CONFLICT_CLAUSES 1
 
 #ifndef DNDEBUG
 // Production builds should set NDEBUG=1
 #define DNDEBUG false
-#endif
-
-#ifndef DEBUG
-#define DEBUG !DNDEBUG
 #endif
 
 // Will have fixed allocation size
@@ -32,12 +56,17 @@ struct Clause {
     // Used to quickly updates the compressed version of the CNF
     unsigned int clause_addition;
     unsigned int clause_addition_index;
+
+    bool operator==(const Clause &clause) const;
+    struct Hash {
+        std::size_t operator()(const Clause &clause) const;
+    };
 };
 
 struct FormulaEdit {
     int edit_id; // var or clause id
     int implier;
-    char edit_type; // v c d
+    char edit_type; // v c s
     short size_before;
     short size_after;
 };
@@ -50,13 +79,36 @@ struct Message {
     // 2 = urgent upgrade, 
     // 3 = work, 
     // 4 = explicit abort
+    // 5 = invalidation
+    // 6 = conflict clause
+    int size;
     void *data;
 };
 
 struct Task {
-    int var_id;
     int implier;
+    int var_id;
     bool assignment;
+    bool is_backtrack;
+};
+
+struct GivenTask {
+    int var_id;
+    short pid;
+    // The pid the task is given to in State::thieves.
+    // The pid of our task giver in State::current_task.
+    bool assignment;
+};
+
+struct Assignment {
+    int var_id;
+    bool value;
+};
+
+struct GridAssignment {
+    int row;
+    int col;
+    int value;
 };
 
 // Reads input puzzle file to arrays
@@ -64,10 +116,16 @@ int **read_puzzle_file(
     std::string input_filename,
     int *n_ptr,
     int *sqrt_n_ptr,
-    int *num_constraints_ptr);
+    int *num_constraints_ptr,
+    int *num_assingments_ptr,
+    GridAssignment *&assignments);
 
 // Makes a task from inputs
-void *make_task(int var_id, int implier, bool assignment);
+void *make_task(
+    int var_id, 
+    int implier, 
+    bool value, 
+    bool backtrack = false);
 
 // Makes a clause of just two variables
 Clause make_small_clause(int var1, int var2, bool sign1, bool sign2);
@@ -90,6 +148,15 @@ void free_clause(Clause clause);
 // Returns whether the clause's variables are sorted
 bool clause_is_sorted(Clause clause);
 
+// Returns whether a clause contains a variable, populating the sign if so
+bool variable_in_clause(Clause clause, int var_id, bool *sign);
+
+// Converts a message received to a clause
+Clause message_to_clause(Message message);
+
+// Makes an assignment ready for a data structure from arguments
+void *make_assignment(int var_id, bool value);
+
 // Makes a variable edit
 void *variable_edit(int var_id, int implier);
 
@@ -108,7 +175,9 @@ void print_assignment(
     std::string prefix_string, 
     std::string tab_string,
     bool *assignment,
-    int num_variables);
+    int num_variables,
+    bool add_one = false,
+    bool only_true = true);
 
 // Displays sudoku board
 void print_board(short **board, int n);
@@ -120,6 +189,12 @@ void print_compressed(
     std::string tab_string,
     unsigned int *compressed,
     int n);
+
+// Converts an int list to it's string representation
+std::string int_list_to_string(int *group, int count);
+
+// Converts an edit to it's string representation
+std::string edit_to_string(FormulaEdit edit);
 
 // Raises an error with a print statement
 void raise_error(std::string error_message);
@@ -152,22 +227,27 @@ class IndexableDLL {
         int num_indexed; // Number of clauses we're storing
         DoublyLinkedList **element_ptrs; // Nothing is removed from here.
         int *element_counts; // Nothing is removed from here.
+        int *original_element_counts; // Nothing is removed from here.
+        bool *elements_dropped;
         // "Bins" defined in order of higherst to lowest priority.
         // Easy to reset these in O(1).
-        DoublyLinkedList *one_big_head; // Size = 1, originally size > 2
-        DoublyLinkedList *one_big_tail; // Size = 1, originally size > 2
-        DoublyLinkedList *one_small_head; // Size = 1, originally size = 2
-        DoublyLinkedList *one_small_tail; // Size = 1, originally size = 2
-        DoublyLinkedList *two_big_head; // Size = 2, originally size > 2
-        DoublyLinkedList *two_big_tail; // Size = 2, originally size > 2
-        DoublyLinkedList *two_head; // Size = 2, originally size = 2
-        DoublyLinkedList *two_tail; // Size = 2, originally size = 2
+        DoublyLinkedList *one_head; // Size = 1, original size = 1 
+        DoublyLinkedList *one_tail; // Size = 1, original size = 1 
+        DoublyLinkedList *one_big_head; // Size = 1, original size > 2
+        DoublyLinkedList *one_big_tail; // Size = 1, original size > 2
+        DoublyLinkedList *one_small_head; // Size = 1, original size = 2
+        DoublyLinkedList *one_small_tail; // Size = 1, original size = 2
+        DoublyLinkedList *two_big_head; // Size = 2, original size > 2
+        DoublyLinkedList *two_big_tail; // Size = 2, original size > 2
+        DoublyLinkedList *two_head; // Size = 2, original size = 2
+        DoublyLinkedList *two_tail; // Size = 2, original size = 2
         DoublyLinkedList *big_head; // Size > 2
         DoublyLinkedList *big_tail; // Size > 2
         int linked_list_count;
         // Could be within any one of the above
         DoublyLinkedList *iterator; // Used to traverse the LL
         short iterator_size; // Size of element iterator is at
+        void *bookend_val; //used for iterator_position_valid() opt
         
     IndexableDLL(int num_to_index);
     // default constructor
@@ -183,10 +263,15 @@ class IndexableDLL {
     void re_add_value(int value_index);
 
     // Returns the head an element should be added to given the size change
-    DoublyLinkedList *get_head_of_interest(int old_size, int new_size);
+    DoublyLinkedList *get_head_of_interest(
+        int new_size, 
+        int original_size);
 
     // Moves element to a new bin based on a new size
-    void change_size_of_value(int value_index, int old_size, int new_size);
+    void change_size_of_value(int value_index, int new_size);
+
+    // Returns whether an element is dropped
+    bool element_is_dropped(int value_index);
 
     // Returns saved value at index
     void *get_value(int value_index);
@@ -219,6 +304,9 @@ class IndexableDLL {
     // Moves all ll items to their original bins.
     void reset_ll_bins();
 
+    // Resets the ordering and drops
+    void reset();
+
     // Frees data structures used
     void free_data();
 };
@@ -231,8 +319,11 @@ class Clauses {
         int num_indexed; // Number of normal clauses we're storing
         int max_conflict_indexable; // Same but for conflict clauses
         int num_conflict_indexed; // Same but for conflict clauses
+        int num_clauses_dropped;
         IndexableDLL normal_clauses;
         IndexableDLL conflict_clauses;
+
+        int *num_unsats;
 
     Clauses(int num_regular_to_index, int num_conflict_to_index);
     // default constructor
@@ -242,17 +333,23 @@ class Clauses {
     void add_regular_clause(Clause clause);
 
     // Adds clause to conflict clause list, O(1)
-    void add_conflict_clause(Clause clause);
+    void add_conflict_clause(Clause clause, bool addToFront=true);
+
+    // Returns whether a clause id is for a conflict clause
+    bool is_conflict_clause(int clause_id);
 
     // Removes from the list, pointer saved in index still, easy to re-add
-    void strip_clause(int clause_id);
+    void drop_clause(int clause_id);
 
     // Re adds to the list, will now be traversable again
     void re_add_clause(int clause_id);
 
     // Moves clause element to a new bin based on a new size
-    void change_clause_size(int clause_id, int old_size, int new_size);
+    void change_clause_size(int clause_id, int new_size);
 
+    // Returns whether a clause is dropped
+    bool clause_is_dropped(int clause_id);
+    
     // Returns saved clause at index
     Clause get_clause(int clause_id);
 
@@ -279,6 +376,9 @@ class Clauses {
 
     // Moves all ll items to their original bins.
     void reset_ll_bins();
+
+    // Resets the ordering and drops
+    void reset();
 
     // Frees data structures used
     void free_data();
@@ -311,6 +411,12 @@ class Deque {
         // Returns the back value without removing it
         void *peak_back();
 
+        // Returns the ith value from the front of the queue
+        void *peak_ith(int i);
+
+        // Converts deque to a list
+        void **as_list();
+
         // Frees all data in the deque
         void free_data();
 
@@ -323,8 +429,6 @@ class Queue {
         LinkedList *head;
         LinkedList *tail;
         int count = 0;
-
-        // Queue(int count);
 
         // Adds value to back of queue
         void add_to_back(void *value);
@@ -342,11 +446,17 @@ class Queue {
         void **get_list();
 
         // Frees all data in the queue
-        void free_data();
+        void free_data(bool keep_values = false);
 };
 
 // Gets first task from stack, frees pointer
 Task get_task(Deque &task_stack);
+
+// Gets i-th task from stack stack, does not alter anything
+Task peak_task(Deque task_stack, int i = 0);
+
+// Returns the opposite task of the given one as a copy 
+Task opposite_task(Task task);
 
 // Returns whether the top of the stack says to backtrack
 bool backtrack_at_top(Deque task_stack);
@@ -354,8 +464,8 @@ bool backtrack_at_top(Deque task_stack);
 // Returns whether the front of the stack says to backtrack
 bool backtrack_at_front(Deque task_stack);
 
-// Ensures the task stack is a valid one
-void task_stack_invariant(Deque &task_stack, int supposed_num_tasks);
+// Returns whether the first task is one requiring a recurse() call
+bool recurse_required(Deque task_stack);
 
 struct IntDoublyLinkedList {
     IntDoublyLinkedList *prev;
@@ -390,12 +500,21 @@ class IntDeque {
         // Returns the back value without removing it
         int peak_back();
 
+        // Returns whether an integer value is contained
+        bool contains(int value);
+
+        // Removes and returns the min value
+        int pop_min();
+
         // Prints out current int deque
         void print_deque(
             short pid, 
             std::string prefix_string, 
             std::string depth_string);
 
+        // Converts int deque to an int list
+        int *as_list();
+        
         // Frees all data in the deque
         void free_data();
 

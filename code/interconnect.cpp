@@ -33,6 +33,7 @@ bool Interconnect::async_receive_message(Message &message) {
     MPI_ANY_TAG, MPI_COMM_WORLD, &status);
   message.sender = sender;
   message.type = status.MPI_TAG;
+  message.size = buffer_size_needed;
   message.data = buffer;
   if (PRINT_INTERCONNECT) printf(" I(message type %d [%d -> %d] received)\n", message.type, sender, Interconnect::pid);
   return true;
@@ -65,6 +66,44 @@ void Interconnect::send_abort_message(short recipient) {
   if (PRINT_INTERCONNECT) printf(" I(message type 4 [%d -> %d] sent)\n", Interconnect::pid, recipient);
 }
 
+// Sends an invalidation message
+void Interconnect::send_invalidation(short recipient) {
+  MPI_Request request;
+  void *data = (void *)malloc(sizeof(char));
+  MPI_Isend(data, 1, MPI_CHAR, recipient, 5, MPI_COMM_WORLD, &request);
+  Interconnect::dead_message_queue.add_to_queue(data, request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 5 [%d -> %d] sent)\n", Interconnect::pid, recipient);
+}
+
+// Sends a conflict clause to a recipient
+void Interconnect::send_conflict_clause(
+    short recipient, 
+    Clause conflict_clause,
+    bool broadcast) {
+  if (broadcast) {
+    for (short i = 0; i < Interconnect::nproc; i++) {
+      if (i == Interconnect::pid) {
+        continue;
+      }
+      send_conflict_clause(i, conflict_clause);
+    }
+    return;
+  }
+  size_t buffer_size = (sizeof(bool) + sizeof(int)) * conflict_clause.num_literals;
+  void *data = (void *)malloc(buffer_size);
+  bool *sign_ptr = (bool *)data;
+  int *var_ptr = (int *)(sign_ptr + conflict_clause.num_literals);
+  for (int i = 0; i < conflict_clause.num_literals; i++) {
+    sign_ptr[i] = conflict_clause.literal_signs[i];
+    var_ptr[i] = conflict_clause.literal_variable_ids[i];
+  }
+  MPI_Request request;
+  MPI_Isend(data, buffer_size, MPI_CHAR, recipient, 6, 
+    MPI_COMM_WORLD, &request);
+  Interconnect::dead_message_queue.add_to_queue(data, request);
+  if (PRINT_INTERCONNECT) printf(" I(message type 6 [%d -> %d] sent)\n", Interconnect::pid, recipient);
+}
+
 // Returns whether there is already work stashed from a sender, or
 // from anyone if sender is -1.
 bool Interconnect::have_stashed_work(short sender) {
@@ -79,7 +118,7 @@ bool Interconnect::have_stashed_work(short sender) {
 void Interconnect::stash_work(Message work) {
   assert(0 <= work.sender && work.sender < Interconnect::nproc);
   assert(!have_stashed_work(work.sender));
-  assert(work.type == 2);
+  assert(work.type == 3);
   Interconnect::stashed_work[work.sender] = work;
   Interconnect::work_is_stashed[work.sender] = true;
   Interconnect::num_stashed_work++;

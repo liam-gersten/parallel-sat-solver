@@ -1,0 +1,624 @@
+Initialization time (sec): 0.0232319900
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 64173 times
+Solution (n = 1) computation time (sec): 28.9339367890
+Initialization time (sec): 0.0229844570
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 64173 times
+Solution (n = 1) computation time (sec): 29.0006830860
+Initialization time (sec): 0.0231071060
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 64173 times
+Solution (n = 1) computation time (sec): 28.9807650790
+Initialization time (sec): 0.0229923050
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 64173 times
+Solution (n = 1) computation time (sec): 29.0546147780
+Initialization time (sec): 0.0271508410
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 117009 times
+Solution (n = 2) computation time (sec): 79.5516903240
+Initialization time (sec): 0.0272656210
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 144163 times
+Solution (n = 2) computation time (sec): 102.9315103340
+Initialization time (sec): 0.0274165020
+Solution found for puzzle inputs/ktest0.txt by PID 1; called solve_iteration 194995 times
+Solution (n = 2) computation time (sec): 133.1945433220
+Initialization time (sec): 0.0272552920
+Solution found for puzzle inputs/ktest0.txt by PID 1; called solve_iteration 66439 times
+Solution (n = 2) computation time (sec): 33.3564711100
+Initialization time (sec): 0.0275912940
+Solution found for puzzle inputs/ktest0.txt by PID 1; called solve_iteration 23877 times
+Solution (n = 4) computation time (sec): 7.6452790460
+Initialization time (sec): 0.0277981230
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 8024 times
+Solution (n = 4) computation time (sec): 1.7307121130
+Initialization time (sec): 0.0275035910
+Solution found for puzzle inputs/ktest0.txt by PID 1; called solve_iteration 20658 times
+Solution (n = 4) computation time (sec): 6.2814364090
+Initialization time (sec): 0.0286818980
+Solution found for puzzle inputs/ktest0.txt by PID 2; called solve_iteration 76259 times
+Solution (n = 4) computation time (sec): 42.5816782180
+Initialization time (sec): 0.0339069270
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 12071 times
+Solution (n = 8) computation time (sec): 5.0933892970
+Initialization time (sec): 0.0339079390
+Solution found for puzzle inputs/ktest0.txt by PID 4; called solve_iteration 5357 times
+Solution (n = 8) computation time (sec): 1.7232547920
+Initialization time (sec): 0.0338110170
+Solution found for puzzle inputs/ktest0.txt by PID 5; called solve_iteration 10012 times
+Solution (n = 8) computation time (sec): 3.4064963630
+Initialization time (sec): 0.0342610610
+Solution found for puzzle inputs/ktest0.txt by PID 3; called solve_iteration 2637 times
+Solution (n = 8) computation time (sec): 0.5657662920
+Initialization time (sec): 0.0357850960
+Solution found for puzzle inputs/ktest0.txt by PID 8; called solve_iteration 11736 times
+Solution (n = 16) computation time (sec): 3.4260352050
+Initialization time (sec): 0.0360894970
+Solution found for puzzle inputs/ktest0.txt by PID 5; called solve_iteration 2079 times
+Solution (n = 16) computation time (sec): 0.5613035680
+Initialization time (sec): 0.0355621690
+Solution found for puzzle inputs/ktest0.txt by PID 0; called solve_iteration 3664 times
+Solution (n = 16) computation time (sec): 0.7505161570
+Initialization time (sec): 0.0354932300
+Solution found for puzzle inputs/ktest0.txt by PID 11; called solve_iteration 4187 times
+Solution (n = 16) computation time (sec): 1.6611108920
+Initialization time (sec): 0.0230823230
+Solution found for puzzle inputs/ktest1.txt by PID 0; called solve_iteration 28763 times
+Solution (n = 1) computation time (sec): 8.2220285920
+Initialization time (sec): 0.0226626970
+Solution found for puzzle inputs/ktest1.txt by PID 0; called solve_iteration 28763 times
+Solution (n = 1) computation time (sec): 8.2747886810
+Initialization time (sec): 0.0225573780
+Solution found for puzzle inputs/ktest1.txt by PID 0; called solve_iteration 28763 times
+Solution (n = 1) computation time (sec): 8.2818796380
+Initialization time (sec): 0.0226938430
+Solution found for puzzle inputs/ktest1.txt by PID 0; called solve_iteration 28763 times
+Solution (n = 1) computation time (sec): 8.3796234970
+Initialization time (sec): 0.0264696180
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 28164 times
+Solution (n = 2) computation time (sec): 10.8244754130
+Initialization time (sec): 0.0265860160
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 28079 times
+Solution (n = 2) computation time (sec): 11.3808161790
+Initialization time (sec): 0.0270125850
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 46894 times
+Solution (n = 2) computation time (sec): 19.5557484320
+Initialization time (sec): 0.0273036090
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 13036 times
+Solution (n = 2) computation time (sec): 2.8146447740
+Initialization time (sec): 0.0270056800
+Solution found for puzzle inputs/ktest1.txt by PID 0; called solve_iteration 59412 times
+Solution (n = 4) computation time (sec): 22.9768949390
+Initialization time (sec): 0.0272558390
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 36882 times
+Solution (n = 4) computation time (sec): 11.6778407510
+Initialization time (sec): 0.0269965740
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 14978 times
+Solution (n = 4) computation time (sec): 4.5351368060
+Initialization time (sec): 0.0267396820
+Solution found for puzzle inputs/ktest1.txt by PID 1; called solve_iteration 27840 times
+Solution (n = 4) computation time (sec): 11.2331103730
+Initialization time (sec): 0.0332753960
+Solution found for puzzle inputs/ktest1.txt by PID 5; called solve_iteration 10252 times
+Solution (n = 8) computation time (sec): 4.0797227780
+Initialization time (sec): 0.0329844080
+Solution found for puzzle inputs/ktest1.txt by PID 0; called solve_iteration 5811 times
+Solution (n = 8) computation time (sec): 1.5112952980
+Initialization time (sec): 0.0332053120
+Solution found for puzzle inputs/ktest1.txt by PID 2; called solve_iteration 23206 times
+Solution (n = 8) computation time (sec): 8.8014852960
+Solution found for puzzle inputs/ktest1.txt by PID 5; called solve_iteration 8039 times
+Solution (n = 8) computation time (sec): 3.0335981400
+Initialization time (sec): 0.0333534890
+Solution found for puzzle inputs/ktest1.txt by PID 5; called solve_iteration 5736 times
+Solution (n = 8) computation time (sec): 1.8451755820
+Initialization time (sec): 0.0351526010
+Initialization time (sec): 0.0430095310
+Solution found for puzzle inputs/ktest1.txt by PID 11; called solve_iteration 4972 times
+Solution (n = 16) computation time (sec): 1.6476605970
+Initialization time (sec): 0.0348981030
+Solution found for puzzle inputs/ktest1.txt by PID 11; called solve_iteration 3503 times
+Solution (n = 16) computation time (sec): 1.0885721220
+Initialization time (sec): 0.0351097500
+Solution found for puzzle inputs/ktest1.txt by PID 9; called solve_iteration 3469 times
+Solution (n = 16) computation time (sec): 1.0829540660
+Initialization time (sec): 0.0231393930
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 34545 times
+Solution (n = 1) computation time (sec): 12.7316405870
+Initialization time (sec): 0.0224568840
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 34545 times
+Solution (n = 1) computation time (sec): 12.6896393050
+Initialization time (sec): 0.0223218510
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 34545 times
+Solution (n = 1) computation time (sec): 12.7047244800
+Initialization time (sec): 0.0223357620
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 34545 times
+Solution (n = 1) computation time (sec): 12.6785398960
+Initialization time (sec): 0.0265934780
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 33606 times
+Solution (n = 2) computation time (sec): 14.4676353630
+Initialization time (sec): 0.0266547130
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 27833 times
+Solution (n = 2) computation time (sec): 11.1438197610
+Initialization time (sec): 0.0265993800
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 24469 times
+Solution (n = 2) computation time (sec): 8.4005684710
+Initialization time (sec): 0.0263745380
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 14254 times
+Solution (n = 2) computation time (sec): 3.8861553130
+Initialization time (sec): 0.0269772770
+Solution found for puzzle inputs/ktest2.txt by PID 1; called solve_iteration 5416 times
+Solution (n = 4) computation time (sec): 1.4887417220
+Initialization time (sec): 0.0268343200
+Solution found for puzzle inputs/ktest2.txt by PID 1; called solve_iteration 8752 times
+Solution (n = 4) computation time (sec): 2.8013341880
+Initialization time (sec): 0.0268124490
+Solution found for puzzle inputs/ktest2.txt by PID 2; called solve_iteration 3498 times
+Solution (n = 4) computation time (sec): 0.6377108560
+Initialization time (sec): 0.0267080930
+Solution found for puzzle inputs/ktest2.txt by PID 1; called solve_iteration 3618 times
+Solution (n = 4) computation time (sec): 0.6154833170
+Initialization time (sec): 0.0333498850
+Solution found for puzzle inputs/ktest2.txt by PID 0; called solve_iteration 3611 times
+Solution (n = 8) computation time (sec): 0.9343964980
+Initialization time (sec): 0.0331098410
+Solution found for puzzle inputs/ktest2.txt by PID 1; called solve_iteration 12331 times
+Solution (n = 8) computation time (sec): 3.2394205680
+Solution found for puzzle inputs/ktest2.txt by PID 3; called solve_iteration 3459 times
+Solution (n = 8) computation time (sec): 3.2831096860
+Initialization time (sec): 0.0332911100
+Solution found for puzzle inputs/ktest2.txt by PID 2; called solve_iteration 3447 times
+Solution (n = 8) computation time (sec): 0.9833969720
+Initialization time (sec): 0.0329009600
+Solution found for puzzle inputs/ktest2.txt by PID 2; called solve_iteration 3231 times
+Solution (n = 8) computation time (sec): 0.8742481350
+Initialization time (sec): 0.0348318670
+Solution found for puzzle inputs/ktest2.txt by PID 11; called solve_iteration 2199 times
+Solution (n = 16) computation time (sec): 0.5188325730
+Initialization time (sec): 0.0346169440
+Solution found for puzzle inputs/ktest2.txt by PID 8; called solve_iteration 3112 times
+Solution (n = 16) computation time (sec): 0.9757603970
+Solution found for puzzle inputs/ktest2.txt by PID 9; called solve_iteration 2996 times
+Solution (n = 16) computation time (sec): 1.0149594740
+Initialization time (sec): 0.0345444480
+Solution found for puzzle inputs/ktest2.txt by PID 9; called solve_iteration 1971 times
+Solution (n = 16) computation time (sec): 0.5006203480
+Initialization time (sec): 0.0345962460
+Solution found for puzzle inputs/ktest2.txt by PID 8; called solve_iteration 3437 times
+Solution (n = 16) computation time (sec): 1.2059420020
+Initialization time (sec): 0.0234204820
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 11460 times
+Solution (n = 1) computation time (sec): 2.0339847650
+Initialization time (sec): 0.0229425060
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 11460 times
+Solution (n = 1) computation time (sec): 2.0242753770
+Initialization time (sec): 0.0232105880
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 11460 times
+Solution (n = 1) computation time (sec): 2.0140698010
+Initialization time (sec): 0.0229500900
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 11460 times
+Solution (n = 1) computation time (sec): 2.0336960850
+Initialization time (sec): 0.0271690930
+Solution found for puzzle inputs/ktest3.txt by PID 1; called solve_iteration 9544 times
+Solution (n = 2) computation time (sec): 2.2474406900
+Initialization time (sec): 0.0272197080
+Solution found for puzzle inputs/ktest3.txt by PID 1; called solve_iteration 11642 times
+Solution (n = 2) computation time (sec): 2.8022405870
+Initialization time (sec): 0.0273878930
+Solution found for puzzle inputs/ktest3.txt by PID 1; called solve_iteration 10050 times
+Solution (n = 2) computation time (sec): 2.3099000170
+Initialization time (sec): 0.0271260120
+Solution found for puzzle inputs/ktest3.txt by PID 1; called solve_iteration 6574 times
+Solution (n = 2) computation time (sec): 1.1904246150
+Initialization time (sec): 0.0273621450
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 5523 times
+Solution (n = 4) computation time (sec): 1.9635746940
+Initialization time (sec): 0.0274253030
+Solution found for puzzle inputs/ktest3.txt by PID 1; called solve_iteration 8752 times
+Solution (n = 4) computation time (sec): 1.7559916100
+Initialization time (sec): 0.0272033680
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 7028 times
+Solution (n = 4) computation time (sec): 2.5423982520
+Initialization time (sec): 0.0272064720
+Solution found for puzzle inputs/ktest3.txt by PID 1; called solve_iteration 9534 times
+Solution (n = 4) computation time (sec): 2.3958525630
+Initialization time (sec): 0.0337341300
+Solution found for puzzle inputs/ktest3.txt by PID 5; called solve_iteration 12942 times
+Solution (n = 8) computation time (sec): 4.1836934140
+Solution found for puzzle inputs/ktest3.txt by PID 3; called solve_iteration 10783 times
+Solution (n = 8) computation time (sec): 3.8309985790
+Initialization time (sec): 0.0340105280
+Solution found for puzzle inputs/ktest3.txt by PID 3; called solve_iteration 5617 times
+Solution (n = 8) computation time (sec): 2.2822782570
+Solution found for puzzle inputs/ktest3.txt by PID 4; called solve_iteration 6728 times
+Solution (n = 8) computation time (sec): 2.2150481320
+Initialization time (sec): 0.0337144940
+Solution found for puzzle inputs/ktest3.txt by PID 0; called solve_iteration 6269 times
+Solution (n = 8) computation time (sec): 1.8751782700
+Initialization time (sec): 0.0339507960
+Solution found for puzzle inputs/ktest3.txt by PID 7; called solve_iteration 11518 times
+Solution (n = 8) computation time (sec): 3.4571768450
+Initialization time (sec): 0.0357554500
+Solution found for puzzle inputs/ktest3.txt by PID 14; called solve_iteration 4302 times
+Solution (n = 16) computation time (sec): 1.4767858530
+Initialization time (sec): 0.0351159130
+Solution found for puzzle inputs/ktest3.txt by PID 13; called solve_iteration 2054 times
+Solution (n = 16) computation time (sec): 0.8773681800
+Solution found for puzzle inputs/ktest3.txt by PID 14; called solve_iteration 2895 times
+Solution (n = 16) computation time (sec): 0.8826408150
+Initialization time (sec): 0.0352106400
+Solution found for puzzle inputs/ktest3.txt by PID 8; called solve_iteration 4111 times
+Solution (n = 16) computation time (sec): 1.3700701620
+Initialization time (sec): 0.0353936940
+Solution found for puzzle inputs/ktest3.txt by PID 5; called solve_iteration 2781 times
+Solution (n = 16) computation time (sec): 0.6915187690
+Initialization time (sec): 0.0232264340
+Solution found for puzzle inputs/ktest4.txt by PID 0; called solve_iteration 25926 times
+Solution (n = 1) computation time (sec): 6.6730733030
+Initialization time (sec): 0.0223384510
+Solution found for puzzle inputs/ktest4.txt by PID 0; called solve_iteration 25926 times
+Solution (n = 1) computation time (sec): 6.6685160770
+Initialization time (sec): 0.0224711790
+Solution found for puzzle inputs/ktest4.txt by PID 0; called solve_iteration 25926 times
+Solution (n = 1) computation time (sec): 6.6613117730
+Initialization time (sec): 0.0223645390
+Solution found for puzzle inputs/ktest4.txt by PID 0; called solve_iteration 25926 times
+Solution (n = 1) computation time (sec): 6.5592120880
+Initialization time (sec): 0.0264048370
+Solution found for puzzle inputs/ktest4.txt by PID 1; called solve_iteration 6462 times
+Solution (n = 2) computation time (sec): 0.8973375830
+Initialization time (sec): 0.0260296740
+Solution found for puzzle inputs/ktest4.txt by PID 1; called solve_iteration 43272 times
+Solution (n = 2) computation time (sec): 16.7643963110
+Initialization time (sec): 0.0268245230
+Solution found for puzzle inputs/ktest4.txt by PID 1; called solve_iteration 31461 times
+Solution (n = 2) computation time (sec): 8.3308922150
+Initialization time (sec): 0.0273553820
+Solution found for puzzle inputs/ktest4.txt by PID 1; called solve_iteration 27154 times
+Solution (n = 2) computation time (sec): 7.1549611430
+Initialization time (sec): 0.0267445390
+Solution found for puzzle inputs/ktest4.txt by PID 3; called solve_iteration 21147 times
+Solution (n = 4) computation time (sec): 6.3354289050
+Initialization time (sec): 0.0268422410
+Solution found for puzzle inputs/ktest4.txt by PID 2; called solve_iteration 15319 times
+Solution (n = 4) computation time (sec): 4.3720078290
+Initialization time (sec): 0.0267794840
+Solution found for puzzle inputs/ktest4.txt by PID 0; called solve_iteration 14060 times
+Solution (n = 4) computation time (sec): 4.4657520230
+Initialization time (sec): 0.0268457080
+Solution found for puzzle inputs/ktest4.txt by PID 1; called solve_iteration 19087 times
+Solution (n = 4) computation time (sec): 4.4275113500
+Initialization time (sec): 0.0331883290
+Solution found for puzzle inputs/ktest4.txt by PID 3; called solve_iteration 3097 times
+Solution (n = 8) computation time (sec): 0.6098258610
+Initialization time (sec): 0.0329467160
+Solution found for puzzle inputs/ktest4.txt by PID 3; called solve_iteration 11102 times
+Solution (n = 8) computation time (sec): 1.8717902220
+Initialization time (sec): 0.0333747080
+Solution found for puzzle inputs/ktest4.txt by PID 3; called solve_iteration 6488 times
+Solution (n = 8) computation time (sec): 1.4839477560
+Solution found for puzzle inputs/ktest4.txt by PID 5; called solve_iteration 5320 times
+Solution (n = 8) computation time (sec): 1.1094660380
+Initialization time (sec): 0.0328532620
+Solution found for puzzle inputs/ktest4.txt by PID 3; called solve_iteration 13541 times
+Solution (n = 8) computation time (sec): 3.3878340310
+Initialization time (sec): 0.0347510670
+Solution found for puzzle inputs/ktest4.txt by PID 0; called solve_iteration 6326 times
+Solution (n = 16) computation time (sec): 1.4961440830
+Initialization time (sec): 0.0349808580
+Solution found for puzzle inputs/ktest4.txt by PID 11; called solve_iteration 5856 times
+Solution (n = 16) computation time (sec): 1.5413216290
+Solution found for puzzle inputs/ktest4.txt by PID 12; called solve_iteration 4744 times
+Solution (n = 16) computation time (sec): 1.3645801340
+Initialization time (sec): 0.0348092960
+Initialization time (sec): 0.0606728940
+Solution found for puzzle inputs/ktest4.txt by PID 7; called solve_iteration 4830 times
+Solution (n = 16) computation time (sec): 1.2978227220
+Initialization time (sec): 0.0235067830
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 47559 times
+Solution (n = 1) computation time (sec): 16.6148612200
+Initialization time (sec): 0.0228926560
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 47559 times
+Solution (n = 1) computation time (sec): 16.1568320830
+Initialization time (sec): 0.0223742850
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 47559 times
+Solution (n = 1) computation time (sec): 16.2811159300
+Initialization time (sec): 0.0233293830
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 47559 times
+Solution (n = 1) computation time (sec): 16.5319639570
+Initialization time (sec): 0.0267522320
+Solution found for puzzle inputs/ktest5.txt by PID 1; called solve_iteration 109351 times
+Solution (n = 2) computation time (sec): 57.4291470050
+Initialization time (sec): 0.0261893810
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 30714 times
+Solution (n = 2) computation time (sec): 11.2159858620
+Initialization time (sec): 0.0269379740
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 60157 times
+Solution (n = 2) computation time (sec): 27.5711440230
+Initialization time (sec): 0.0268431860
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 20369 times
+Solution (n = 2) computation time (sec): 5.2956883640
+Initialization time (sec): 0.0268451990
+Solution found for puzzle inputs/ktest5.txt by PID 3; called solve_iteration 34700 times
+Solution (n = 4) computation time (sec): 12.5357588600
+Initialization time (sec): 0.0270885450
+Initialization time (sec): 0.0547139480
+Solution found for puzzle inputs/ktest5.txt by PID 2; called solve_iteration 85092 times
+Solution (n = 4) computation time (sec): 55.6013005150
+Initialization time (sec): 0.0266695040
+Solution found for puzzle inputs/ktest5.txt by PID 0; called solve_iteration 131628 times
+Solution (n = 4) computation time (sec): 149.9703186340
+Initialization time (sec): 0.0333623330
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 78588 times
+Solution (n = 8) computation time (sec): 99.3802199350
+Initialization time (sec): 0.0334864730
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 120927 times
+Solution (n = 8) computation time (sec): 210.5464947850
+Initialization time (sec): 0.0332843330
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 71791 times
+Solution (n = 8) computation time (sec): 85.6855408110
+Initialization time (sec): 0.0333129600
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 77537 times
+Solution (n = 8) computation time (sec): 107.8797595620
+Initialization time (sec): 0.0350663040
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 36197 times
+Solution (n = 16) computation time (sec): 37.6858836670
+Initialization time (sec): 0.0351458890
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 78231 times
+Solution (n = 16) computation time (sec): 64.4354501690
+Initialization time (sec): 0.0350252280
+Solution found for puzzle inputs/ktest5.txt by PID 6; called solve_iteration 33521 times
+Solution (n = 16) computation time (sec): 29.8548485510
+Initialization time (sec): 0.0347366560
+Solution found for puzzle inputs/ktest5.txt by PID 5; called solve_iteration 31147 times
+Solution (n = 16) computation time (sec): 29.0543823580
+Initialization time (sec): 0.0234899840
+Solution found for puzzle inputs/ktest6.txt by PID 0; called solve_iteration 9678 times
+Solution (n = 1) computation time (sec): 2.3532823730
+Initialization time (sec): 0.0225404150
+Solution found for puzzle inputs/ktest6.txt by PID 0; called solve_iteration 9678 times
+Solution (n = 1) computation time (sec): 2.3091495180
+Initialization time (sec): 0.0229608630
+Solution found for puzzle inputs/ktest6.txt by PID 0; called solve_iteration 9678 times
+Solution (n = 1) computation time (sec): 2.3346023710
+Initialization time (sec): 0.0233204070
+Solution found for puzzle inputs/ktest6.txt by PID 0; called solve_iteration 9678 times
+Solution (n = 1) computation time (sec): 2.3436248160
+Initialization time (sec): 0.0273054630
+Solution found for puzzle inputs/ktest6.txt by PID 1; called solve_iteration 5755 times
+Solution (n = 2) computation time (sec): 0.9401098700
+Initialization time (sec): 0.0272552990
+Solution found for puzzle inputs/ktest6.txt by PID 1; called solve_iteration 11869 times
+Solution (n = 2) computation time (sec): 3.5771788500
+Initialization time (sec): 0.0269928950
+Solution found for puzzle inputs/ktest6.txt by PID 1; called solve_iteration 8192 times
+Solution (n = 2) computation time (sec): 1.9392901170
+Initialization time (sec): 0.0270853180
+Solution found for puzzle inputs/ktest6.txt by PID 1; called solve_iteration 14978 times
+Solution (n = 2) computation time (sec): 4.9427339030
+Initialization time (sec): 0.0269617060
+Solution found for puzzle inputs/ktest6.txt by PID 3; called solve_iteration 13450 times
+Solution (n = 4) computation time (sec): 3.9324506880
+Initialization time (sec): 0.0269695510
+Solution found for puzzle inputs/ktest6.txt by PID 2; called solve_iteration 8678 times
+Solution (n = 4) computation time (sec): 2.6969986470
+Initialization time (sec): 0.0271836630
+Solution found for puzzle inputs/ktest6.txt by PID 2; called solve_iteration 2562 times
+Solution (n = 4) computation time (sec): 0.3710866980
+Initialization time (sec): 0.0269889570
+Solution found for puzzle inputs/ktest6.txt by PID 2; called solve_iteration 7792 times
+Solution (n = 4) computation time (sec): 1.9706031790
+Initialization time (sec): 0.0336542980
+Solution found for puzzle inputs/ktest6.txt by PID 6; called solve_iteration 4571 times
+Solution (n = 8) computation time (sec): 1.1587500130
+Initialization time (sec): 0.0332998240
+Solution found for puzzle inputs/ktest6.txt by PID 6; called solve_iteration 7034 times
+Solution (n = 8) computation time (sec): 2.2669529280
+Initialization time (sec): 0.0338210200
+Solution found for puzzle inputs/ktest6.txt by PID 4; called solve_iteration 2143 times
+Solution (n = 8) computation time (sec): 0.3365523800
+Initialization time (sec): 0.0337997910
+Initialization time (sec): 0.0622685820
+Solution found for puzzle inputs/ktest6.txt by PID 9; called solve_iteration 1845 times
+Solution (n = 16) computation time (sec): 0.5538985680
+Solution found for puzzle inputs/ktest6.txt by PID 8; called solve_iteration 1755 times
+Solution (n = 16) computation time (sec): 0.5276171760
+Solution found for puzzle inputs/ktest6.txt by PID 10; called solve_iteration 1607 times
+Solution (n = 16) computation time (sec): 0.5374710930
+Initialization time (sec): 0.0353105720
+Solution found for puzzle inputs/ktest6.txt by PID 11; called solve_iteration 812 times
+Solution (n = 16) computation time (sec): 0.2820335120
+Initialization time (sec): 0.0349743020
+Solution found for puzzle inputs/ktest6.txt by PID 11; called solve_iteration 756 times
+Solution (n = 16) computation time (sec): 0.2523244970
+Initialization time (sec): 0.0351236920
+Solution found for puzzle inputs/ktest6.txt by PID 8; called solve_iteration 1356 times
+Solution (n = 16) computation time (sec): 0.2811280050
+Initialization time (sec): 0.0229428750
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 49636 times
+Solution (n = 1) computation time (sec): 23.6683120700
+Initialization time (sec): 0.0223897280
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 49636 times
+Solution (n = 1) computation time (sec): 23.6517123750
+Initialization time (sec): 0.0226064160
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 49636 times
+Solution (n = 1) computation time (sec): 23.6462575510
+Initialization time (sec): 0.0227283850
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 49636 times
+Solution (n = 1) computation time (sec): 23.6869248100
+Initialization time (sec): 0.0274413390
+Solution found for puzzle inputs/ktest7.txt by PID 1; called solve_iteration 16867 times
+Solution (n = 2) computation time (sec): 4.7095892700
+Initialization time (sec): 0.0269834510
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 35268 times
+Solution (n = 2) computation time (sec): 12.0523795380
+Initialization time (sec): 0.0267605640
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 31359 times
+Solution (n = 2) computation time (sec): 10.5620156150
+Initialization time (sec): 0.0266148700
+Solution found for puzzle inputs/ktest7.txt by PID 1; called solve_iteration 48137 times
+Solution (n = 2) computation time (sec): 20.9065556100
+Initialization time (sec): 0.0271097970
+Solution found for puzzle inputs/ktest7.txt by PID 3; called solve_iteration 29298 times
+Solution (n = 4) computation time (sec): 12.1714834570
+Initialization time (sec): 0.0269274680
+Solution found for puzzle inputs/ktest7.txt by PID 1; called solve_iteration 9767 times
+Solution (n = 4) computation time (sec): 2.8137138030
+Initialization time (sec): 0.0269750670
+Solution found for puzzle inputs/ktest7.txt by PID 3; called solve_iteration 13348 times
+Solution (n = 4) computation time (sec): 3.7468065260
+Initialization time (sec): 0.0270217740
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 34201 times
+Solution (n = 4) computation time (sec): 14.0838161180
+Initialization time (sec): 0.0335091740
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 5017 times
+Solution (n = 8) computation time (sec): 1.9290599540
+Initialization time (sec): 0.0334600920
+Solution found for puzzle inputs/ktest7.txt by PID 6; called solve_iteration 4513 times
+Solution (n = 8) computation time (sec): 1.5795656310
+Initialization time (sec): 0.0338432600
+Solution found for puzzle inputs/ktest7.txt by PID 0; called solve_iteration 13657 times
+Solution (n = 8) computation time (sec): 6.5666552870
+Initialization time (sec): 0.0334213890
+Solution found for puzzle inputs/ktest7.txt by PID 6; called solve_iteration 8224 times
+Solution (n = 8) computation time (sec): 3.4033375970
+Initialization time (sec): 0.0350120280
+Solution found for puzzle inputs/ktest7.txt by PID 14; called solve_iteration 6077 times
+Solution found for puzzle inputs/ktest7.txt by PID 8; called solve_iteration 7602 times
+Solution (n = 16) computation time (sec): 3.2732326930
+Solution (n = 16) computation time (sec): 3.0165335320
+Initialization time (sec): 0.0353017210
+Solution found for puzzle inputs/ktest7.txt by PID 15; called solve_iteration 6516 times
+Solution (n = 16) computation time (sec): 3.0774514450
+Initialization time (sec): 0.0352767450
+Solution found for puzzle inputs/ktest7.txt by PID 8; called solve_iteration 7769 times
+Solution (n = 16) computation time (sec): 3.4406123720
+Initialization time (sec): 0.0348999250
+Solution found for puzzle inputs/ktest7.txt by PID 14; called solve_iteration 5687 times
+Solution (n = 16) computation time (sec): 2.3742289510
+Initialization time (sec): 0.0235300900
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 37943 times
+Solution (n = 1) computation time (sec): 12.6581353060
+Initialization time (sec): 0.0231428950
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 37943 times
+Solution (n = 1) computation time (sec): 12.5105832050
+Initialization time (sec): 0.0228590630
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 37943 times
+Solution (n = 1) computation time (sec): 12.4573194360
+Initialization time (sec): 0.0230570840
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 37943 times
+Solution (n = 1) computation time (sec): 12.3811425940
+Initialization time (sec): 0.0275621710
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 160347 times
+Solution (n = 2) computation time (sec): 117.7692692900
+Initialization time (sec): 0.0275215190
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 9506 times
+Solution (n = 2) computation time (sec): 1.9149859420
+Initialization time (sec): 0.0270100310
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 13841 times
+Solution (n = 2) computation time (sec): 2.8324275240
+Initialization time (sec): 0.0272189720
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 12521 times
+Solution (n = 2) computation time (sec): 2.5504238580
+Initialization time (sec): 0.0272130210
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 5935 times
+Solution (n = 4) computation time (sec): 1.0630898190
+Initialization time (sec): 0.0272621740
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 4739 times
+Solution (n = 4) computation time (sec): 0.9458503930
+Initialization time (sec): 0.0275151210
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 8214 times
+Solution (n = 4) computation time (sec): 1.7294819240
+Initialization time (sec): 0.0274466930
+Solution found for puzzle inputs/ktest8.txt by PID 0; called solve_iteration 4670 times
+Solution (n = 4) computation time (sec): 0.7784635120
+Initialization time (sec): 0.0338838510
+Solution found for puzzle inputs/ktest8.txt by PID 3; called solve_iteration 16329 times
+Solution (n = 8) computation time (sec): 6.7252735240
+Initialization time (sec): 0.0337145340
+Solution found for puzzle inputs/ktest8.txt by PID 3; called solve_iteration 7445 times
+Solution (n = 8) computation time (sec): 2.5943535550
+Initialization time (sec): 0.0339322110
+Solution found for puzzle inputs/ktest8.txt by PID 4; called solve_iteration 20529 times
+Solution (n = 8) computation time (sec): 10.4129829650
+Initialization time (sec): 0.0338386160
+Solution found for puzzle inputs/ktest8.txt by PID 3; called solve_iteration 2889 times
+Solution (n = 8) computation time (sec): 0.6465023440
+Initialization time (sec): 0.0357308100
+Solution found for puzzle inputs/ktest8.txt by PID 4; called solve_iteration 2902 times
+Solution (n = 16) computation time (sec): 0.7174879230
+Initialization time (sec): 0.0358518180
+Solution found for puzzle inputs/ktest8.txt by PID 11; called solve_iteration 1131 times
+Solution (n = 16) computation time (sec): 0.4436315880
+Initialization time (sec): 0.0352896740
+Solution found for puzzle inputs/ktest8.txt by PID 4; called solve_iteration 2307 times
+Solution (n = 16) computation time (sec): 0.5295718500
+Initialization time (sec): 0.0355752600
+Solution found for puzzle inputs/ktest8.txt by PID 3; called solve_iteration 2523 times
+Solution (n = 16) computation time (sec): 0.7613633800
+Initialization time (sec): 0.0230298300
+Solution found for puzzle inputs/ktest9.txt by PID 0; called solve_iteration 17548 times
+Solution (n = 1) computation time (sec): 3.9996823160
+Initialization time (sec): 0.0224299060
+Solution found for puzzle inputs/ktest9.txt by PID 0; called solve_iteration 17548 times
+Solution (n = 1) computation time (sec): 4.0013605000
+Initialization time (sec): 0.0227677980
+Solution found for puzzle inputs/ktest9.txt by PID 0; called solve_iteration 17548 times
+Solution (n = 1) computation time (sec): 4.0005684360
+Initialization time (sec): 0.0226306920
+Solution found for puzzle inputs/ktest9.txt by PID 0; called solve_iteration 17548 times
+Solution (n = 1) computation time (sec): 4.0343622480
+Initialization time (sec): 0.0267580230
+Solution found for puzzle inputs/ktest9.txt by PID 0; called solve_iteration 5342 times
+Solution (n = 2) computation time (sec): 1.0470228760
+Initialization time (sec): 0.0268562160
+Solution found for puzzle inputs/ktest9.txt by PID 1; called solve_iteration 8051 times
+Solution (n = 2) computation time (sec): 2.1474631790
+Initialization time (sec): 0.0265408190
+Solution found for puzzle inputs/ktest9.txt by PID 1; called solve_iteration 8284 times
+Solution (n = 2) computation time (sec): 2.2427732580
+Initialization time (sec): 0.0267874410
+Solution found for puzzle inputs/ktest9.txt by PID 1; called solve_iteration 10873 times
+Solution (n = 2) computation time (sec): 2.9477111460
+Initialization time (sec): 0.0267901860
+Solution found for puzzle inputs/ktest9.txt by PID 2; called solve_iteration 6065 times
+Solution (n = 4) computation time (sec): 1.3144871880
+Solution found for puzzle inputs/ktest9.txt by PID 0; called solve_iteration 4408 times
+Solution (n = 4) computation time (sec): 1.3031530410
+Initialization time (sec): 0.0265591430
+Solution found for puzzle inputs/ktest9.txt by PID 3; called solve_iteration 10000 times
+Solution (n = 4) computation time (sec): 2.9344376850
+Initialization time (sec): 0.0268856750
+Solution found for puzzle inputs/ktest9.txt by PID 1; called solve_iteration 6553 times
+Solution found for puzzle inputs/ktest9.txt by PID 3; called solve_iteration 6513 times
+Solution (n = 4) computation time (sec): 1.7712662440
+Solution (n = 4) computation time (sec): 1.7602204390
+Initialization time (sec): 0.0268757770
+Solution found for puzzle inputs/ktest9.txt by PID 1; called solve_iteration 4658 times
+Solution (n = 4) computation time (sec): 0.9960459310
+Initialization time (sec): 0.0336086310
+Solution found for puzzle inputs/ktest9.txt by PID 3; called solve_iteration 3908 times
+Solution (n = 8) computation time (sec): 1.2039463200
+Solution found for puzzle inputs/ktest9.txt by PID 6; called solve_iteration 2435 times
+Solution (n = 8) computation time (sec): 0.8916298490
+Initialization time (sec): 0.0337690320
+Solution found for puzzle inputs/ktest9.txt by PID 2; called solve_iteration 16822 times
+Solution (n = 8) computation time (sec): 4.2552054600
+Solution found for puzzle inputs/ktest9.txt by PID 7; called solve_iteration 13758 times
+Solution (n = 8) computation time (sec): 4.2283869910
+Initialization time (sec): 0.0333729300
+Solution found for puzzle inputs/ktest9.txt by PID 2; called solve_iteration 6183 times
+Solution (n = 8) computation time (sec): 1.8687810760
+Initialization time (sec): 0.0335485590
+Solution found for puzzle inputs/ktest9.txt by PID 7; called solve_iteration 2964 times
+Solution (n = 8) computation time (sec): 1.1387745680
+Initialization time (sec): 0.0350716930
+Solution found for puzzle inputs/ktest9.txt by PID 12; called solve_iteration 2719 times
+Solution (n = 16) computation time (sec): 0.6948668570
+Initialization time (sec): 0.0349173740
+Solution found for puzzle inputs/ktest9.txt by PID 3; called solve_iteration 2962 times
+Solution (n = 16) computation time (sec): 0.6861055110
+Initialization time (sec): 0.0347133010
+Solution found for puzzle inputs/ktest9.txt by PID 4; called solve_iteration 4505 times
+Solution (n = 16) computation time (sec): 1.1242684290
+Solution found for puzzle inputs/ktest9.txt by PID 1; called solve_iteration 2553 times
+Solution (n = 16) computation time (sec): 0.8495887770
+Initialization time (sec): 0.0351481460
+Solution found for puzzle inputs/ktest9.txt by PID 7; called solve_iteration 1629 times
+Solution (n = 16) computation time (sec): 0.5854330330

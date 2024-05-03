@@ -67,7 +67,8 @@ Week 6. Final optimizations and assembly of final report.
 
 | Task    | Difficulty | Priority |
 | -------- | ------- | ------ |
-| Conflict Clauses + Resolution | Very Hard | High |
-| Better SAT reduction | Easy | Low |
-| Killer Variant of Sudoku | Easy | Moderate |
+| Conflict clause sharing | Hard | High |
+| Experiments | Medium | High |
+| Killer Variant of Sudoku | Medium | Moderate |
 | Free methods | Medium | High |
+| PLE | Low | Low |

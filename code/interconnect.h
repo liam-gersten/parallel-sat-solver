@@ -30,6 +30,15 @@ class Interconnect {
         // Sends an abort message
         void send_abort_message(short recipient);
 
+        // Sends an invalidation message
+        void send_invalidation(short recipient);
+
+        // Sends a conflict clause to a recipient
+        void send_conflict_clause(
+            short recipient, 
+            Clause conflict_clause,
+            bool broadcast = false);
+
         // Returns whether there is already work stashed from a sender, or
         // from anyone if sender is -1.
         bool have_stashed_work(short sender = -1);

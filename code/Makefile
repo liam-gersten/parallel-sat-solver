@@ -1,14 +1,11 @@
-sequential:
-	g++ -Wall -Os -std=c++17 -m64 -I. -fopenmp -Wno-unknown-pragmas -pg -c helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp
-
 debug:
-	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -pg
+	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -g
 
 fast:
-	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG
+	mpic++ -O3 -std=c++17 -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG
 
 fast_profiled:
-	mpic++ -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -pg -DNDEBUG
+	mpic++ -o2 -o main helpers.cpp cnf.cpp interconnect.cpp state.cpp main.cpp -DNDEBUG -g
 
 clean:
 	/bin/rm -rf *~ *.o $(APP_NAME) *.class
