@@ -6,7 +6,10 @@
 
 ### Requirements:
 
-
+- g++ 11.4.0 or newer
+- Open MPI 4.1.2 or newer 
+- Modern mulicore processor (intel preferred)
+- 500 mb memory (for harder test cases)
 
 ### Compilation:
 Navigate to the code file, and run 
