@@ -193,6 +193,9 @@ class State {
                 Clause conflict_clause,
                 Interconnect &interconnect);
 
+        // Adds a clause indicating our entire assignment is invalid
+        void add_failure_clause(Cnf &cnf, Interconnect &interconnect);
+
         // Adds one or two variable assignment tasks to task stack
         int add_tasks_from_formula(Cnf &cnf, Deque &task_stack);
         
