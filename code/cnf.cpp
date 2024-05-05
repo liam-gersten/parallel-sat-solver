@@ -222,7 +222,7 @@ Cnf::Cnf(
 
     reduce_constraints(n, var_id, num_constraints, constraints);
 
-    if (pid == 0) {
+    if (pid == 0 && PRINT_LEVEL > 1) {
         printf("%d clauses added out of %d alloted\n", Cnf::clauses.num_indexed, Cnf::clauses.max_indexable);
         printf("%d variables added out of %d alloted\n", Cnf::num_variables, var_id);
     }

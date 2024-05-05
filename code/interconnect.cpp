@@ -158,17 +158,12 @@ void Interconnect::clean_dead_messages(bool always_free) {
     int flag = 0;
     int message_id;
     request = Interconnect::dead_message_queue.peak_front(&message_id);
-    MPI_Test(&request, &flag, &status);
     if (always_free) {
-      if (flag) {
-        if (PRINT_INTERCONNECT) printf(" I(PID %d freed message %d)\n", Interconnect::pid, message_id);
-      } else {
-        if (PRINT_INTERCONNECT) printf(" I(PID %d explicitly freed message %d)\n", Interconnect::pid, message_id);
-        MPI_Cancel(&request);
-      }
+      if (PRINT_INTERCONNECT) printf(" I(PID %d explicitly freed message %d)\n", Interconnect::pid, message_id);
       message = Interconnect::dead_message_queue.pop_from_front();
       free(message);
     } else {
+      MPI_Test(&request, &flag, &status);
       if (!flag) {
         if (PRINT_INTERCONNECT) printf(" I(PID %d could not free message %d)\n", Interconnect::pid, message_id);
         return;
@@ -202,5 +197,5 @@ void Interconnect::free_interconnect() {
   assert(Interconnect::num_stashed_work == 0);
   free(Interconnect::stashed_work);
   free(Interconnect::work_is_stashed);
-  blocking_wait_for_message_delivery();
+  clean_dead_messages(true);
 }

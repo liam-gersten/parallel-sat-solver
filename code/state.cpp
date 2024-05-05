@@ -578,7 +578,6 @@ void State::abort_process(
 void State::abort_others(Interconnect &interconnect, bool explicit_abort) {
     if (explicit_abort) {
         // Success, broadcase explicit abort to every process
-        interconnect.clean_dead_messages(true);
         for (short i = 0; i < State::nprocs; i++) {
             if (i == State::pid) {
                 continue;
