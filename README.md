@@ -49,26 +49,5 @@ Something cute could be - knowing the fact that sudoku is NP-complete - we can e
 
 The DPLL algorithm is based on reducing the search space by taking shortcuts. It does this by erasing (making constant) entire literals or clauses so they don’t need to be looked at again. Threads will need to be able to independently update the formula with their choices without being subject to the choices other threads are making. Considering almost no memory is shared between threads at all, separate address spaces make the most sense here. The GHC machines paired with C++ and MPI will work perfectly fine for our purposes, although our project could benefit from limited access to the PSC machines due to the problem size constraints.
 
-## SCHEDULE
 
-Week 1. Complete a basic interface for SAT (literals, clauses, etc) as well as our SAT-specific message-passing interface.
 
-Week 2. Implement a sequential SAT algorithm (involving DPLL and/or conflict clauses), as well as the sudoku generator and sudoku-to-CNF programs.
-
-Week 3. Extend our implementation to correctly involve MPI.
-
-Week 4. Debug MPI, plus theorize and implement several different strategies regarding work distribution and load balancing and work stealing.
-
-Week 5. Optimize w.r.t sudoku strategies, message communications, CNF-encoding, etc.
-
-Week 6. Final optimizations and assembly of final report.
-
-## TODO List
-
-| Task    | Difficulty | Priority |
-| -------- | ------- | ------ |
-| Conflict clause sharing | Hard | High |
-| Experiments | Medium | High |
-| Killer Variant of Sudoku | Medium | Moderate |
-| Free methods | Medium | High |
-| PLE | Low | Low |

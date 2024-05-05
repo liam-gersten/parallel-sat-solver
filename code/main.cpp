@@ -68,17 +68,12 @@ void run_filename(
         // No solution was found
         raise_error("No solution was found");
     }
-    if (PRINT_LEVEL > 0) {
-        bool *assignment = cnf.get_assignment();
-        print_assignment((short)pid, "", "", assignment, cnf.num_variables);
-        free(assignment);
-        short **board = cnf.get_sudoku_board();
-        print_board(board, cnf.n);
-        for (int i = 0; i < n; i++) {
-            free(board[i]);
-        }
-        free(board);
+    short **board = cnf.get_sudoku_board();
+    print_board(board, cnf.n);
+    for (int i = 0; i < n; i++) {
+        free(board[i]);
     }
+    free(board);
     cnf.free_cnf();
 }
 
@@ -161,9 +156,6 @@ void run_tests(
         raise_error("No solution was found");
     }
     if (PRINT_LEVEL > 0) {
-        bool *assignment = cnf.get_assignment();
-        print_assignment((short)pid, "", "", assignment, cnf.num_variables);
-        free(assignment);
         short **board = cnf.get_sudoku_board();
         print_board(board, cnf.n);
         for (int i = 0; i < n; i++) {
@@ -173,85 +165,6 @@ void run_tests(
     }
     cnf.free_cnf();
     fin.close();
-}
-
-// Runs a very small, non-sudoku formula meant to generate conflict clauses
-void run_example_1(
-        int pid,
-        int nproc,
-        std::string input_filename, 
-        short branching_factor, 
-        short assignment_method,
-        int reduction_method) 
-    {
-    const auto init_start = std::chrono::steady_clock::now();
-
-    int num_variables = 7;
-    VariableLocations *input_variables = (VariableLocations *)malloc(
-        sizeof(VariableLocations) * num_variables);
-    Clauses input_clauses(6, 20);
-
-    for (int i = 0; i < num_variables; i++) {
-        VariableLocations current;
-        current.variable_id = i;
-        current.variable_row = i;
-        current.variable_col = i;
-        current.variable_k = i;
-        input_variables[i] = current;
-    }
-    Clause C1 = make_small_clause(0, 1, false, true);
-    Clause C2 = make_small_clause(2, 3, false, true);
-    Clause C3 = make_small_clause(4, 5, false, true);
-    Clause C4 = make_small_clause(4, 6, true, true);
-    Clause C5 = make_triple_clause(1, 4, 5, false, false, false);
-    Clause C6 = make_triple_clause(0, 4, 6, false, true, false);
-
-    Cnf cnf(pid, 1, input_clauses, input_variables, num_variables);
-
-    cnf.add_clause(C1, input_clauses, input_variables);
-    cnf.add_clause(C2, input_clauses, input_variables);
-    cnf.add_clause(C3, input_clauses, input_variables);
-    cnf.add_clause(C4, input_clauses, input_variables);
-    cnf.add_clause(C5, input_clauses, input_variables);
-    cnf.add_clause(C6, input_clauses, input_variables);
-
-    Deque task_stack;
-    Interconnect interconnect(pid, nproc, cnf.work_ints * 4);
-    State state(pid, nproc, branching_factor, 
-        assignment_method);
-
-    if (pid == 0) {
-        const double init_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - init_start).count();
-        std::cout << "Initialization time (sec): " << std::fixed << std::setprecision(10) << init_time << '\n';
-    }
-    const auto compute_start = std::chrono::steady_clock::now();
-
-    bool result = state.solve(cnf, task_stack, interconnect);
-
-    if (PRINT_LEVEL > 1) printf("\tPID %d: Solve called %llu times\n", pid, state.calls_to_solve);
-    
-    const double compute_time = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - compute_start).count();
-    std::cout << "Computation time (sec): " << std::fixed << std::setprecision(10) << compute_time << '\n';
-
-    MPI_Finalize();
-
-    if (state.was_explicit_abort) {
-        // A solution was found
-        if (!result) {
-            // somone else has the solution
-            free(cnf.assigned_true);
-            return;
-        }
-    } else {
-        // No solution was found
-        raise_error("No solution was found");
-    }
-    
-    bool *assignment = cnf.get_assignment();
-    if (PRINT_LEVEL > 0) {
-        print_assignment((short)pid, "", "", assignment, cnf.num_variables, true);
-    }
-    free(cnf.assigned_true);
 }
 
 // Outputs memory stats in terms of B, KB, MB, GB, or TB and shrinks size
@@ -372,7 +285,7 @@ int main(int argc, char *argv[]) {
     int opt;
     short branching_factor = 2;
     short assignment_method = 1;
-    int reduction_method = 0;
+    int reduction_method = 1;
     while ((opt = getopt(argc, argv, "c:f:t:l:b:m:r:")) != -1) {
         switch (opt) {
             case 'c':
@@ -392,9 +305,15 @@ int main(int argc, char *argv[]) {
                 break;
             case 'm':
                 assignment_method = (short)atoi(optarg);
+                if (assignment_method != 1) {
+                    printf("\n\tWARNING: use of an alternative assignment method on large inputs may result in excess conflict clauses and overflow!\n\n");
+                }
                 break;
             case 'r':
                 reduction_method = (int)atoi(optarg);
+                if (reduction_method != 1) {
+                    printf("\n\tWARNING: use of a naive SAT reduction may result in exponentially-prolonged runtime!\n\n");
+                }
                 break;
             default:
                 std::cerr << "Incorrect command line arguments\n";  
@@ -416,14 +335,6 @@ int main(int argc, char *argv[]) {
             nproc,
             num_tests,
             test_length,
-            branching_factor, 
-            assignment_method, 
-            reduction_method);
-    } else if (command == "example1") {
-        run_example_1(
-            pid,
-            nproc,
-            input_filename, 
             branching_factor, 
             assignment_method, 
             reduction_method);

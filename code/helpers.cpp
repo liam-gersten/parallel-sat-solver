@@ -682,7 +682,6 @@ void IndexableDLL::change_size_of_value(int value_index, int new_size) {
     assert(0 <= value_index && value_index <= IndexableDLL::num_indexed);
     assert(0 < old_size);
     assert(0 < new_size);
-    assert(new_size != old_size);
     IndexableDLL::element_counts[value_index] = new_size;
     if ((new_size > 2) && (old_size > 2)) {
         // No re-ordering to do

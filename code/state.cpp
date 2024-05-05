@@ -238,58 +238,9 @@ bool State::task_stack_invariant(
             }
         }
     }
-    // for (int i = 0; i < num_thieves; i++) {
-    //     void *theif_ptr = thief_list[i];
-    //     GivenTask stolen_task = *((GivenTask *)theif_ptr);
-    //     Assignment task_assignment;
-    //     task_assignment.var_id = stolen_task.var_id;
-    //     task_assignment.value = stolen_task.assignment;
-    //     char task_status = cnf.get_decision_status(task_assignment);
-    //     if (task_status != 's') {
-    //         printf("%sPID %d: failing thief %d [%d = %d] with task status %c\n", cnf.depth_str.c_str(), State::pid, stolen_task.pid, task_assignment.var_id, (int)task_assignment.value, task_status);
-    //     }
-    //     assert(task_status == 's');
-    //     num_stolen++;
-    // }
     assert(num_queued <= reported_num_queued);
     // assert(num_stolen == reported_num_stolen);
     assert(total_assigned == reported_num_local + reported_num_remote);
-    short *clause_sizes = (short *)calloc(sizeof(short), 
-        cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
-    memset(clause_sizes, -1, 
-        (cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable) 
-        * sizeof(short));
-    if (cnf.eedit_stack.count > 0) {
-        Deque local_edits = (*((Deque *)(cnf.eedit_stack.peak_front())));
-        void **edit_list = (local_edits).as_list();
-        bool found_decided_variable_assignment = false;
-        for (int i = 0; i < local_edits.count; i++) {
-            void *edit_ptr = edit_list[i];
-            FormulaEdit edit = *((FormulaEdit *)edit_ptr);
-            int clause_id = edit.edit_id;
-            if (edit.edit_type == 'c') { // Clause drop
-                assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
-                // No size changing clauses after dropping them
-                assert(clause_sizes[clause_id] == -1);
-                clause_sizes[clause_id] = 0;
-            } else if (edit.edit_type == 's') { // Size decrease
-                assert(0 <= clause_id && clause_id < cnf.clauses.max_indexable + cnf.clauses.max_conflict_indexable);
-                // No duplicate size change edits
-                // Size should change always
-                assert(edit.size_before != -1);
-                assert(clause_sizes[clause_id] < edit.size_before);
-                clause_sizes[clause_id] = edit.size_before;
-            } else {
-                if (cnf.variables[edit.edit_id].implying_clause_id == -1) {
-                    assert(!found_decided_variable_assignment);
-                    found_decided_variable_assignment = true;
-                }
-            }
-        }
-        if (local_edits.count > 0) {
-            free(edit_list);
-        }
-    }
     if (task_stack.count > 0) {
         free(task_list);
     }
@@ -769,7 +720,7 @@ void State::handle_message(
 // Edits history to make it appear as though the conflict clause is
 // normal.
 void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
-    if (PRINT_LEVEL > 1) printf("%s\tPID %d: inserting conflict clause into history\n", cnf.depth_str.c_str(), State::pid);
+    if (PRINT_LEVEL > 1) printf("%s\tPID %d: inserting conflict clause %d into history\n", cnf.depth_str.c_str(), State::pid, conflict_clause.id);
     // TODO: drop_var_id logic should be checked
     bool look_for_drop = false;
     cnf.clause_satisfied(conflict_clause, &look_for_drop);
@@ -967,7 +918,7 @@ void State::handle_remote_conflict_clause(
         Interconnect &interconnect) 
     {
 
-    if (cnf.clauses.max_conflict_indexable == cnf.clauses.num_conflict_indexed - 1) {
+    if (cnf.clauses.max_conflict_indexable == cnf.clauses.num_conflict_indexed - 1 || out_of_work()) {
         free_clause(conflict_clause);
         return;
     }
@@ -1045,9 +996,7 @@ void State::handle_remote_conflict_clause(
                 State::num_non_trivial_tasks--;   
             }
         }
-        // handle_local_conflict_clause(cnf, task_stack, conflict_clause, interconnect, false); // resolve until unit, then add that clause
     }
-    // unassigned, no backtracking needed
     add_conflict_clause(cnf, conflict_clause, task_stack, false, false);
     if (PRINT_LEVEL >= 3) printf("%sPID %d: done backjumping from remote cc. Adding cc now\n", cnf.depth_str.c_str(), State::pid);
 }
@@ -1131,7 +1080,6 @@ void State::handle_local_conflict_clause(
     // local is responsible
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: local is responsible for conflict\n", cnf.depth_str.c_str(), State::pid);
 
-    // TODO: where to add conflict clause?
     add_conflict_clause(cnf, conflict_clause, task_stack, false);
     
     if (PRINT_LEVEL > 1) printf("%sPID %d: finished handling conflict clause\n", cnf.depth_str.c_str(), State::pid);
