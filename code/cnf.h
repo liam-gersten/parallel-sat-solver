@@ -41,7 +41,7 @@ class Cnf {
     public:
         Clauses clauses; // dynamic number
         VariableLocations *variables; // static number
-        Deque eedit_stack;
+        Deque edit_stack;
         unsigned int *oldest_compressed;
         short pid;
         short nprocs;

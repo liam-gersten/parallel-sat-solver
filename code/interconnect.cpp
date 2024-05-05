@@ -180,7 +180,6 @@ void Interconnect::clean_dead_messages(bool always_free) {
 // Waits until all messages have been delivered, freeing dead message
 // queue along the way.
 void Interconnect::blocking_wait_for_message_delivery() {
-  // TODO: Does the wait check for message send or message receive?
   while (Interconnect::dead_message_queue.count > 0) {
     clean_dead_messages();
   }

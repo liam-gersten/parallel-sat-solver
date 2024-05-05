@@ -190,7 +190,7 @@ Cnf::Cnf(
     {
     Cnf::n = n;
     Cnf::num_conflict_to_hold = n * n * n * n;
-    Cnf::eedit_stack;
+    Cnf::edit_stack;
     Cnf::pid = pid;
     Cnf::nprocs = nprocs;
     Cnf::num_vars_assigned = 0;
@@ -254,7 +254,7 @@ Cnf::Cnf(
     Cnf::variables = input_variables;
     Cnf::num_variables = num_variables;
     Cnf::num_conflict_to_hold = 0;
-    Cnf::eedit_stack;
+    Cnf::edit_stack;
     Cnf::depth = 0;
     Cnf::depth_str = "";
     Cnf::num_vars_assigned = 0;
@@ -440,7 +440,7 @@ int Cnf::generatePartitionsNum(int sum, int size, int max) {
 
 // Convert sum constraints to sat
 void Cnf::reduce_constraints(int n, int &var_id, int num_constraints, int** constraints) {
-    // TODO: calculate variable/clause addition and modify in _truncated
+    // NICE: calculate variable/clause addition and modify in _truncated
     for (int cage = 0; cage < num_constraints; cage++) {
         int *data = constraints[cage];
         int sum = data[0];
@@ -986,25 +986,25 @@ void Cnf::print_edit_stack(
 
 // Gets the number of local edits
 int Cnf::get_local_edit_count() {
-    if (Cnf::eedit_stack.count == 0) {
+    if (Cnf::edit_stack.count == 0) {
         return 0;
     }
-    void *local_edits_ptr = Cnf::eedit_stack.peak_front();
+    void *local_edits_ptr = Cnf::edit_stack.peak_front();
     Deque local_edits = *((Deque *)local_edits_ptr);
     return local_edits.count;
 }
 
 // Adds edit edit to edit stack, checks assertion
 void Cnf::add_to_edit_stack(void *raw_edit) {
-    if (Cnf::eedit_stack.count == 0) {
+    if (Cnf::edit_stack.count == 0) {
         recurse();
     }
     FormulaEdit edit = *((FormulaEdit *)raw_edit);
-    (*((Deque *)(Cnf::eedit_stack.peak_front()))).add_to_front(raw_edit);
+    (*((Deque *)(Cnf::edit_stack.peak_front()))).add_to_front(raw_edit);
 
     if (edit.edit_type == 'v') {
         // save ptr to [sub]-edit stack for fast conflict clause adding
-        Deque *subedit_ptr = (Deque *)(Cnf::eedit_stack.peak_front());
+        Deque *subedit_ptr = (Deque *)(Cnf::edit_stack.peak_front());
         Cnf::variables[edit.edit_id].edit_stack_ptr = subedit_ptr;
     }
 }
@@ -1059,15 +1059,6 @@ int Cnf::get_num_unsat(Clause clause) {
 
 // Gets the status of a clause, 's', 'u', or 'n'.
 char Cnf::check_clause(Clause clause, int *num_unsat, bool from_propagate) {
-    // if from_propagate, how many relevant variables are we expecting?
-    // int cid = clause.id;
-    // int old_num_unsat;
-    // if (cid < Cnf::clauses.num_indexed) {
-    //     old_num_unsat = Cnf::clauses.normal_clauses.element_counts[cid];
-    // } else {
-    //     cid -= Cnf::clauses.num_indexed;
-    //     old_num_unsat = Cnf::clauses.conflict_clauses.element_counts[cid];
-    // }
     int unsat_count = 0; //0 if clause is true; otherwise, number of undetermined
     for (int i = 0; i < clause.num_literals; i++) {
         int var_id = clause.literal_variable_ids[i];
@@ -1085,12 +1076,9 @@ char Cnf::check_clause(Clause clause, int *num_unsat, bool from_propagate) {
             }
         } else {
             unsat_count++;
-            // if (from_propagate && old_num_unsat != 0 && (unsat_count == old_num_unsat)) break;
         }
     }
     *num_unsat = unsat_count;
-    // if (old_num_unsat != 0) printf("%d, %d\n", unsat_count, old_num_unsat-1);
-    // assert (!(unsat_count <= old_num_unsat-1 || old_num_unsat == 0) && from_propagate);
     if (unsat_count == 0) {
         return 'u';
     }
@@ -1301,7 +1289,6 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
         auto iter = lit_to_time.rbegin();
         Assignment u = iter->second; //take latest literal
         int u_time = iter->first;
-        // assert(Cnf::assignment_depths[u.var_id] == last_decided_depth);
         lit_to_time.erase(u_time);
         current_cycle_variables--;
         
@@ -1324,7 +1311,7 @@ bool Cnf::conflict_resolution_uid(int culprit_id, Clause &result, int decided_va
             }
         }
 
-        // TODO: optimization if it gets too big
+        // NICE: optimization if it gets too big
         if (lit_to_time.size() > CONFLICT_CLAUSE_SIZE*Cnf::n) {
             return false;
         }
@@ -1428,12 +1415,10 @@ bool Cnf::propagate_assignment(
                 } default: {
                     // At least the size changed
                     if (PRINT_LEVEL > 3) printf("%sPID %d: decreasing clause %d %s size (%d -> %d)\n", Cnf::depth_str.c_str(), Cnf::pid, clause_id, clause_to_string_current(Cnf::clauses.get_clause(clause_id), false).c_str(), num_unsat + 1, num_unsat);
-                    // if (num_unsat < 3) {
                     Cnf::clauses.change_clause_size(
                         clause_id, num_unsat);
                     if (add_to_edit) add_to_edit_stack(size_change_edit(
                         clause_id, num_unsat + 1, num_unsat));
-                    // }
                     break;
                 }
             }
@@ -1480,9 +1465,9 @@ void Cnf::assign_remaining() {
 // Resets the cnf to its state before edit stack
 void Cnf::undo_local_edits() {
     if (PRINT_LEVEL > 1) printf("%sPID %d: undoing %d local edits\n", Cnf::depth_str.c_str(), Cnf::pid, get_local_edit_count());
-    assert(Cnf::eedit_stack.count > 0);
+    assert(Cnf::edit_stack.count > 0);
     bool found_decided_variable_assignment = false;
-    void *local_edits_ptr = Cnf::eedit_stack.pop_from_front();
+    void *local_edits_ptr = Cnf::edit_stack.pop_from_front();
     Deque local_edits = (*((Deque *)local_edits_ptr));
     free(local_edits_ptr);
     while (local_edits.count > 0) {
@@ -1557,7 +1542,7 @@ void Cnf::recurse() {
     Deque first_edit_group;
     Deque *first_edit_group_ptr = (Deque *)malloc(sizeof(Deque));
     *first_edit_group_ptr = first_edit_group;
-    Cnf::eedit_stack.add_to_front(first_edit_group_ptr);
+    Cnf::edit_stack.add_to_front(first_edit_group_ptr);
     Cnf::depth++;
     if (PRINT_INDENT) {
         Cnf::depth_str.append(" ");
@@ -1673,8 +1658,8 @@ void Cnf::reconstruct_state(void *work, Deque &task_stack) {
     memset(Cnf::assignment_times, -1, Cnf::num_variables * sizeof(int));
     memset(Cnf::assignment_depths, -1, Cnf::num_variables * sizeof(int));
     task_stack.free_data();
-    while (Cnf::eedit_stack.count > 0) {
-        Deque *local_edit_group_ptr = (Deque *)(Cnf::eedit_stack.pop_from_front());
+    while (Cnf::edit_stack.count > 0) {
+        Deque *local_edit_group_ptr = (Deque *)(Cnf::edit_stack.pop_from_front());
         Deque local_edit_group = *local_edit_group_ptr;
         free(local_edit_group_ptr);
         local_edit_group.free_deque();
@@ -1731,16 +1716,15 @@ void Cnf::free_cnf() {
     for (int var_id = 0; var_id < Cnf::num_variables; var_id++) {
         VariableLocations locations = Cnf::variables[var_id];
         delete (locations.clauses_containing);
-        // TODO: i assume deque pointers freed somewhere else?
     }
     free(Cnf::variables);
-    while (Cnf::eedit_stack.count > 0) {
-        Deque *local_edit_group_ptr = (Deque *)(Cnf::eedit_stack.pop_from_front());
+    while (Cnf::edit_stack.count > 0) {
+        Deque *local_edit_group_ptr = (Deque *)(Cnf::edit_stack.pop_from_front());
         Deque local_edit_group = *local_edit_group_ptr;
         free(local_edit_group_ptr);
         local_edit_group.free_deque();
     }
-    Cnf::eedit_stack.free_deque();
+    Cnf::edit_stack.free_deque();
     free(Cnf::oldest_compressed);
     free(Cnf::assigned_true);
     free(Cnf::assigned_false);

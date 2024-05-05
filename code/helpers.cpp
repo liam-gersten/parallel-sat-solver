@@ -868,7 +868,6 @@ void IndexableDLL::reset() {
 
 // Frees data structures used
 void IndexableDLL::free_data() {
-    // TODO: implement this
     for (int i = 0; i < IndexableDLL::num_indexed; i++) {
         DoublyLinkedList *element_ptr = IndexableDLL::element_ptrs[i];
         DoublyLinkedList element = *element_ptr;
@@ -1084,7 +1083,6 @@ void Clauses::reset() {
 
 // Frees data structures used
 void Clauses::free_data() {
-    // TODO: implement this
     Clauses::normal_clauses.free_data();
     Clauses::conflict_clauses.free_data();
     free(Clauses::num_unsats);

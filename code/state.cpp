@@ -121,7 +121,6 @@ bool State::task_stack_invariant(
         Deque &task_stack, 
         int supposed_num_tasks) 
     {
-        // return true;
     assert((supposed_num_tasks == 0) || !backtrack_at_top(task_stack));
     if (State::num_non_trivial_tasks > 0) {
         assert(task_stack.count > 0);
@@ -318,9 +317,9 @@ void *State::grab_work_from_stack(
     (*State::thieves).add_to_front((void *)task_to_give_ptr);
     // Prune the top of the tree
     while (backtrack_at_top(task_stack)) {
-        assert(cnf.eedit_stack.count > 0);
+        assert(cnf.edit_stack.count > 0);
         // Two deques loose their top element, one looses at least one element
-        Deque edits_to_apply = *((Deque *)((cnf.eedit_stack).pop_from_back()));
+        Deque edits_to_apply = *((Deque *)((cnf.edit_stack).pop_from_back()));
         while (edits_to_apply.count > 0) {
             void *formula_edit_ptr = edits_to_apply.pop_from_back();
             FormulaEdit edit = *((FormulaEdit *)formula_edit_ptr);
@@ -503,7 +502,6 @@ void State::ask_for_work(
 // Invalidates (erases) ones work
 void State::invalidate_work(Deque &task_stack) {
     assert(false); // unfinished
-    // TODO: undo all local edits as well
     State::num_non_trivial_tasks = 0;
     task_stack.free_data();
 }
@@ -628,7 +626,6 @@ void State::handle_work_message(
     short sender_pid = message.sender;
     short child_index = child_index_from_pid(sender_pid);
     void *work = message.data;
-    // assert(State::requests_sent[child_index] != 'n'); // TODO: dunno why this is wrong?
     assert(child_statuses[child_index] != 'u');
     assert(!interconnect.have_stashed_work(sender_pid));
     if (out_of_work()) {
@@ -659,7 +656,6 @@ void State::handle_work_message(
             invalidate_work(task_stack);
         }
         
-        // State::num_non_trivial_tasks = 1;
         print_data(cnf, task_stack, "Post reconstruct");
     } else {
         // Add to interconnect work stash
@@ -679,7 +675,6 @@ void State::handle_message(
     assert(0 <= State::num_urgent && State::num_urgent <= State::num_children);
     assert(State::num_urgent <= State::num_requesting);
     assert(State::num_requesting <= State::num_children + 1);
-    // assert(0 <= message.type && message.type <= 4);
     switch (message.type) {
         case 3: {
             handle_work_message(
@@ -721,7 +716,6 @@ void State::handle_message(
 // normal.
 void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: inserting conflict clause %d into history\n", cnf.depth_str.c_str(), State::pid, conflict_clause.id);
-    // TODO: drop_var_id logic should be checked
     bool look_for_drop = false;
     cnf.clause_satisfied(conflict_clause, &look_for_drop);
 
@@ -776,7 +770,7 @@ void State::insert_conflict_clause_history(Cnf &cnf, Clause conflict_clause) {
 
     // Restore the change we made
     if (PRINT_LEVEL > 1) printf("%s\tPID %d: made %ld insertions into conflict clause history\n", cnf.depth_str.c_str(), State::pid, depth_to_al.size());
-    if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.eedit_stack));
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack("new edit stack", (cnf.edit_stack));
 }
 
 // Sends messages to specified theives in light of conflict
@@ -872,7 +866,6 @@ int State::add_tasks_from_conflict_clause(
 }
 
 // Adds a conflict clause to the clause list
-// EDITED: NO LONGER PICKS FROM CLAUSE
 void State::add_conflict_clause(
         Cnf &cnf, 
         Clause &conflict_clause,
@@ -904,7 +897,8 @@ void State::add_conflict_clause(
         cnf.clauses.drop_clause(new_clause_id);
     } else if (actual_size != conflict_clause.num_literals) {
         if (PRINT_LEVEL > 2) printf("Changing conflict clause size to %d\n", actual_size);
-        cnf.clauses.change_clause_size(conflict_clause.id, actual_size); //TODO: add to end if remote?
+        // NICE: add to end if remote?
+        cnf.clauses.change_clause_size(conflict_clause.id, actual_size); 
     }
     if (PRINT_LEVEL > 2) cnf.print_cnf("With conflict clause", cnf.depth_str, true);
     if (PRINT_LEVEL > 2) cnf.print_task_stack("With conflict clause", task_stack);
@@ -1013,7 +1007,6 @@ void State::handle_local_conflict_clause(
     if (PRINT_LEVEL > 2) printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, false).c_str());
     if (PRINT_LEVEL > 2) printf("%sPID %d: handle conflict clause %d %s\n", cnf.depth_str.c_str(), State::pid, new_clause_id, cnf.clause_to_string_current(conflict_clause, true).c_str());
 
-    // TODO: does this ever happen locally?
     assert(!cnf.clause_exists_already(conflict_clause));
     
     // Backtrack to just when the clause would've become unit [or restart if conflict clause is unit]
@@ -1112,7 +1105,8 @@ void State::add_failure_clause(Cnf &cnf, Interconnect &interconnect) {
     for (int lit = 0; lit < cc_done.num_literals; lit++) {
         int var_id = cc_done.literal_variable_ids[lit];
         bool sgn = cc_done.literal_signs[lit];
-        int pm_id = sgn ? new_clause_id : -(new_clause_id+1); // negative means neg occurence of literal
+        // negative means neg occurence of literal
+        int pm_id = sgn ? new_clause_id : -(new_clause_id+1);
         (*((cnf.variables[var_id]).clauses_containing)).push_back(pm_id);
     }
     cnf.clauses.add_conflict_clause(cc_done);
@@ -1189,7 +1183,7 @@ int State::add_tasks_from_formula(Cnf &cnf, Deque &task_stack) {
 // Displays data structure data for debugging purposes
 void State::print_data(Cnf &cnf, Deque &task_stack, std::string prefix_str) {
     if (PRINT_LEVEL > 1) cnf.print_task_stack(prefix_str, task_stack);
-    if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.eedit_stack));
+    if (PRINT_LEVEL > 2) cnf.print_edit_stack(prefix_str, (cnf.edit_stack));
     if (PRINT_LEVEL > 1) cnf.print_cnf(prefix_str, cnf.depth_str, true);
     if (PRINT_LEVEL > 5) {
         unsigned int *tmp_compressed = cnf.to_int_rep();
@@ -1273,10 +1267,9 @@ bool State::solve_iteration(
                         cnf, task_stack, conflict_clause, interconnect);
                     print_data(cnf, task_stack, "Post-handle local conflict clause");
                     // backtracking has perhaps invalidated decided_var_id
-                    // TODO: UNSURE HOW TO TEST CORRECTNESS
                     if (task_stack.count == 0) {
                         if (cnf.get_local_edit_count() > 0) {
-                            Deque local_edits = *((Deque *)(cnf.eedit_stack.peak_front()));
+                            Deque local_edits = *((Deque *)(cnf.edit_stack.peak_front()));
                             decided_var_id = (*(FormulaEdit *)(local_edits.peak_back())).edit_id;
                         } else {
                             decided_var_id = -1; // calc should begin with unit prop

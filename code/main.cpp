@@ -80,7 +80,6 @@ void run_filename(
 void run_tests(
         int pid,
         int nproc,
-        int num_tests,
         short test_length,
         short branching_factor, 
         short assignment_method,
@@ -280,22 +279,18 @@ int main(int argc, char *argv[]) {
     // Read command line arguments
     std::string command = "runfile";
     std::string input_filename;
-    int num_tests = 1;
     short test_length;
     int opt;
     short branching_factor = 2;
     short assignment_method = 1;
     int reduction_method = 1;
-    while ((opt = getopt(argc, argv, "c:f:t:l:b:m:r:")) != -1) {
+    while ((opt = getopt(argc, argv, "c:f:l:b:m:r:")) != -1) {
         switch (opt) {
             case 'c':
                 command = optarg;
                 break;
             case 'f':
                 input_filename = optarg;
-                break;
-            case 't':
-                num_tests = (int)atoi(optarg);
                 break;
             case 'l':
                 test_length = (int)atoi(optarg);
@@ -333,7 +328,6 @@ int main(int argc, char *argv[]) {
         run_tests(
             pid,
             nproc,
-            num_tests,
             test_length,
             branching_factor, 
             assignment_method, 
